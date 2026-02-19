@@ -47,6 +47,7 @@ var (
 
 type commit struct {
 	Hash      string
+	FullHash  string
 	Author    string
 	Date      time.Time
 	Message   string
@@ -224,12 +225,14 @@ func (m *model) loadCommits() ([]commit, error) {
 			parents[i] = p.String()[:7]
 		}
 
+		fullHash := c.Hash.String()
 		commit := commit{
-			Hash:    c.Hash.String()[:7],
-			Author:  c.Author.Name,
-			Date:    c.Author.When,
-			Message: strings.Split(c.Message, "\n")[0],
-			Parents: parents,
+			Hash:     fullHash[:7],
+			FullHash: fullHash,
+			Author:   c.Author.Name,
+			Date:     c.Author.When,
+			Message:  strings.Split(c.Message, "\n")[0],
+			Parents:  parents,
 		}
 		commits = append(commits, commit)
 		commitMap[commit.Hash] = &commits[len(commits)-1]
@@ -295,9 +298,10 @@ func (m *model) loadCommitsFromGitCLI() ([]commit, error) {
 			continue
 		}
 
-		hash := parts[0]
-		if len(hash) > 7 {
-			hash = hash[:7]
+		fullHash := parts[0]
+		shortHash := fullHash
+		if len(shortHash) > 7 {
+			shortHash = shortHash[:7]
 		}
 
 		author := parts[1]
@@ -327,11 +331,12 @@ func (m *model) loadCommitsFromGitCLI() ([]commit, error) {
 		}
 
 		commits = append(commits, commit{
-			Hash:    hash,
-			Author:  author,
-			Date:    date,
-			Message: message,
-			Parents: parents,
+			Hash:     shortHash,
+			FullHash: fullHash,
+			Author:   author,
+			Date:     date,
+			Message:  message,
+			Parents:  parents,
 		})
 
 		if (i+1)%1000 == 0 {
@@ -423,18 +428,18 @@ func (m *model) renderCommitDetails() string {
 
 	// Commit hash
 	sb.WriteString(lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("#FFA500")).Render("Commit: "))
-	sb.WriteString(commitHashStyle.Render(c.Hash))
-	sb.WriteString("\n\n")
-
-	// Author
-	sb.WriteString(lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("#7DD3FC")).Render("Author: "))
-	sb.WriteString(authorStyle.Render(c.Author))
+	sb.WriteString(commitHashStyle.Render(c.FullHash))
 	sb.WriteString("\n\n")
 
 	// Date
 	sb.WriteString(lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("#A3BE8C")).Render("Date: "))
 	dateStr := c.Date.Format("2006-01-02 15:04:05")
 	sb.WriteString(dateStyle.Render(dateStr))
+	sb.WriteString("\n\n")
+
+	// Author
+	sb.WriteString(lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("#7DD3FC")).Render("Author: "))
+	sb.WriteString(authorStyle.Render(c.Author))
 	sb.WriteString("\n\n")
 
 	// Parents
