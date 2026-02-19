@@ -66,11 +66,14 @@ type model struct {
 	repoName      string
 	currentBranch string
 	currentCommit string
+	focusedBox    int // 0 = repo info, 1 = commit list, 2 = commit details
+	detailsScroll int // scroll offset for the details panel
 }
 
 func initialModel(repoPath string) model {
 	return model{
-		repoPath: repoPath,
+		repoPath:   repoPath,
+		focusedBox: 1, // default focus on commit list
 	}
 }
 
@@ -106,39 +109,80 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		switch msg.String() {
 		case "q", "ctrl+c", "esc":
 			return m, tea.Quit
+		case "0":
+			m.focusedBox = 0
+			return m, nil
+		case "1":
+			m.focusedBox = 1
+			return m, nil
+		case "2":
+			m.focusedBox = 2
+			return m, nil
 		}
 
-		// Only handle navigation keys if ready and have commits
+		// Handle scrolling within the focused box
 		if m.ready && len(m.commits) > 0 {
-			switch msg.String() {
-			case "j", "down":
-				if m.selected < len(m.commits)-1 {
-					m.selected++
-				}
-				return m, nil
-			case "k", "up":
-				if m.selected > 0 {
-					m.selected--
-				}
-				return m, nil
-			case "d", "ctrl+d":
-				m.selected += 10
-				if m.selected >= len(m.commits) {
-					m.selected = len(m.commits) - 1
-				}
-				return m, nil
-			case "u", "ctrl+u":
-				m.selected -= 10
-				if m.selected < 0 {
+			switch m.focusedBox {
+			case 1: // commit list
+				switch msg.String() {
+				case "j", "down":
+					if m.selected < len(m.commits)-1 {
+						m.selected++
+						m.detailsScroll = 0
+					}
+					return m, nil
+				case "k", "up":
+					if m.selected > 0 {
+						m.selected--
+						m.detailsScroll = 0
+					}
+					return m, nil
+				case "d", "ctrl+d":
+					m.selected += 10
+					if m.selected >= len(m.commits) {
+						m.selected = len(m.commits) - 1
+					}
+					m.detailsScroll = 0
+					return m, nil
+				case "u", "ctrl+u":
+					m.selected -= 10
+					if m.selected < 0 {
+						m.selected = 0
+					}
+					m.detailsScroll = 0
+					return m, nil
+				case "g", "home":
 					m.selected = 0
+					m.detailsScroll = 0
+					return m, nil
+				case "G", "end":
+					m.selected = len(m.commits) - 1
+					m.detailsScroll = 0
+					return m, nil
 				}
-				return m, nil
-			case "g", "home":
-				m.selected = 0
-				return m, nil
-			case "G", "end":
-				m.selected = len(m.commits) - 1
-				return m, nil
+			case 2: // commit details
+				switch msg.String() {
+				case "j", "down":
+					m.detailsScroll++
+					return m, nil
+				case "k", "up":
+					if m.detailsScroll > 0 {
+						m.detailsScroll--
+					}
+					return m, nil
+				case "d", "ctrl+d":
+					m.detailsScroll += 10
+					return m, nil
+				case "u", "ctrl+u":
+					m.detailsScroll -= 10
+					if m.detailsScroll < 0 {
+						m.detailsScroll = 0
+					}
+					return m, nil
+				case "g", "home":
+					m.detailsScroll = 0
+					return m, nil
+				}
 			}
 		}
 
@@ -560,7 +604,20 @@ func (m *model) renderCommitDetails() string {
 	sb.WriteString(messageStyle.Render(c.Message))
 	sb.WriteString("\n")
 
-	return sb.String()
+	// Apply scroll offset
+	content := sb.String()
+	if m.detailsScroll > 0 {
+		allLines := strings.Split(content, "\n")
+		if m.detailsScroll >= len(allLines) {
+			m.detailsScroll = len(allLines) - 1
+		}
+		if m.detailsScroll < 0 {
+			m.detailsScroll = 0
+		}
+		content = strings.Join(allLines[m.detailsScroll:], "\n")
+	}
+
+	return content
 }
 
 // addBoxLabel overlays a label like [0] onto the top-left corner of a rendered box border.
@@ -628,14 +685,29 @@ func (m model) View() string {
 			m.err)
 	}
 
-	help := helpStyle.Render("↑/↓/j/k: scroll • d/u: half page • g/G: top/bottom • q/esc: quit")
+	help := helpStyle.Render("0/1/2: focus box • ↑/↓/j/k: scroll • d/u: half page • g/G: top/bottom • q/esc: quit")
+
+	// Border colors: orange for focused, purple for unfocused
+	focusedBorderColor := lipgloss.Color("#FFA500")
+	unfocusedBorderColor := lipgloss.Color("#7D56F4")
+	box0Border := unfocusedBorderColor
+	box1Border := unfocusedBorderColor
+	box2Border := unfocusedBorderColor
+	switch m.focusedBox {
+	case 0:
+		box0Border = focusedBorderColor
+	case 1:
+		box1Border = focusedBorderColor
+	case 2:
+		box2Border = focusedBorderColor
+	}
 
 	// Create repo info box
 	repoInfoContent := m.renderRepoInfo()
 	repoInfoBox := addBoxLabel(lipgloss.NewStyle().
 		Width(m.windowWidth-2).
 		BorderStyle(lipgloss.RoundedBorder()).
-		BorderForeground(lipgloss.Color("#7D56F4")).
+		BorderForeground(box0Border).
 		Padding(0, 1).
 		Render(repoInfoContent), "[0]")
 
@@ -662,7 +734,7 @@ func (m model) View() string {
 		Width(leftPanelWidth-2). // subtract borders (2); Width includes padding
 		Height(contentHeight).
 		BorderStyle(lipgloss.RoundedBorder()).
-		BorderForeground(lipgloss.Color("#7D56F4")).
+		BorderForeground(box1Border).
 		Padding(0, 1).
 		Render(leftContent), "[1]")
 
@@ -672,7 +744,7 @@ func (m model) View() string {
 		Width(rightPanelWidth-2). // subtract borders (2); Width includes padding
 		Height(contentHeight).
 		BorderStyle(lipgloss.RoundedBorder()).
-		BorderForeground(lipgloss.Color("#7D56F4")).
+		BorderForeground(box2Border).
 		Padding(1, 2).
 		Render(rightContent), "[2]")
 
