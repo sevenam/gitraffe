@@ -450,7 +450,7 @@ func (m *model) renderCommitDetails() string {
 	}
 
 	// Message
-	sb.WriteString(lipgloss.NewStyle().Bold(true).Render("Message:\n"))
+	sb.WriteString(lipgloss.NewStyle().Bold(true).Render("Message: "))
 	sb.WriteString(messageStyle.Render(c.Message))
 	sb.WriteString("\n")
 
