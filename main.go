@@ -21,7 +21,6 @@ var (
 	titleStyle = lipgloss.NewStyle().
 			Bold(true).
 			Foreground(lipgloss.Color("#7D56F4")).
-			Background(lipgloss.Color("#1C1C1C")).
 			Padding(0, 1)
 
 	commitHashStyle = lipgloss.NewStyle().
@@ -452,7 +451,23 @@ func (m *model) renderRepoInfo() string {
 	sb.WriteString(lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("#FFA500")).Render("Commit: "))
 	sb.WriteString(commitHashStyle.Render(m.currentCommit))
 
-	return sb.String()
+	leftContent := sb.String()
+
+	// Title on the right
+	title := titleStyle.Render("🦒 Gitraffe - Git Graph Viewer")
+
+	// Calculate available width for content (subtract borders and padding)
+	availableWidth := m.windowWidth - 2 - 2 // borders (2) + padding (2)
+	leftWidth := lipgloss.Width(leftContent)
+	rightWidth := lipgloss.Width(title)
+
+	// Add spacing to push title to the right
+	spacing := availableWidth - leftWidth - rightWidth
+	if spacing < 1 {
+		spacing = 1
+	}
+
+	return lipgloss.JoinHorizontal(lipgloss.Top, leftContent, strings.Repeat(" ", spacing), title)
 }
 
 func (m *model) renderCommitList() string {
@@ -562,7 +577,6 @@ func (m model) View() string {
 			m.err)
 	}
 
-	title := titleStyle.Render("🦒 Gitraffe - Git Graph Viewer")
 	help := helpStyle.Render("↑/↓/j/k: scroll • d/u: half page • g/G: top/bottom • q/esc: quit")
 
 	// Create repo info box
@@ -575,7 +589,7 @@ func (m model) View() string {
 		Render(repoInfoContent)
 
 	// Calculate dimensions
-	headerHeight := 6 // title (1) + repo info box (3 with borders) + spacing (2)
+	headerHeight := 5 // repo info box (3 with borders) + spacing (2)
 	footerHeight := 2 // help + spacing
 	contentHeight := m.windowHeight - headerHeight - footerHeight
 
@@ -614,7 +628,7 @@ func (m model) View() string {
 	// Join panels horizontally
 	content := lipgloss.JoinHorizontal(lipgloss.Top, leftPanel, rightPanel)
 
-	return fmt.Sprintf("%s\n%s\n%s\n%s", title, repoInfoBox, content, help)
+	return fmt.Sprintf("%s\n%s\n%s", repoInfoBox, content, help)
 }
 
 func main() {
