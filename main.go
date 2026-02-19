@@ -563,6 +563,57 @@ func (m *model) renderCommitDetails() string {
 	return sb.String()
 }
 
+// addBoxLabel overlays a label like [0] onto the top-left corner of a rendered box border.
+// It accounts for ANSI escape sequences so it only replaces visible border characters.
+func addBoxLabel(rendered string, label string) string {
+	lines := strings.SplitN(rendered, "\n", 2)
+	if len(lines) == 0 {
+		return rendered
+	}
+	topLine := lines[0]
+	labelRunes := []rune(label)
+
+	// Walk through the top line, skipping ANSI escape sequences,
+	// and replace visible characters at positions 1..len(label) (after the corner char).
+	var result strings.Builder
+	visibleIdx := 0
+	labelIdx := 0
+	runes := []rune(topLine)
+	for i := 0; i < len(runes); i++ {
+		// Detect ANSI escape sequence: ESC [ params final_byte
+		if runes[i] == '\033' && i+1 < len(runes) && runes[i+1] == '[' {
+			// Copy ESC and [ first
+			result.WriteRune(runes[i]) // \033
+			i++
+			result.WriteRune(runes[i]) // [
+			i++
+			// Now copy parameter/intermediate bytes until final byte (0x40-0x7E)
+			for i < len(runes) {
+				result.WriteRune(runes[i])
+				if runes[i] >= 0x40 && runes[i] <= 0x7E {
+					break
+				}
+				i++
+			}
+			continue
+		}
+		// This is a visible character
+		if visibleIdx >= 1 && labelIdx < len(labelRunes) {
+			result.WriteRune(labelRunes[labelIdx])
+			labelIdx++
+		} else {
+			result.WriteRune(runes[i])
+		}
+		visibleIdx++
+	}
+
+	lines[0] = result.String()
+	if len(lines) > 1 {
+		return lines[0] + "\n" + lines[1]
+	}
+	return lines[0]
+}
+
 func (m model) View() string {
 	if !m.ready {
 		return "\n  Initializing..."
@@ -581,12 +632,12 @@ func (m model) View() string {
 
 	// Create repo info box
 	repoInfoContent := m.renderRepoInfo()
-	repoInfoBox := lipgloss.NewStyle().
+	repoInfoBox := addBoxLabel(lipgloss.NewStyle().
 		Width(m.windowWidth-2).
 		BorderStyle(lipgloss.RoundedBorder()).
 		BorderForeground(lipgloss.Color("#7D56F4")).
 		Padding(0, 1).
-		Render(repoInfoContent)
+		Render(repoInfoContent), "[0]")
 
 	// Calculate dimensions
 	headerHeight := 5 // repo info box (3 with borders) + spacing (2)
@@ -607,23 +658,23 @@ func (m model) View() string {
 
 	// Create left panel (commit list)
 	leftContent := m.renderCommitList()
-	leftPanel := lipgloss.NewStyle().
+	leftPanel := addBoxLabel(lipgloss.NewStyle().
 		Width(leftPanelWidth-4). // subtract borders (2) and padding (2)
 		Height(contentHeight).
 		BorderStyle(lipgloss.RoundedBorder()).
 		BorderForeground(lipgloss.Color("#7D56F4")).
 		Padding(0, 1).
-		Render(leftContent)
+		Render(leftContent), "[1]")
 
 	// Create right panel (commit details)
 	rightContent := m.renderCommitDetails()
-	rightPanel := lipgloss.NewStyle().
+	rightPanel := addBoxLabel(lipgloss.NewStyle().
 		Width(rightPanelWidth-6). // subtract borders (2) and padding (4)
 		Height(contentHeight).
 		BorderStyle(lipgloss.RoundedBorder()).
 		BorderForeground(lipgloss.Color("#7D56F4")).
 		Padding(1, 2).
-		Render(rightContent)
+		Render(rightContent), "[2]")
 
 	// Join panels horizontally
 	content := lipgloss.JoinHorizontal(lipgloss.Top, leftPanel, rightPanel)
