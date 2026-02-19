@@ -1,9 +1,12 @@
 package main
 
 import (
+	"bytes"
 	"fmt"
 	"log"
 	"os"
+	"os/exec"
+	"strconv"
 	"strings"
 	"time"
 
@@ -58,6 +61,7 @@ type model struct {
 	viewport viewport.Model
 	ready    bool
 	repoPath string
+	err      error
 }
 
 func initialModel(repoPath string) model {
@@ -149,17 +153,45 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	case repoMsg:
 		m.repo = msg.repo
+		log.Println("Repository opened successfully with go-git")
 		commits, err := m.loadCommits()
 		if err != nil {
-			return m, tea.Quit
+			log.Printf("Failed to load commits with go-git: %v\n", err)
+			// Try CLI fallback
+			log.Println("Trying CLI fallback for commit loading...")
+			commits, cliErr := m.loadCommitsFromGitCLI()
+			if cliErr != nil {
+				log.Printf("CLI fallback also failed: %v\n", cliErr)
+				m.err = fmt.Errorf("%v (CLI fallback: %v)", err, cliErr)
+				m.ready = true
+				return m, nil
+			}
+			log.Println("CLI fallback succeeded!")
+			m.commits = commits
+			m.viewport.SetContent(m.renderCommits())
+			m.ready = true
+			return m, nil
 		}
 		m.commits = commits
 		m.viewport.SetContent(m.renderCommits())
 		return m, nil
 
 	case errMsg:
-		log.Fatal(msg.err)
-		return m, tea.Quit
+		log.Printf("Error from go-git: %v\n", msg.err)
+		// Always try CLI fallback when go-git fails
+		log.Println("go-git failed, trying git CLI fallback...")
+		commits, err := m.loadCommitsFromGitCLI()
+		if err != nil {
+			log.Printf("CLI fallback also failed: %v\n", err)
+			m.err = fmt.Errorf("%v (CLI fallback: %v)", msg.err, err)
+			m.ready = true
+			return m, nil
+		}
+		log.Println("CLI fallback succeeded!")
+		m.commits = commits
+		m.viewport.SetContent(m.renderCommits())
+		m.ready = true
+		return m, nil
 	}
 
 	m.viewport, cmd = m.viewport.Update(msg)
@@ -169,8 +201,12 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 }
 
 func (m *model) loadCommits() ([]commit, error) {
+	const maxCommits = 5000 // Limit for large repos
+
+	log.Println("Loading commits...")
 	ref, err := m.repo.Head()
 	if err != nil {
+		log.Printf("Error getting HEAD: %v\n", err)
 		return nil, err
 	}
 
@@ -178,13 +214,21 @@ func (m *model) loadCommits() ([]commit, error) {
 		From: ref.Hash(),
 	})
 	if err != nil {
+		log.Printf("Error getting commit log: %v\n", err)
 		return nil, err
 	}
 
 	var commits []commit
 	commitMap := make(map[string]*commit)
+	count := 0
 
 	err = commitIter.ForEach(func(c *object.Commit) error {
+		count++
+		if count > maxCommits {
+			log.Printf("Reached maximum commit limit (%d), stopping...\n", maxCommits)
+			return fmt.Errorf("stopped at %d commits", maxCommits)
+		}
+
 		parents := make([]string, len(c.ParentHashes))
 		for i, p := range c.ParentHashes {
 			parents[i] = p.String()[:7]
@@ -199,12 +243,113 @@ func (m *model) loadCommits() ([]commit, error) {
 		}
 		commits = append(commits, commit)
 		commitMap[commit.Hash] = &commits[len(commits)-1]
+
+		if count%1000 == 0 {
+			log.Printf("Loaded %d commits...\n", count)
+		}
+
 		return nil
 	})
 
-	if err != nil {
+	// Don't treat maxCommits error as fatal
+	if err != nil && count < maxCommits {
+		log.Printf("Error iterating commits: %v\n", err)
+		// Check if it's a packfile error - if so, try CLI fallback
+		if strings.Contains(err.Error(), "packfile") || strings.Contains(err.Error(), "object not found") {
+			log.Println("Detected packfile error, falling back to git CLI...")
+			return m.loadCommitsFromGitCLI()
+		}
 		return nil, err
 	}
+
+	log.Printf("Successfully loaded %d commits\n", len(commits))
+
+	// Generate graph lines
+	m.generateGraph(commits)
+
+	return commits, nil
+}
+
+func (m *model) loadCommitsFromGitCLI() ([]commit, error) {
+	const maxCommits = 5000
+
+	log.Println("Using git CLI to load commits...")
+
+	// Use git log with a custom format
+	cmd := exec.Command("git", "log",
+		fmt.Sprintf("-n%d", maxCommits),
+		"--pretty=format:%H|%an|%at|%s|%P",
+		"--all")
+	cmd.Dir = m.repoPath
+
+	var out bytes.Buffer
+	var errOut bytes.Buffer
+	cmd.Stdout = &out
+	cmd.Stderr = &errOut
+
+	if err := cmd.Run(); err != nil {
+		log.Printf("Git CLI error: %v, stderr: %s\n", err, errOut.String())
+		return nil, fmt.Errorf("git command failed: %v", err)
+	}
+
+	lines := strings.Split(out.String(), "\n")
+	commits := make([]commit, 0, len(lines))
+
+	for i, line := range lines {
+		if line == "" {
+			continue
+		}
+
+		parts := strings.Split(line, "|")
+		if len(parts) < 4 {
+			continue
+		}
+
+		hash := parts[0]
+		if len(hash) > 7 {
+			hash = hash[:7]
+		}
+
+		author := parts[1]
+
+		timestamp := parts[2]
+		var date time.Time
+		if ts, err := strconv.ParseInt(timestamp, 10, 64); err == nil {
+			date = time.Unix(ts, 0)
+		} else {
+			log.Printf("Warning: failed to parse timestamp '%s': %v\n", timestamp, err)
+			date = time.Now()
+		}
+
+		message := parts[3]
+
+		var parents []string
+		if len(parts) > 4 && parts[4] != "" {
+			parentHashes := strings.Fields(parts[4])
+			parents = make([]string, len(parentHashes))
+			for j, p := range parentHashes {
+				if len(p) > 7 {
+					parents[j] = p[:7]
+				} else {
+					parents[j] = p
+				}
+			}
+		}
+
+		commits = append(commits, commit{
+			Hash:    hash,
+			Author:  author,
+			Date:    date,
+			Message: message,
+			Parents: parents,
+		})
+
+		if (i+1)%1000 == 0 {
+			log.Printf("Loaded %d commits from git CLI...\n", i+1)
+		}
+	}
+
+	log.Printf("Successfully loaded %d commits from git CLI\n", len(commits))
 
 	// Generate graph lines
 	m.generateGraph(commits)
@@ -267,6 +412,15 @@ func (m model) View() string {
 		return "\n  Initializing..."
 	}
 
+	if m.err != nil {
+		errorStyle := lipgloss.NewStyle().
+			Foreground(lipgloss.Color("#FF0000")).
+			Bold(true)
+		return fmt.Sprintf("\n  %s\n\n  Error: %v\n\n  Press q to quit. Check gitraffe.log for details.\n",
+			errorStyle.Render("❌ Error loading repository"),
+			m.err)
+	}
+
 	title := titleStyle.Render("🦒 Gitraffe - Git Graph Viewer")
 	help := helpStyle.Render("\n  ↑/↓/j/k: scroll • d/u: half page • g/G: top/bottom • q/esc: quit")
 
@@ -274,10 +428,21 @@ func (m model) View() string {
 }
 
 func main() {
+	// Set up logging to file for debugging
+	logFile, err := os.OpenFile("gitraffe.log", os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0666)
+	if err == nil {
+		log.SetOutput(logFile)
+		defer logFile.Close()
+	}
+
+	log.Println("Starting Gitraffe...")
+
 	repoPath := "."
 	if len(os.Args) > 1 {
 		repoPath = os.Args[1]
 	}
+
+	log.Printf("Opening repository: %s\n", repoPath)
 
 	p := tea.NewProgram(
 		initialModel(repoPath),
@@ -286,7 +451,10 @@ func main() {
 	)
 
 	if _, err := p.Run(); err != nil {
+		log.Printf("Program error: %v\n", err)
 		fmt.Printf("Error: %v\n", err)
 		os.Exit(1)
 	}
+
+	log.Println("Gitraffe exited normally")
 }
