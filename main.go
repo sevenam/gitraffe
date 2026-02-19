@@ -56,14 +56,17 @@ type commit struct {
 }
 
 type model struct {
-	repo         *git.Repository
-	commits      []commit
-	ready        bool
-	repoPath     string
-	err          error
-	selected     int
-	windowHeight int
-	windowWidth  int
+	repo          *git.Repository
+	commits       []commit
+	ready         bool
+	repoPath      string
+	err           error
+	selected      int
+	windowHeight  int
+	windowWidth   int
+	repoName      string
+	currentBranch string
+	currentCommit string
 }
 
 func initialModel(repoPath string) model {
@@ -147,6 +150,10 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case repoMsg:
 		m.repo = msg.repo
 		log.Println("Repository opened successfully with go-git")
+
+		// Load repository info
+		m.loadRepoInfo()
+
 		commits, err := m.loadCommits()
 		if err != nil {
 			log.Printf("Failed to load commits with go-git: %v\n", err)
@@ -174,6 +181,7 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		log.Printf("Error from go-git: %v\n", msg.err)
 		// Always try CLI fallback when go-git fails
 		log.Println("go-git failed, trying git CLI fallback...")
+		m.loadRepoInfoFromCLI()
 		commits, err := m.loadCommitsFromGitCLI()
 		if err != nil {
 			log.Printf("CLI fallback also failed: %v\n", err)
@@ -189,6 +197,65 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	}
 
 	return m, nil
+}
+
+func (m *model) loadRepoInfo() {
+	// Get repository name from path
+	m.repoName = m.repoPath
+	if m.repoPath == "." {
+		if wd, err := os.Getwd(); err == nil {
+			m.repoName = wd[strings.LastIndex(wd, string(os.PathSeparator))+1:]
+		}
+	} else {
+		m.repoName = m.repoPath[strings.LastIndex(m.repoPath, string(os.PathSeparator))+1:]
+	}
+
+	// Get current branch and commit
+	if m.repo != nil {
+		if ref, err := m.repo.Head(); err == nil {
+			// Get branch name
+			if ref.Name().IsBranch() {
+				m.currentBranch = ref.Name().Short()
+			} else {
+				m.currentBranch = "HEAD (detached)"
+			}
+			// Get commit hash
+			m.currentCommit = ref.Hash().String()[:7]
+		}
+	} else {
+		// Use CLI to get branch and commit info
+		m.loadRepoInfoFromCLI()
+	}
+}
+
+func (m *model) loadRepoInfoFromCLI() {
+	// Get repository name from path
+	m.repoName = m.repoPath
+	if m.repoPath == "." {
+		if wd, err := os.Getwd(); err == nil {
+			m.repoName = wd[strings.LastIndex(wd, string(os.PathSeparator))+1:]
+		}
+	} else {
+		m.repoName = m.repoPath[strings.LastIndex(m.repoPath, string(os.PathSeparator))+1:]
+	}
+
+	// Get current branch
+	cmd := exec.Command("git", "rev-parse", "--abbrev-ref", "HEAD")
+	cmd.Dir = m.repoPath
+	if out, err := cmd.Output(); err == nil {
+		m.currentBranch = strings.TrimSpace(string(out))
+	} else {
+		m.currentBranch = "unknown"
+	}
+
+	// Get current commit
+	cmd = exec.Command("git", "rev-parse", "--short=7", "HEAD")
+	cmd.Dir = m.repoPath
+	if out, err := cmd.Output(); err == nil {
+		m.currentCommit = strings.TrimSpace(string(out))
+	} else {
+		m.currentCommit = "unknown"
+	}
 }
 
 func (m *model) loadCommits() ([]commit, error) {
@@ -368,6 +435,26 @@ func (m *model) generateGraph(commits []commit) {
 	}
 }
 
+func (m *model) renderRepoInfo() string {
+	var sb strings.Builder
+
+	// Repository name
+	sb.WriteString(lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("#7D56F4")).Render("Repository: "))
+	sb.WriteString(m.repoName)
+	sb.WriteString("  ")
+
+	// Branch
+	sb.WriteString(lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("#88C0D0")).Render("Branch: "))
+	sb.WriteString(branchStyle.Render(m.currentBranch))
+	sb.WriteString("  ")
+
+	// Current commit
+	sb.WriteString(lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("#FFA500")).Render("Commit: "))
+	sb.WriteString(commitHashStyle.Render(m.currentCommit))
+
+	return sb.String()
+}
+
 func (m *model) renderCommitList() string {
 	if len(m.commits) == 0 {
 		return "No commits found"
@@ -376,9 +463,13 @@ func (m *model) renderCommitList() string {
 	var sb strings.Builder
 
 	// Calculate visible range based on window height
-	headerHeight := 2
-	footerHeight := 2
+	headerHeight := 6 // title (1) + repo info box (3 with borders) + spacing (2)
+	footerHeight := 2 // help + spacing
 	visibleHeight := m.windowHeight - headerHeight - footerHeight
+
+	if visibleHeight < 1 {
+		visibleHeight = 1
+	}
 
 	// Calculate scroll offset to keep selected item visible
 	startIdx := 0
@@ -474,21 +565,36 @@ func (m model) View() string {
 	title := titleStyle.Render("🦒 Gitraffe - Git Graph Viewer")
 	help := helpStyle.Render("↑/↓/j/k: scroll • d/u: half page • g/G: top/bottom • q/esc: quit")
 
-	// Calculate dimensions
-	headerHeight := 2
-	footerHeight := 1
-	contentHeight := m.windowHeight - headerHeight - footerHeight
-	leftWidth := 15                             // For indicator + graph + hash
-	rightWidth := m.windowWidth - leftWidth - 3 // -3 for borders and padding
+	// Create repo info box
+	repoInfoContent := m.renderRepoInfo()
+	repoInfoBox := lipgloss.NewStyle().
+		Width(m.windowWidth-2).
+		BorderStyle(lipgloss.RoundedBorder()).
+		BorderForeground(lipgloss.Color("#7D56F4")).
+		Padding(0, 1).
+		Render(repoInfoContent)
 
-	if rightWidth < 20 {
-		rightWidth = 20
+	// Calculate dimensions
+	headerHeight := 6 // title (1) + repo info box (3 with borders) + spacing (2)
+	footerHeight := 2 // help + spacing
+	contentHeight := m.windowHeight - headerHeight - footerHeight
+
+	if contentHeight < 5 {
+		contentHeight = 5
+	}
+
+	// Panel widths - let lipgloss handle borders and padding
+	leftPanelWidth := 19                              // total width including borders and padding
+	rightPanelWidth := m.windowWidth - leftPanelWidth // fill remaining space
+
+	if rightPanelWidth < 30 {
+		rightPanelWidth = 30
 	}
 
 	// Create left panel (commit list)
 	leftContent := m.renderCommitList()
 	leftPanel := lipgloss.NewStyle().
-		Width(leftWidth).
+		Width(leftPanelWidth-4). // subtract borders (2) and padding (2)
 		Height(contentHeight).
 		BorderStyle(lipgloss.RoundedBorder()).
 		BorderForeground(lipgloss.Color("#7D56F4")).
@@ -498,7 +604,7 @@ func (m model) View() string {
 	// Create right panel (commit details)
 	rightContent := m.renderCommitDetails()
 	rightPanel := lipgloss.NewStyle().
-		Width(rightWidth).
+		Width(rightPanelWidth-6). // subtract borders (2) and padding (4)
 		Height(contentHeight).
 		BorderStyle(lipgloss.RoundedBorder()).
 		BorderForeground(lipgloss.Color("#7D56F4")).
@@ -508,7 +614,7 @@ func (m model) View() string {
 	// Join panels horizontally
 	content := lipgloss.JoinHorizontal(lipgloss.Top, leftPanel, rightPanel)
 
-	return fmt.Sprintf("%s\n%s\n%s", title, content, help)
+	return fmt.Sprintf("%s\n%s\n%s\n%s", title, repoInfoBox, content, help)
 }
 
 func main() {
