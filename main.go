@@ -30,7 +30,7 @@ var (
 			Foreground(lipgloss.Color("#7DD3FC"))
 
 	dateStyle = lipgloss.NewStyle().
-		Foreground(lipgloss.Color("#A3BE8C"))
+			Foreground(lipgloss.Color("#A3BE8C"))
 
 	messageStyle = lipgloss.NewStyle().
 			Foreground(lipgloss.Color("#E5E9F0"))
@@ -103,18 +103,30 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		switch msg.String() {
 		case "q", "ctrl+c", "esc":
 			return m, tea.Quit
-		case "j", "down":
-			m.viewport.LineDown(1)
-		case "k", "up":
-			m.viewport.LineUp(1)
-		case "d", "ctrl+d":
-			m.viewport.HalfViewDown()
-		case "u", "ctrl+u":
-			m.viewport.HalfViewUp()
-		case "g", "home":
-			m.viewport.GotoTop()
-		case "G", "end":
-			m.viewport.GotoBottom()
+		}
+
+		// Only handle navigation keys if viewport is ready
+		if m.ready {
+			switch msg.String() {
+			case "j", "down":
+				m.viewport.ScrollDown(1)
+				return m, nil
+			case "k", "up":
+				m.viewport.ScrollUp(1)
+				return m, nil
+			case "d", "ctrl+d":
+				m.viewport.HalfPageDown()
+				return m, nil
+			case "u", "ctrl+u":
+				m.viewport.HalfPageUp()
+				return m, nil
+			case "g", "home":
+				m.viewport.GotoTop()
+				return m, nil
+			case "G", "end":
+				m.viewport.GotoBottom()
+				return m, nil
+			}
 		}
 
 	case tea.WindowSizeMsg:
@@ -171,7 +183,7 @@ func (m *model) loadCommits() ([]commit, error) {
 
 	var commits []commit
 	commitMap := make(map[string]*commit)
-	
+
 	err = commitIter.ForEach(func(c *object.Commit) error {
 		parents := make([]string, len(c.ParentHashes))
 		for i, p := range c.ParentHashes {
@@ -222,7 +234,7 @@ func (m *model) renderCommits() string {
 	}
 
 	var sb strings.Builder
-	
+
 	for _, c := range m.commits {
 		// Graph line
 		graphStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("#FFA500"))
@@ -257,7 +269,7 @@ func (m model) View() string {
 
 	title := titleStyle.Render("🦒 Gitraffe - Git Graph Viewer")
 	help := helpStyle.Render("\n  ↑/↓/j/k: scroll • d/u: half page • g/G: top/bottom • q/esc: quit")
-	
+
 	return fmt.Sprintf("%s\n%s%s", title, m.viewport.View(), help)
 }
 
