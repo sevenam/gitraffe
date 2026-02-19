@@ -659,7 +659,7 @@ func (m model) View() string {
 	// Create left panel (commit list)
 	leftContent := m.renderCommitList()
 	leftPanel := addBoxLabel(lipgloss.NewStyle().
-		Width(leftPanelWidth-4). // subtract borders (2) and padding (2)
+		Width(leftPanelWidth-2). // subtract borders (2); Width includes padding
 		Height(contentHeight).
 		BorderStyle(lipgloss.RoundedBorder()).
 		BorderForeground(lipgloss.Color("#7D56F4")).
@@ -669,7 +669,7 @@ func (m model) View() string {
 	// Create right panel (commit details)
 	rightContent := m.renderCommitDetails()
 	rightPanel := addBoxLabel(lipgloss.NewStyle().
-		Width(rightPanelWidth-6). // subtract borders (2) and padding (4)
+		Width(rightPanelWidth-2). // subtract borders (2); Width includes padding
 		Height(contentHeight).
 		BorderStyle(lipgloss.RoundedBorder()).
 		BorderForeground(lipgloss.Color("#7D56F4")).
