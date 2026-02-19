@@ -10,7 +10,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/charmbracelet/bubbles/viewport"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 	"github.com/go-git/go-git/v5"
@@ -56,12 +55,14 @@ type commit struct {
 }
 
 type model struct {
-	repo     *git.Repository
-	commits  []commit
-	viewport viewport.Model
-	ready    bool
-	repoPath string
-	err      error
+	repo         *git.Repository
+	commits      []commit
+	ready        bool
+	repoPath     string
+	err          error
+	selected     int
+	windowHeight int
+	windowWidth  int
 }
 
 func initialModel(repoPath string) model {
@@ -97,11 +98,6 @@ func (e errMsg) Error() string {
 }
 
 func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
-	var (
-		cmd  tea.Cmd
-		cmds []tea.Cmd
-	)
-
 	switch msg := msg.(type) {
 	case tea.KeyMsg:
 		switch msg.String() {
@@ -109,47 +105,43 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return m, tea.Quit
 		}
 
-		// Only handle navigation keys if viewport is ready
-		if m.ready {
+		// Only handle navigation keys if ready and have commits
+		if m.ready && len(m.commits) > 0 {
 			switch msg.String() {
 			case "j", "down":
-				m.viewport.ScrollDown(1)
+				if m.selected < len(m.commits)-1 {
+					m.selected++
+				}
 				return m, nil
 			case "k", "up":
-				m.viewport.ScrollUp(1)
+				if m.selected > 0 {
+					m.selected--
+				}
 				return m, nil
 			case "d", "ctrl+d":
-				m.viewport.HalfPageDown()
+				m.selected += 10
+				if m.selected >= len(m.commits) {
+					m.selected = len(m.commits) - 1
+				}
 				return m, nil
 			case "u", "ctrl+u":
-				m.viewport.HalfPageUp()
+				m.selected -= 10
+				if m.selected < 0 {
+					m.selected = 0
+				}
 				return m, nil
 			case "g", "home":
-				m.viewport.GotoTop()
+				m.selected = 0
 				return m, nil
 			case "G", "end":
-				m.viewport.GotoBottom()
+				m.selected = len(m.commits) - 1
 				return m, nil
 			}
 		}
 
 	case tea.WindowSizeMsg:
-		headerHeight := 3
-		footerHeight := 2
-		verticalMarginHeight := headerHeight + footerHeight
-
-		if !m.ready {
-			m.viewport = viewport.New(msg.Width, msg.Height-verticalMarginHeight)
-			m.viewport.YPosition = headerHeight
-			m.ready = true
-		} else {
-			m.viewport.Width = msg.Width
-			m.viewport.Height = msg.Height - verticalMarginHeight
-		}
-
-		if m.repo != nil {
-			m.viewport.SetContent(m.renderCommits())
-		}
+		m.windowWidth = msg.Width
+		m.windowHeight = msg.Height
 
 	case repoMsg:
 		m.repo = msg.repo
@@ -168,12 +160,13 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			}
 			log.Println("CLI fallback succeeded!")
 			m.commits = commits
-			m.viewport.SetContent(m.renderCommits())
 			m.ready = true
+			m.selected = 0
 			return m, nil
 		}
 		m.commits = commits
-		m.viewport.SetContent(m.renderCommits())
+		m.ready = true
+		m.selected = 0
 		return m, nil
 
 	case errMsg:
@@ -189,15 +182,12 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 		log.Println("CLI fallback succeeded!")
 		m.commits = commits
-		m.viewport.SetContent(m.renderCommits())
 		m.ready = true
+		m.selected = 0
 		return m, nil
 	}
 
-	m.viewport, cmd = m.viewport.Update(msg)
-	cmds = append(cmds, cmd)
-
-	return m, tea.Batch(cmds...)
+	return m, nil
 }
 
 func (m *model) loadCommits() ([]commit, error) {
@@ -373,36 +363,91 @@ func (m *model) generateGraph(commits []commit) {
 	}
 }
 
-func (m *model) renderCommits() string {
+func (m *model) renderCommitList() string {
 	if len(m.commits) == 0 {
 		return "No commits found"
 	}
 
 	var sb strings.Builder
 
-	for _, c := range m.commits {
+	// Calculate visible range based on window height
+	headerHeight := 2
+	footerHeight := 2
+	visibleHeight := m.windowHeight - headerHeight - footerHeight
+
+	// Calculate scroll offset to keep selected item visible
+	startIdx := 0
+	if m.selected >= visibleHeight {
+		startIdx = m.selected - visibleHeight + 1
+	}
+	endIdx := startIdx + visibleHeight
+	if endIdx > len(m.commits) {
+		endIdx = len(m.commits)
+	}
+
+	for i := startIdx; i < endIdx; i++ {
+		c := m.commits[i]
+
+		// Selection indicator
+		if i == m.selected {
+			sb.WriteString("> ")
+		} else {
+			sb.WriteString("  ")
+		}
+
 		// Graph line
 		graphStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("#FFA500"))
 		sb.WriteString(graphStyle.Render(c.GraphLine))
 		sb.WriteString(" ")
 
 		// Commit hash
-		sb.WriteString(commitHashStyle.Render(c.Hash))
-		sb.WriteString(" ")
-
-		// Author
-		sb.WriteString(authorStyle.Render(fmt.Sprintf("<%s>", c.Author)))
-		sb.WriteString(" ")
-
-		// Date
-		dateStr := c.Date.Format("2006-01-02 15:04")
-		sb.WriteString(dateStyle.Render(dateStr))
-		sb.WriteString(" ")
-
-		// Message
-		sb.WriteString(messageStyle.Render(c.Message))
+		if i == m.selected {
+			sb.WriteString(commitHashStyle.Copy().Background(lipgloss.Color("#3C3C3C")).Render(c.Hash))
+		} else {
+			sb.WriteString(commitHashStyle.Render(c.Hash))
+		}
 		sb.WriteString("\n")
 	}
+
+	return sb.String()
+}
+
+func (m *model) renderCommitDetails() string {
+	if len(m.commits) == 0 || m.selected >= len(m.commits) {
+		return ""
+	}
+
+	c := m.commits[m.selected]
+
+	var sb strings.Builder
+
+	// Commit hash
+	sb.WriteString(lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("#FFA500")).Render("Commit: "))
+	sb.WriteString(commitHashStyle.Render(c.Hash))
+	sb.WriteString("\n\n")
+
+	// Author
+	sb.WriteString(lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("#7DD3FC")).Render("Author: "))
+	sb.WriteString(authorStyle.Render(c.Author))
+	sb.WriteString("\n\n")
+
+	// Date
+	sb.WriteString(lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("#A3BE8C")).Render("Date: "))
+	dateStr := c.Date.Format("2006-01-02 15:04:05")
+	sb.WriteString(dateStyle.Render(dateStr))
+	sb.WriteString("\n\n")
+
+	// Parents
+	if len(c.Parents) > 0 {
+		sb.WriteString(lipgloss.NewStyle().Bold(true).Render("Parents: "))
+		sb.WriteString(strings.Join(c.Parents, ", "))
+		sb.WriteString("\n\n")
+	}
+
+	// Message
+	sb.WriteString(lipgloss.NewStyle().Bold(true).Render("Message:\n"))
+	sb.WriteString(messageStyle.Render(c.Message))
+	sb.WriteString("\n")
 
 	return sb.String()
 }
@@ -422,9 +467,43 @@ func (m model) View() string {
 	}
 
 	title := titleStyle.Render("🦒 Gitraffe - Git Graph Viewer")
-	help := helpStyle.Render("\n  ↑/↓/j/k: scroll • d/u: half page • g/G: top/bottom • q/esc: quit")
+	help := helpStyle.Render("↑/↓/j/k: scroll • d/u: half page • g/G: top/bottom • q/esc: quit")
 
-	return fmt.Sprintf("%s\n%s%s", title, m.viewport.View(), help)
+	// Calculate dimensions
+	headerHeight := 2
+	footerHeight := 1
+	contentHeight := m.windowHeight - headerHeight - footerHeight
+	leftWidth := 15                             // For indicator + graph + hash
+	rightWidth := m.windowWidth - leftWidth - 3 // -3 for borders and padding
+
+	if rightWidth < 20 {
+		rightWidth = 20
+	}
+
+	// Create left panel (commit list)
+	leftContent := m.renderCommitList()
+	leftPanel := lipgloss.NewStyle().
+		Width(leftWidth).
+		Height(contentHeight).
+		BorderStyle(lipgloss.RoundedBorder()).
+		BorderForeground(lipgloss.Color("#7D56F4")).
+		Padding(0, 1).
+		Render(leftContent)
+
+	// Create right panel (commit details)
+	rightContent := m.renderCommitDetails()
+	rightPanel := lipgloss.NewStyle().
+		Width(rightWidth).
+		Height(contentHeight).
+		BorderStyle(lipgloss.RoundedBorder()).
+		BorderForeground(lipgloss.Color("#7D56F4")).
+		Padding(1, 2).
+		Render(rightContent)
+
+	// Join panels horizontally
+	content := lipgloss.JoinHorizontal(lipgloss.Top, leftPanel, rightPanel)
+
+	return fmt.Sprintf("%s\n%s\n%s", title, content, help)
 }
 
 func main() {
