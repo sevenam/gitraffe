@@ -6,6 +6,7 @@ import (
 	"log"
 	"os"
 	"os/exec"
+	"regexp"
 	"strconv"
 	"strings"
 	"time"
@@ -45,13 +46,23 @@ var (
 )
 
 type commit struct {
-	Hash      string
-	FullHash  string
-	Author    string
-	Date      time.Time
-	Message   string
-	Parents   []string
-	GraphLine string
+	Hash       string
+	FullHash   string
+	Author     string
+	Date       time.Time
+	Message    string
+	Parents    []string
+	Refs       string
+	GraphLine  string
+	DiffLoaded bool
+	DiffStat   string
+	DiffBody   string
+}
+
+type displayRow struct {
+	GraphChars string // transliterated Unicode graph characters
+	CommitIdx  int    // index into commits slice, -1 for graph-only lines
+	GraphWidth int    // visual width of the graph portion
 }
 
 type model struct {
@@ -68,6 +79,8 @@ type model struct {
 	currentCommit string
 	focusedBox    int // 0 = repo info, 1 = commit list, 2 = commit details
 	detailsScroll int // scroll offset for the details panel
+	displayRows   []displayRow
+	maxGraphWidth int
 }
 
 func initialModel(repoPath string) model {
@@ -103,6 +116,45 @@ func (e errMsg) Error() string {
 	return e.err.Error()
 }
 
+type diffLoadedMsg struct {
+	commitIdx int
+	diffStat  string
+	diffBody  string
+}
+
+func loadDiffCmd(repoPath string, fullHash string, idx int) tea.Cmd {
+	return func() tea.Msg {
+		var stat, body string
+
+		cmd := exec.Command("git", "show", "--format=", "--stat", "--no-color", fullHash)
+		cmd.Dir = repoPath
+		if out, err := cmd.Output(); err == nil {
+			stat = strings.TrimSpace(string(out))
+		}
+
+		cmd = exec.Command("git", "show", "--format=", "--no-color", "-p", fullHash)
+		cmd.Dir = repoPath
+		if out, err := cmd.Output(); err == nil {
+			diff := string(out)
+			diffLines := strings.Split(diff, "\n")
+			if len(diffLines) > 300 {
+				diffLines = diffLines[:300]
+				diffLines = append(diffLines, "... (truncated)")
+			}
+			body = strings.Join(diffLines, "\n")
+		}
+
+		return diffLoadedMsg{commitIdx: idx, diffStat: stat, diffBody: body}
+	}
+}
+
+func (m *model) maybeLoadDiff() tea.Cmd {
+	if m.selected >= 0 && m.selected < len(m.commits) && !m.commits[m.selected].DiffLoaded {
+		return loadDiffCmd(m.repoPath, m.commits[m.selected].FullHash, m.selected)
+	}
+	return nil
+}
+
 func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
 	case tea.KeyMsg:
@@ -123,42 +175,42 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		// Handle scrolling within the focused box
 		if m.ready && len(m.commits) > 0 {
 			switch m.focusedBox {
-			case 1: // commit list
+			case 1: // commit list / graph
 				switch msg.String() {
 				case "j", "down":
 					if m.selected < len(m.commits)-1 {
 						m.selected++
 						m.detailsScroll = 0
 					}
-					return m, nil
+					return m, m.maybeLoadDiff()
 				case "k", "up":
 					if m.selected > 0 {
 						m.selected--
 						m.detailsScroll = 0
 					}
-					return m, nil
+					return m, m.maybeLoadDiff()
 				case "d", "ctrl+d":
 					m.selected += 10
 					if m.selected >= len(m.commits) {
 						m.selected = len(m.commits) - 1
 					}
 					m.detailsScroll = 0
-					return m, nil
+					return m, m.maybeLoadDiff()
 				case "u", "ctrl+u":
 					m.selected -= 10
 					if m.selected < 0 {
 						m.selected = 0
 					}
 					m.detailsScroll = 0
-					return m, nil
+					return m, m.maybeLoadDiff()
 				case "g", "home":
 					m.selected = 0
 					m.detailsScroll = 0
-					return m, nil
+					return m, m.maybeLoadDiff()
 				case "G", "end":
 					m.selected = len(m.commits) - 1
 					m.detailsScroll = 0
-					return m, nil
+					return m, m.maybeLoadDiff()
 				}
 			case 2: // commit details
 				switch msg.String() {
@@ -193,49 +245,46 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case repoMsg:
 		m.repo = msg.repo
 		log.Println("Repository opened successfully with go-git")
-
-		// Load repository info
 		m.loadRepoInfo()
 
-		commits, err := m.loadCommits()
-		if err != nil {
-			log.Printf("Failed to load commits with go-git: %v\n", err)
-			// Try CLI fallback
-			log.Println("Trying CLI fallback for commit loading...")
-			commits, cliErr := m.loadCommitsFromGitCLI()
-			if cliErr != nil {
-				log.Printf("CLI fallback also failed: %v\n", cliErr)
-				m.err = fmt.Errorf("%v (CLI fallback: %v)", err, cliErr)
+		if err := m.loadGraphData(); err != nil {
+			log.Printf("Graph loading failed: %v, trying simple load...\n", err)
+			commits, err2 := m.loadCommitsFromGitCLI()
+			if err2 != nil {
+				m.err = fmt.Errorf("graph: %v, fallback: %v", err, err2)
 				m.ready = true
 				return m, nil
 			}
-			log.Println("CLI fallback succeeded!")
 			m.commits = commits
-			m.ready = true
-			m.selected = 0
-			return m, nil
 		}
-		m.commits = commits
 		m.ready = true
 		m.selected = 0
-		return m, nil
+		return m, m.maybeLoadDiff()
 
 	case errMsg:
 		log.Printf("Error from go-git: %v\n", msg.err)
-		// Always try CLI fallback when go-git fails
-		log.Println("go-git failed, trying git CLI fallback...")
 		m.loadRepoInfoFromCLI()
-		commits, err := m.loadCommitsFromGitCLI()
-		if err != nil {
-			log.Printf("CLI fallback also failed: %v\n", err)
-			m.err = fmt.Errorf("%v (CLI fallback: %v)", msg.err, err)
-			m.ready = true
-			return m, nil
+
+		if err := m.loadGraphData(); err != nil {
+			log.Printf("Graph loading failed: %v, trying simple load...\n", err)
+			commits, err2 := m.loadCommitsFromGitCLI()
+			if err2 != nil {
+				m.err = fmt.Errorf("%v (graph: %v, fallback: %v)", msg.err, err, err2)
+				m.ready = true
+				return m, nil
+			}
+			m.commits = commits
 		}
-		log.Println("CLI fallback succeeded!")
-		m.commits = commits
 		m.ready = true
 		m.selected = 0
+		return m, m.maybeLoadDiff()
+
+	case diffLoadedMsg:
+		if msg.commitIdx >= 0 && msg.commitIdx < len(m.commits) {
+			m.commits[msg.commitIdx].DiffLoaded = true
+			m.commits[msg.commitIdx].DiffStat = msg.diffStat
+			m.commits[msg.commitIdx].DiffBody = msg.diffBody
+		}
 		return m, nil
 	}
 
@@ -463,19 +512,142 @@ func (m *model) loadCommitsFromGitCLI() ([]commit, error) {
 }
 
 func (m *model) generateGraph(commits []commit) {
-	// Enhanced graph generation with better visual representation
+	// Basic graph generation (fallback when git log --graph is not available)
 	for i := range commits {
 		if len(commits[i].Parents) == 0 {
-			// Initial commit
 			commits[i].GraphLine = "◉ "
 		} else if len(commits[i].Parents) == 1 {
-			// Regular commit
 			commits[i].GraphLine = "● "
 		} else {
-			// Merge commit - multiple parents
 			commits[i].GraphLine = "◆ "
 		}
 	}
+}
+
+func transliterateGraph(s string) string {
+	r := strings.NewReplacer(
+		"*", "●",
+		"|", "│",
+	)
+	return r.Replace(s)
+}
+
+func (m *model) loadGraphData() error {
+	const maxCommits = 5000
+	log.Println("Loading graph data from git CLI...")
+
+	cmd := exec.Command("git", "log",
+		"--graph",
+		"--all",
+		fmt.Sprintf("-n%d", maxCommits),
+		"--pretty=format:%H%x00%an%x00%at%x00%s%x00%P%x00%D",
+	)
+	cmd.Dir = m.repoPath
+
+	var out bytes.Buffer
+	var errOut bytes.Buffer
+	cmd.Stdout = &out
+	cmd.Stderr = &errOut
+
+	if err := cmd.Run(); err != nil {
+		return fmt.Errorf("git log --graph failed: %v (%s)", err, errOut.String())
+	}
+
+	lines := strings.Split(out.String(), "\n")
+	hashPattern := regexp.MustCompile(`[0-9a-f]{40}`)
+
+	m.commits = nil
+	m.displayRows = nil
+	m.maxGraphWidth = 0
+
+	for _, line := range lines {
+		if line == "" {
+			continue
+		}
+
+		loc := hashPattern.FindStringIndex(line)
+		if loc != nil {
+			// This is a commit line
+			graphPart := line[:loc[0]]
+			dataPart := line[loc[0]:]
+
+			// Parse commit data: hash\x00author\x00timestamp\x00subject\x00parents\x00refs
+			parts := strings.SplitN(dataPart, "\x00", 6)
+			if len(parts) < 4 {
+				continue
+			}
+
+			fullHash := parts[0]
+			shortHash := fullHash
+			if len(shortHash) > 7 {
+				shortHash = shortHash[:7]
+			}
+
+			author := parts[1]
+			var date time.Time
+			if ts, err := strconv.ParseInt(parts[2], 10, 64); err == nil {
+				date = time.Unix(ts, 0)
+			}
+
+			message := parts[3]
+
+			var parents []string
+			if len(parts) > 4 && parts[4] != "" {
+				for _, p := range strings.Fields(parts[4]) {
+					if len(p) > 7 {
+						parents = append(parents, p[:7])
+					} else {
+						parents = append(parents, p)
+					}
+				}
+			}
+
+			refs := ""
+			if len(parts) > 5 {
+				refs = strings.TrimSpace(parts[5])
+			}
+
+			commitIdx := len(m.commits)
+			m.commits = append(m.commits, commit{
+				Hash:     shortHash,
+				FullHash: fullHash,
+				Author:   author,
+				Date:     date,
+				Message:  message,
+				Parents:  parents,
+				Refs:     refs,
+			})
+
+			graphStr := transliterateGraph(graphPart)
+			gw := len(graphPart) // ASCII width
+			if gw > m.maxGraphWidth {
+				m.maxGraphWidth = gw
+			}
+
+			m.displayRows = append(m.displayRows, displayRow{
+				GraphChars: graphStr,
+				CommitIdx:  commitIdx,
+				GraphWidth: gw,
+			})
+		} else {
+			// Graph-only line (branch/merge connectors)
+			graphStr := transliterateGraph(line)
+			gw := len(line)
+			if gw > m.maxGraphWidth {
+				m.maxGraphWidth = gw
+			}
+
+			m.displayRows = append(m.displayRows, displayRow{
+				GraphChars: graphStr,
+				CommitIdx:  -1,
+				GraphWidth: gw,
+			})
+		}
+	}
+
+	log.Printf("Loaded %d commits, %d display rows, max graph width: %d\n",
+		len(m.commits), len(m.displayRows), m.maxGraphWidth)
+	return nil
 }
 
 func (m *model) renderRepoInfo() string {
@@ -515,6 +687,9 @@ func (m *model) renderRepoInfo() string {
 }
 
 func (m *model) renderCommitList() string {
+	log.Printf("renderCommitList: commits=%d, displayRows=%d, selected=%d, windowHeight=%d, maxGraphWidth=%d",
+		len(m.commits), len(m.displayRows), m.selected, m.windowHeight, m.maxGraphWidth)
+
 	if len(m.commits) == 0 {
 		return "No commits found"
 	}
@@ -522,53 +697,129 @@ func (m *model) renderCommitList() string {
 	var sb strings.Builder
 
 	// Calculate visible range based on window height
-	headerHeight := 6 // title (1) + repo info box (3 with borders) + spacing (2)
-	footerHeight := 2 // help + spacing
-	visibleHeight := m.windowHeight - headerHeight - footerHeight
-
+	// Must match the contentHeight from View(): windowHeight - 8
+	visibleHeight := m.windowHeight - 8
 	if visibleHeight < 1 {
 		visibleHeight = 1
 	}
+	log.Printf("renderCommitList: visibleHeight=%d", visibleHeight)
 
-	// Calculate scroll offset to keep selected item visible
-	startIdx := 0
-	if m.selected >= visibleHeight {
-		startIdx = m.selected - visibleHeight + 1
-	}
-	endIdx := startIdx + visibleHeight
-	if endIdx > len(m.commits) {
-		endIdx = len(m.commits)
-	}
+	graphColor := lipgloss.NewStyle().Foreground(lipgloss.Color("#FFA500"))
+	selGraphColor := lipgloss.NewStyle().Foreground(lipgloss.Color("#FFFFFF")).Bold(true)
+	selHashStyle := commitHashStyle.Background(lipgloss.Color("#3C3C3C"))
 
-	for i := startIdx; i < endIdx; i++ {
-		c := m.commits[i]
+	if len(m.displayRows) > 0 {
+		// Graph mode: use displayRows from git log --graph
 
-		// Selection indicator
-		if i == m.selected {
-			sb.WriteString("> ")
-		} else {
-			sb.WriteString("  ")
+		// Find the display row index of the selected commit
+		selectedRowIdx := 0
+		for i, row := range m.displayRows {
+			if row.CommitIdx == m.selected {
+				selectedRowIdx = i
+				break
+			}
+		}
+		log.Printf("renderCommitList graph mode: selectedRowIdx=%d", selectedRowIdx)
+
+		// Scroll to keep selected row visible (centered in viewport)
+		startIdx := selectedRowIdx - visibleHeight/3
+		if startIdx < 0 {
+			startIdx = 0
+		}
+		endIdx := startIdx + visibleHeight
+		if endIdx > len(m.displayRows) {
+			endIdx = len(m.displayRows)
+			startIdx = endIdx - visibleHeight
+			if startIdx < 0 {
+				startIdx = 0
+			}
+		}
+		log.Printf("renderCommitList graph mode: startIdx=%d, endIdx=%d", startIdx, endIdx)
+
+		for i := startIdx; i < endIdx; i++ {
+			row := m.displayRows[i]
+			isCommit := row.CommitIdx >= 0
+			isSel := isCommit && row.CommitIdx == m.selected
+
+			// Bounds check before accessing commits slice
+			if isCommit && (row.CommitIdx < 0 || row.CommitIdx >= len(m.commits)) {
+				log.Printf("renderCommitList ERROR: row %d has out-of-bounds CommitIdx=%d (len(commits)=%d), skipping",
+					i, row.CommitIdx, len(m.commits))
+				sb.WriteString("\n")
+				continue
+			}
+
+			// Pad graph to max width for alignment
+			padLen := m.maxGraphWidth - row.GraphWidth
+			if padLen < 0 {
+				padLen = 0
+			}
+			graphPadded := row.GraphChars + strings.Repeat(" ", padLen)
+
+			if isSel {
+				highlighted := strings.ReplaceAll(graphPadded, "●", "◉")
+				sb.WriteString("> ")
+				sb.WriteString(selGraphColor.Render(highlighted))
+				sb.WriteString(" ")
+				sb.WriteString(selHashStyle.Render(m.commits[row.CommitIdx].Hash))
+			} else {
+				sb.WriteString("  ")
+				sb.WriteString(graphColor.Render(graphPadded))
+				if isCommit {
+					sb.WriteString(" ")
+					sb.WriteString(commitHashStyle.Render(m.commits[row.CommitIdx].Hash))
+				}
+			}
+			sb.WriteString("\n")
+		}
+	} else {
+		// Simple mode: one row per commit with basic symbol (fallback)
+		startIdx := 0
+		if m.selected >= visibleHeight {
+			startIdx = m.selected - visibleHeight + 1
+		}
+		endIdx := startIdx + visibleHeight
+		if endIdx > len(m.commits) {
+			endIdx = len(m.commits)
 		}
 
-		// Graph line
-		graphStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("#FFA500"))
-		sb.WriteString(graphStyle.Render(c.GraphLine))
-		sb.WriteString(" ")
+		for i := startIdx; i < endIdx; i++ {
+			c := m.commits[i]
 
-		// Commit hash
-		if i == m.selected {
-			sb.WriteString(commitHashStyle.Copy().Background(lipgloss.Color("#3C3C3C")).Render(c.Hash))
-		} else {
-			sb.WriteString(commitHashStyle.Render(c.Hash))
+			if i == m.selected {
+				sb.WriteString("> ")
+				sb.WriteString(selGraphColor.Render(c.GraphLine))
+				sb.WriteString(" ")
+				sb.WriteString(selHashStyle.Render(c.Hash))
+			} else {
+				sb.WriteString("  ")
+				sb.WriteString(graphColor.Render(c.GraphLine))
+				sb.WriteString(" ")
+				sb.WriteString(commitHashStyle.Render(c.Hash))
+			}
+			sb.WriteString("\n")
 		}
-		sb.WriteString("\n")
 	}
 
-	return sb.String()
+	// Truncate to available height inside the panel.
+	// lipgloss Height() does NOT clip overflow.
+	// Panel uses Height(contentHeight) with Padding(0,1) → 0 vertical padding.
+	result := sb.String()
+	resultLines := strings.Split(result, "\n")
+	maxLines := m.windowHeight - 8
+	if maxLines < 3 {
+		maxLines = 3
+	}
+	if len(resultLines) > maxLines {
+		resultLines = resultLines[:maxLines]
+	}
+	return strings.Join(resultLines, "\n")
 }
 
 func (m *model) renderCommitDetails() string {
-	if len(m.commits) == 0 || m.selected >= len(m.commits) {
+	log.Printf("renderCommitDetails: selected=%d, len(commits)=%d", m.selected, len(m.commits))
+	if len(m.commits) == 0 || m.selected < 0 || m.selected >= len(m.commits) {
+		log.Printf("renderCommitDetails: skipping (empty or out of bounds)")
 		return ""
 	}
 
@@ -576,48 +827,102 @@ func (m *model) renderCommitDetails() string {
 
 	var sb strings.Builder
 
-	// Commit hash
-	sb.WriteString(lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("#FFA500")).Render("Commit: "))
-	sb.WriteString(commitHashStyle.Render(c.FullHash))
-	sb.WriteString("\n\n")
-
-	// Date
-	sb.WriteString(lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("#A3BE8C")).Render("Date: "))
-	dateStr := c.Date.Format("2006-01-02 15:04:05")
-	sb.WriteString(dateStyle.Render(dateStr))
+	// Commit title with refs decoration
+	sb.WriteString("● ")
+	if c.Refs != "" {
+		sb.WriteString(branchStyle.Render("(" + c.Refs + ") "))
+	}
+	sb.WriteString(messageStyle.Render(c.Message))
 	sb.WriteString("\n\n")
 
 	// Author
 	sb.WriteString(lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("#7DD3FC")).Render("Author: "))
 	sb.WriteString(authorStyle.Render(c.Author))
-	sb.WriteString("\n\n")
+	sb.WriteString("\n")
+
+	// Date
+	sb.WriteString(lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("#A3BE8C")).Render("Date:   "))
+	sb.WriteString(dateStyle.Render(c.Date.Format("2006-01-02 15:04:05")))
+	sb.WriteString("\n")
+
+	// SHA
+	sb.WriteString(lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("#FFA500")).Render("SHA:    "))
+	sb.WriteString(commitHashStyle.Render(c.FullHash))
+	sb.WriteString("\n")
 
 	// Parents
 	if len(c.Parents) > 0 {
 		sb.WriteString(lipgloss.NewStyle().Bold(true).Render("Parents: "))
 		sb.WriteString(strings.Join(c.Parents, ", "))
-		sb.WriteString("\n\n")
+		sb.WriteString("\n")
 	}
 
-	// Message
-	sb.WriteString(lipgloss.NewStyle().Bold(true).Render("Message: "))
-	sb.WriteString(messageStyle.Render(c.Message))
-	sb.WriteString("\n")
+	// Diff stats
+	if c.DiffLoaded && c.DiffStat != "" {
+		sb.WriteString("\n")
+		sb.WriteString(c.DiffStat)
+		sb.WriteString("\n")
+	}
 
-	// Apply scroll offset
+	// Diff content
+	if c.DiffLoaded && c.DiffBody != "" {
+		sb.WriteString("\n")
+		sb.WriteString(lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("#7D56F4")).Render("─── Diff ──────────────────────────"))
+		sb.WriteString("\n")
+
+		addStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("#A3BE8C"))
+		delStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("#BF616A"))
+		hunkStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("#5E81AC"))
+		diffHeaderStyle := lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("#E5E9F0"))
+
+		for _, line := range strings.Split(c.DiffBody, "\n") {
+			if strings.HasPrefix(line, "+") && !strings.HasPrefix(line, "+++") {
+				sb.WriteString(addStyle.Render(line))
+			} else if strings.HasPrefix(line, "-") && !strings.HasPrefix(line, "---") {
+				sb.WriteString(delStyle.Render(line))
+			} else if strings.HasPrefix(line, "@@") {
+				sb.WriteString(hunkStyle.Render(line))
+			} else if strings.HasPrefix(line, "diff ") {
+				sb.WriteString(diffHeaderStyle.Render(line))
+			} else {
+				sb.WriteString(line)
+			}
+			sb.WriteString("\n")
+		}
+	} else if !c.DiffLoaded {
+		sb.WriteString("\n")
+		sb.WriteString(helpStyle.Render("Loading diff..."))
+		sb.WriteString("\n")
+	}
+
+	// Apply scroll offset and truncate to fit panel height.
+	// lipgloss Height() only pads short content, it does NOT clip overflow,
+	// so we must truncate here to prevent the panel from growing unbounded.
 	content := sb.String()
+	allLines := strings.Split(content, "\n")
+
+	// Clamp scroll
+	if m.detailsScroll >= len(allLines) {
+		m.detailsScroll = len(allLines) - 1
+	}
+	if m.detailsScroll < 0 {
+		m.detailsScroll = 0
+	}
 	if m.detailsScroll > 0 {
-		allLines := strings.Split(content, "\n")
-		if m.detailsScroll >= len(allLines) {
-			m.detailsScroll = len(allLines) - 1
-		}
-		if m.detailsScroll < 0 {
-			m.detailsScroll = 0
-		}
-		content = strings.Join(allLines[m.detailsScroll:], "\n")
+		allLines = allLines[m.detailsScroll:]
 	}
 
-	return content
+	// Truncate to available height inside the panel
+	// Panel uses Height(contentHeight) with Padding(1,2) → 2 vertical padding lines
+	maxLines := m.windowHeight - 8 - 2 // contentHeight minus vertical padding
+	if maxLines < 3 {
+		maxLines = 3
+	}
+	if len(allLines) > maxLines {
+		allLines = allLines[:maxLines]
+	}
+
+	return strings.Join(allLines, "\n")
 }
 
 // addBoxLabel overlays a label like [0] onto the top-left corner of a rendered box border.
@@ -671,9 +976,24 @@ func addBoxLabel(rendered string, label string) string {
 	return lines[0]
 }
 
-func (m model) View() string {
+func (m model) View() (result string) {
+	defer func() {
+		if r := recover(); r != nil {
+			log.Printf("PANIC in View: %v", r)
+			result = fmt.Sprintf("\n  PANIC caught: %v\n\n  Check gitraffe.log for details.\n  Press q to quit.", r)
+		}
+	}()
+	log.Printf("View: ready=%v, err=%v, commits=%d, displayRows=%d, window=%dx%d, focused=%d",
+		m.ready, m.err, len(m.commits), len(m.displayRows), m.windowWidth, m.windowHeight, m.focusedBox)
+
 	if !m.ready {
 		return "\n  Initializing..."
+	}
+
+	// Guard against zero window dimensions (WindowSizeMsg not yet received)
+	if m.windowWidth < 20 || m.windowHeight < 10 {
+		log.Printf("View: window too small (%dx%d), waiting for resize", m.windowWidth, m.windowHeight)
+		return "\n  Waiting for terminal size..."
 	}
 
 	if m.err != nil {
@@ -712,24 +1032,61 @@ func (m model) View() string {
 		Render(repoInfoContent), "[0]")
 
 	// Calculate dimensions
-	headerHeight := 5 // repo info box (3 with borders) + spacing (2)
-	footerHeight := 2 // help + spacing
-	contentHeight := m.windowHeight - headerHeight - footerHeight
+	// Layout heights:
+	//   repoInfoBox:    3 lines (1 content + 2 border)
+	//   \n separator:   1 line
+	//   content panels: contentHeight + 2 (Height param + 2 border lines)
+	//   \n separator:   1 line
+	//   help text:      1 line
+	//   Total:          contentHeight + 8
+	// So contentHeight = windowHeight - 8
+	contentHeight := m.windowHeight - 8
 
-	if contentHeight < 5 {
-		contentHeight = 5
+	if contentHeight < 3 {
+		contentHeight = 3
 	}
 
-	// Panel widths - let lipgloss handle borders and padding
-	leftPanelWidth := 19                              // total width including borders and padding
+	// Panel widths - dynamic based on graph width
+	// graph needs: 2 (selection "> ") + maxGraphWidth + 1 (space) + 7 (hash) + borders(2) + padding(2) = maxGraphWidth + 14
+	leftPanelWidth := m.maxGraphWidth + 14
+	if leftPanelWidth < 25 {
+		leftPanelWidth = 25
+	}
+	maxLeftWidth := m.windowWidth * 3 / 5
+	if leftPanelWidth > maxLeftWidth {
+		leftPanelWidth = maxLeftWidth
+	}
 	rightPanelWidth := m.windowWidth - leftPanelWidth // fill remaining space
 
-	if rightPanelWidth < 30 {
-		rightPanelWidth = 30
+	// Ensure right panel has a minimum width, but never let total exceed window
+	minRightWidth := 30
+	if rightPanelWidth < minRightWidth {
+		rightPanelWidth = minRightWidth
+		leftPanelWidth = m.windowWidth - rightPanelWidth
+		if leftPanelWidth < 15 {
+			leftPanelWidth = 15
+			rightPanelWidth = m.windowWidth - leftPanelWidth
+		}
 	}
 
+	// Final safety: total must not exceed window width
+	totalWidth := leftPanelWidth + rightPanelWidth
+	if totalWidth > m.windowWidth {
+		log.Printf("View: width overflow detected: left=%d + right=%d = %d > window=%d, adjusting",
+			leftPanelWidth, rightPanelWidth, totalWidth, m.windowWidth)
+		rightPanelWidth = m.windowWidth - leftPanelWidth
+		if rightPanelWidth < 10 {
+			rightPanelWidth = m.windowWidth / 3
+			leftPanelWidth = m.windowWidth - rightPanelWidth
+		}
+	}
+
+	log.Printf("View: leftPanelWidth=%d, rightPanelWidth=%d, contentHeight=%d", leftPanelWidth, rightPanelWidth, contentHeight)
+
 	// Create left panel (commit list)
+	log.Println("View: rendering commit list...")
 	leftContent := m.renderCommitList()
+	log.Printf("View: commit list rendered, len=%d", len(leftContent))
 	leftPanel := addBoxLabel(lipgloss.NewStyle().
 		Width(leftPanelWidth-2). // subtract borders (2); Width includes padding
 		Height(contentHeight).
@@ -737,9 +1094,12 @@ func (m model) View() string {
 		BorderForeground(box1Border).
 		Padding(0, 1).
 		Render(leftContent), "[1]")
+	log.Println("View: left panel box created")
 
 	// Create right panel (commit details)
+	log.Println("View: rendering commit details...")
 	rightContent := m.renderCommitDetails()
+	log.Printf("View: commit details rendered, len=%d", len(rightContent))
 	rightPanel := addBoxLabel(lipgloss.NewStyle().
 		Width(rightPanelWidth-2). // subtract borders (2); Width includes padding
 		Height(contentHeight).
@@ -747,9 +1107,12 @@ func (m model) View() string {
 		BorderForeground(box2Border).
 		Padding(1, 2).
 		Render(rightContent), "[2]")
+	log.Println("View: right panel box created")
 
 	// Join panels horizontally
+	log.Println("View: joining panels...")
 	content := lipgloss.JoinHorizontal(lipgloss.Top, leftPanel, rightPanel)
+	log.Println("View: done")
 
 	return fmt.Sprintf("%s\n%s\n%s", repoInfoBox, content, help)
 }
