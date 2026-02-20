@@ -842,27 +842,19 @@ func (m *model) renderCommitDetails() string {
 
 	var sb strings.Builder
 
-	// Commit title with refs decoration
-	sb.WriteString("● ")
-	if c.Refs != "" {
-		sb.WriteString(branchStyle.Render("(" + c.Refs + ") "))
-	}
-	sb.WriteString(messageStyle.Render(c.Message))
-	sb.WriteString("\n\n")
-
-	// Author
-	sb.WriteString(lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("#7DD3FC")).Render("Author: "))
-	sb.WriteString(authorStyle.Render(c.Author))
+	// SHA
+	sb.WriteString(lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("#FFA500")).Render("SHA:     "))
+	sb.WriteString(commitHashStyle.Render(c.FullHash))
 	sb.WriteString("\n")
 
 	// Date
-	sb.WriteString(lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("#A3BE8C")).Render("Date:   "))
+	sb.WriteString(lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("#A3BE8C")).Render("Date:    "))
 	sb.WriteString(dateStyle.Render(c.Date.Format("2006-01-02 15:04:05")))
 	sb.WriteString("\n")
 
-	// SHA
-	sb.WriteString(lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("#FFA500")).Render("SHA:    "))
-	sb.WriteString(commitHashStyle.Render(c.FullHash))
+	// Author
+	sb.WriteString(lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("#7DD3FC")).Render("Author:  "))
+	sb.WriteString(authorStyle.Render(c.Author))
 	sb.WriteString("\n")
 
 	// Parents
@@ -872,8 +864,24 @@ func (m *model) renderCommitDetails() string {
 		sb.WriteString("\n")
 	}
 
+	// Refs
+	if c.Refs != "" {
+		sb.WriteString(lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("#88C0D0")).Render("Refs:    "))
+		sb.WriteString(branchStyle.Render(c.Refs))
+		sb.WriteString("\n")
+	}
+
+	// Commit message
+	sb.WriteString("\n")
+	sb.WriteString(lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("#7D56F4")).Render("─── Message ───────────────────────"))
+	sb.WriteString("\n")
+	sb.WriteString(messageStyle.Render(c.Message))
+	sb.WriteString("\n")
+
 	// Diff stats
 	if c.DiffLoaded && c.DiffStat != "" {
+		sb.WriteString("\n")
+		sb.WriteString(lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("#7D56F4")).Render("─── Stats ─────────────────────────"))
 		sb.WriteString("\n")
 		sb.WriteString(c.DiffStat)
 		sb.WriteString("\n")
