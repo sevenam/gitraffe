@@ -721,7 +721,9 @@ func (m *model) renderCommitList() string {
 		}
 		log.Printf("renderCommitList graph mode: selectedRowIdx=%d", selectedRowIdx)
 
-		// Scroll to keep selected row visible (centered in viewport)
+		// Scroll to keep selected row visible
+		// Use a stable scroll offset that only changes when the selected row
+		// would move outside the visible window (like a typical text editor).
 		startIdx := selectedRowIdx - visibleHeight/3
 		if startIdx < 0 {
 			startIdx = 0
@@ -736,6 +738,7 @@ func (m *model) renderCommitList() string {
 		}
 		log.Printf("renderCommitList graph mode: startIdx=%d, endIdx=%d", startIdx, endIdx)
 
+		linesWritten := 0
 		for i := startIdx; i < endIdx; i++ {
 			row := m.displayRows[i]
 			isCommit := row.CommitIdx >= 0
@@ -771,6 +774,12 @@ func (m *model) renderCommitList() string {
 				}
 			}
 			sb.WriteString("\n")
+			linesWritten++
+		}
+		// Pad to exactly visibleHeight lines so the panel never changes size
+		for linesWritten < visibleHeight {
+			sb.WriteString("\n")
+			linesWritten++
 		}
 	} else {
 		// Simple mode: one row per commit with basic symbol (fallback)
@@ -783,6 +792,7 @@ func (m *model) renderCommitList() string {
 			endIdx = len(m.commits)
 		}
 
+		linesWritten := 0
 		for i := startIdx; i < endIdx; i++ {
 			c := m.commits[i]
 
@@ -798,6 +808,11 @@ func (m *model) renderCommitList() string {
 				sb.WriteString(commitHashStyle.Render(c.Hash))
 			}
 			sb.WriteString("\n")
+			linesWritten++
+		}
+		for linesWritten < visibleHeight {
+			sb.WriteString("\n")
+			linesWritten++
 		}
 	}
 
@@ -927,6 +942,32 @@ func (m *model) renderCommitDetails() string {
 
 // addBoxLabel overlays a label like [0] onto the top-left corner of a rendered box border.
 // It accounts for ANSI escape sequences so it only replaces visible border characters.
+// trimToHeight ensures a rendered string is exactly targetHeight lines.
+// If taller, excess lines are removed from the bottom (preserving the bottom border).
+// If shorter, empty lines are appended.
+func trimToHeight(rendered string, targetHeight int) string {
+	lines := strings.Split(rendered, "\n")
+	// Remove trailing empty string from split if present
+	if len(lines) > 0 && lines[len(lines)-1] == "" {
+		lines = lines[:len(lines)-1]
+	}
+	if len(lines) > targetHeight {
+		// Keep first line (top border), middle content up to targetHeight-2, and last line (bottom border)
+		top := lines[0]
+		bottom := lines[len(lines)-1]
+		middle := lines[1 : targetHeight-1]
+		result := make([]string, 0, targetHeight)
+		result = append(result, top)
+		result = append(result, middle...)
+		result = append(result, bottom)
+		return strings.Join(result, "\n")
+	}
+	for len(lines) < targetHeight {
+		lines = append(lines, "")
+	}
+	return strings.Join(lines, "\n")
+}
+
 func addBoxLabel(rendered string, label string) string {
 	lines := strings.SplitN(rendered, "\n", 2)
 	if len(lines) == 0 {
@@ -1022,25 +1063,21 @@ func (m model) View() (result string) {
 		box2Border = focusedBorderColor
 	}
 
-	// Create repo info box
+	// Create repo info box - fixed Height(1) so it never changes size
 	repoInfoContent := m.renderRepoInfo()
 	repoInfoBox := addBoxLabel(lipgloss.NewStyle().
 		Width(m.windowWidth-2).
+		Height(1).
 		BorderStyle(lipgloss.RoundedBorder()).
 		BorderForeground(box0Border).
 		Padding(0, 1).
 		Render(repoInfoContent), "[0]")
 
-	// Calculate dimensions
-	// Layout heights:
-	//   repoInfoBox:    3 lines (1 content + 2 border)
-	//   \n separator:   1 line
-	//   content panels: contentHeight + 2 (Height param + 2 border lines)
-	//   \n separator:   1 line
-	//   help text:      1 line
-	//   Total:          contentHeight + 8
-	// So contentHeight = windowHeight - 8
-	contentHeight := m.windowHeight - 8
+	// Calculate dimensions based on actual rendered box 0 height
+	repoInfoHeight := lipgloss.Height(repoInfoBox) // should be 3 (1 content + 2 border)
+	// Layout: repoInfoBox + \n + content panels (contentHeight + 2 border) + \n + help
+	// Total = repoInfoHeight + 1 + contentHeight + 2 + 1 + 1 = repoInfoHeight + contentHeight + 5
+	contentHeight := m.windowHeight - repoInfoHeight - 5
 
 	if contentHeight < 3 {
 		contentHeight = 3
@@ -1083,10 +1120,11 @@ func (m model) View() (result string) {
 
 	log.Printf("View: leftPanelWidth=%d, rightPanelWidth=%d, contentHeight=%d", leftPanelWidth, rightPanelWidth, contentHeight)
 
+	// Target height for both panels (content + 2 border lines)
+	targetPanelHeight := contentHeight + 2
+
 	// Create left panel (commit list)
-	log.Println("View: rendering commit list...")
 	leftContent := m.renderCommitList()
-	log.Printf("View: commit list rendered, len=%d", len(leftContent))
 	leftPanel := addBoxLabel(lipgloss.NewStyle().
 		Width(leftPanelWidth-2). // subtract borders (2); Width includes padding
 		Height(contentHeight).
@@ -1094,12 +1132,9 @@ func (m model) View() (result string) {
 		BorderForeground(box1Border).
 		Padding(0, 1).
 		Render(leftContent), "[1]")
-	log.Println("View: left panel box created")
 
 	// Create right panel (commit details)
-	log.Println("View: rendering commit details...")
 	rightContent := m.renderCommitDetails()
-	log.Printf("View: commit details rendered, len=%d", len(rightContent))
 	rightPanel := addBoxLabel(lipgloss.NewStyle().
 		Width(rightPanelWidth-2). // subtract borders (2); Width includes padding
 		Height(contentHeight).
@@ -1107,14 +1142,35 @@ func (m model) View() (result string) {
 		BorderForeground(box2Border).
 		Padding(1, 2).
 		Render(rightContent), "[2]")
-	log.Println("View: right panel box created")
+
+	// Force both panels to exactly the same height.
+	// lipgloss Height() is a minimum, not a maximum — long lines that wrap
+	// inside the panel can make it taller. Trim any excess lines from either panel.
+	leftPanel = trimToHeight(leftPanel, targetPanelHeight)
+	rightPanel = trimToHeight(rightPanel, targetPanelHeight)
 
 	// Join panels horizontally
-	log.Println("View: joining panels...")
 	content := lipgloss.JoinHorizontal(lipgloss.Top, leftPanel, rightPanel)
-	log.Println("View: done")
 
-	return fmt.Sprintf("%s\n%s\n%s", repoInfoBox, content, help)
+	output := fmt.Sprintf("%s\n%s\n%s", repoInfoBox, content, help)
+
+	// Force exact windowHeight lines. We count lines via lipgloss.Height which
+	// correctly handles ANSI escape sequences, then trim or pad as needed.
+	actualHeight := lipgloss.Height(output)
+	log.Printf("View: actualHeight=%d, windowHeight=%d", actualHeight, m.windowHeight)
+
+	if actualHeight > m.windowHeight {
+		// Trim from the bottom
+		lines := strings.Split(output, "\n")
+		output = strings.Join(lines[:m.windowHeight], "\n")
+	} else if actualHeight < m.windowHeight {
+		// Pad bottom with empty lines
+		for i := actualHeight; i < m.windowHeight; i++ {
+			output += "\n"
+		}
+	}
+
+	return output
 }
 
 func main() {
