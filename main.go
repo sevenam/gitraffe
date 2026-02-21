@@ -18,31 +18,14 @@ import (
 )
 
 var (
-	// Styles
-	titleStyle = lipgloss.NewStyle().
-			Bold(true).
-			Foreground(lipgloss.Color("#7D56F4")).
-			Padding(0, 1)
-
-	commitHashStyle = lipgloss.NewStyle().
-			Foreground(lipgloss.Color("#FFA500")).
-			Bold(true)
-
-	authorStyle = lipgloss.NewStyle().
-			Foreground(lipgloss.Color("#7DD3FC"))
-
-	dateStyle = lipgloss.NewStyle().
-			Foreground(lipgloss.Color("#A3BE8C"))
-
-	messageStyle = lipgloss.NewStyle().
-			Foreground(lipgloss.Color("#E5E9F0"))
-
-	branchStyle = lipgloss.NewStyle().
-			Foreground(lipgloss.Color("#88C0D0")).
-			Bold(true)
-
-	helpStyle = lipgloss.NewStyle().
-			Foreground(lipgloss.Color("#626262"))
+	// Styles — initialized by initStyles() after theme is loaded.
+	titleStyle      lipgloss.Style
+	commitHashStyle lipgloss.Style
+	authorStyle     lipgloss.Style
+	dateStyle       lipgloss.Style
+	messageStyle    lipgloss.Style
+	branchStyle     lipgloss.Style
+	helpStyle       lipgloss.Style
 )
 
 type commit struct {
@@ -654,17 +637,17 @@ func (m *model) renderRepoInfo() string {
 	var sb strings.Builder
 
 	// Repository name
-	sb.WriteString(lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("#7D56F4")).Render("Repository: "))
+	sb.WriteString(lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color(currentTheme.Title)).Render("Repository: "))
 	sb.WriteString(m.repoName)
 	sb.WriteString("  ")
 
 	// Branch
-	sb.WriteString(lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("#88C0D0")).Render("Branch: "))
+	sb.WriteString(lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color(currentTheme.Branch)).Render("Branch: "))
 	sb.WriteString(branchStyle.Render(m.currentBranch))
 	sb.WriteString("  ")
 
 	// Current commit
-	sb.WriteString(lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("#FFA500")).Render("Commit: "))
+	sb.WriteString(lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color(currentTheme.Hash)).Render("Commit: "))
 	sb.WriteString(commitHashStyle.Render(m.currentCommit))
 
 	leftContent := sb.String()
@@ -704,9 +687,9 @@ func (m *model) renderCommitList() string {
 	}
 	log.Printf("renderCommitList: visibleHeight=%d", visibleHeight)
 
-	graphColor := lipgloss.NewStyle().Foreground(lipgloss.Color("#FFA500"))
-	selGraphColor := lipgloss.NewStyle().Foreground(lipgloss.Color("#FFFFFF")).Bold(true)
-	selHashStyle := commitHashStyle.Background(lipgloss.Color("#3C3C3C"))
+	graphColor := lipgloss.NewStyle().Foreground(lipgloss.Color(currentTheme.Graph))
+	selGraphColor := lipgloss.NewStyle().Foreground(lipgloss.Color(currentTheme.SelectedFg)).Bold(true)
+	selHashStyle := commitHashStyle.Background(lipgloss.Color(currentTheme.SelectedBg))
 
 	if len(m.displayRows) > 0 {
 		// Graph mode: use displayRows from git log --graph
@@ -843,17 +826,17 @@ func (m *model) renderCommitDetails() string {
 	var sb strings.Builder
 
 	// SHA
-	sb.WriteString(lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("#FFA500")).Render("SHA:     "))
+	sb.WriteString(lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color(currentTheme.Hash)).Render("SHA:     "))
 	sb.WriteString(commitHashStyle.Render(c.FullHash))
 	sb.WriteString("\n")
 
 	// Date
-	sb.WriteString(lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("#A3BE8C")).Render("Date:    "))
+	sb.WriteString(lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color(currentTheme.Date)).Render("Date:    "))
 	sb.WriteString(dateStyle.Render(c.Date.Format("2006-01-02 15:04:05")))
 	sb.WriteString("\n")
 
 	// Author
-	sb.WriteString(lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("#7DD3FC")).Render("Author:  "))
+	sb.WriteString(lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color(currentTheme.Author)).Render("Author:  "))
 	sb.WriteString(authorStyle.Render(c.Author))
 	sb.WriteString("\n")
 
@@ -866,14 +849,14 @@ func (m *model) renderCommitDetails() string {
 
 	// Refs
 	if c.Refs != "" {
-		sb.WriteString(lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("#88C0D0")).Render("Refs:    "))
+		sb.WriteString(lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color(currentTheme.Branch)).Render("Refs:    "))
 		sb.WriteString(branchStyle.Render(c.Refs))
 		sb.WriteString("\n")
 	}
 
 	// Commit message
 	sb.WriteString("\n")
-	sb.WriteString(lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("#7D56F4")).Render("─── Message ───────────────────────"))
+	sb.WriteString(lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color(currentTheme.SectionHeader)).Render("─── Message ───────────────────────"))
 	sb.WriteString("\n")
 	sb.WriteString(messageStyle.Render(c.Message))
 	sb.WriteString("\n")
@@ -881,7 +864,7 @@ func (m *model) renderCommitDetails() string {
 	// Diff stats
 	if c.DiffLoaded && c.DiffStat != "" {
 		sb.WriteString("\n")
-		sb.WriteString(lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("#7D56F4")).Render("─── Stats ─────────────────────────"))
+		sb.WriteString(lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color(currentTheme.SectionHeader)).Render("─── Stats ─────────────────────────"))
 		sb.WriteString("\n")
 		sb.WriteString(c.DiffStat)
 		sb.WriteString("\n")
@@ -890,13 +873,13 @@ func (m *model) renderCommitDetails() string {
 	// Diff content
 	if c.DiffLoaded && c.DiffBody != "" {
 		sb.WriteString("\n")
-		sb.WriteString(lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("#7D56F4")).Render("─── Diff ──────────────────────────"))
+		sb.WriteString(lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color(currentTheme.SectionHeader)).Render("─── Diff ──────────────────────────"))
 		sb.WriteString("\n")
 
-		addStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("#A3BE8C"))
-		delStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("#BF616A"))
-		hunkStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("#5E81AC"))
-		diffHeaderStyle := lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("#E5E9F0"))
+		addStyle := lipgloss.NewStyle().Foreground(lipgloss.Color(currentTheme.DiffAdd))
+		delStyle := lipgloss.NewStyle().Foreground(lipgloss.Color(currentTheme.DiffDel))
+		hunkStyle := lipgloss.NewStyle().Foreground(lipgloss.Color(currentTheme.DiffHunk))
+		diffHeaderStyle := lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color(currentTheme.DiffHeader))
 
 		for _, line := range strings.Split(c.DiffBody, "\n") {
 			if strings.HasPrefix(line, "+") && !strings.HasPrefix(line, "+++") {
@@ -1047,7 +1030,7 @@ func (m model) View() (result string) {
 
 	if m.err != nil {
 		errorStyle := lipgloss.NewStyle().
-			Foreground(lipgloss.Color("#FF0000")).
+			Foreground(lipgloss.Color(currentTheme.Error)).
 			Bold(true)
 		return fmt.Sprintf("\n  %s\n\n  Error: %v\n\n  Press q to quit. Check gitraffe.log for details.\n",
 			errorStyle.Render("❌ Error loading repository"),
@@ -1056,9 +1039,9 @@ func (m model) View() (result string) {
 
 	help := helpStyle.Render("0/1/2: focus box • ↑/↓/j/k: scroll • d/u: half page • g/G: top/bottom • q/esc: quit")
 
-	// Border colors: orange for focused, purple for unfocused
-	focusedBorderColor := lipgloss.Color("#FFA500")
-	unfocusedBorderColor := lipgloss.Color("#7D56F4")
+	// Border colors: active for focused, inactive for unfocused
+	focusedBorderColor := lipgloss.Color(currentTheme.BorderActive)
+	unfocusedBorderColor := lipgloss.Color(currentTheme.BorderInactive)
 	box0Border := unfocusedBorderColor
 	box1Border := unfocusedBorderColor
 	box2Border := unfocusedBorderColor
@@ -1190,6 +1173,9 @@ func main() {
 	}
 
 	log.Println("Starting Gitraffe...")
+
+	loadTheme()
+	initStyles()
 
 	repoPath := "."
 	if len(os.Args) > 1 {
