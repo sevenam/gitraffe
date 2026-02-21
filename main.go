@@ -13,8 +13,8 @@ import (
 
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
+	"github.com/charmbracelet/x/ansi"
 	"github.com/go-git/go-git/v5"
-	"github.com/go-git/go-git/v5/plumbing/object"
 )
 
 var (
@@ -79,8 +79,9 @@ type model struct {
 	currentCommit string
 	focusedBox    int // 0 = repo info, 1 = commit list, 2 = commit details
 	detailsScroll int // scroll offset for the details panel
-	displayRows   []displayRow
-	maxGraphWidth int
+	displayRows          []displayRow
+	maxGraphWidth        int
+	detailsContentWidth  int
 }
 
 func initialModel(repoPath string) model {
@@ -122,26 +123,26 @@ type diffLoadedMsg struct {
 	diffBody  string
 }
 
-func loadDiffCmd(repoPath string, fullHash string, idx int) tea.Cmd {
+func loadDiffCmd(repoPath string, fullHash string, idx int, statWidth int) tea.Cmd {
 	return func() tea.Msg {
 		var stat, body string
 
-		cmd := exec.Command("git", "show", "--format=", "--stat", "--no-color", fullHash)
+		cmd := exec.Command("git", "show", "--format=", fmt.Sprintf("--stat=%d", statWidth), "--no-color", fullHash)
 		cmd.Dir = repoPath
 		if out, err := cmd.Output(); err == nil {
-			stat = strings.TrimSpace(string(out))
+			stat = strings.TrimSpace(strings.ReplaceAll(string(out), "\r", ""))
 		}
 
 		cmd = exec.Command("git", "show", "--format=", "--no-color", "-p", fullHash)
 		cmd.Dir = repoPath
 		if out, err := cmd.Output(); err == nil {
-			diff := string(out)
+			diff := strings.ReplaceAll(string(out), "\r", "")
 			diffLines := strings.Split(diff, "\n")
 			if len(diffLines) > 300 {
 				diffLines = diffLines[:300]
 				diffLines = append(diffLines, "... (truncated)")
 			}
-			body = strings.Join(diffLines, "\n")
+			body = strings.TrimSpace(strings.Join(diffLines, "\n"))
 		}
 
 		return diffLoadedMsg{commitIdx: idx, diffStat: stat, diffBody: body}
@@ -150,7 +151,11 @@ func loadDiffCmd(repoPath string, fullHash string, idx int) tea.Cmd {
 
 func (m *model) maybeLoadDiff() tea.Cmd {
 	if m.selected >= 0 && m.selected < len(m.commits) && !m.commits[m.selected].DiffLoaded {
-		return loadDiffCmd(m.repoPath, m.commits[m.selected].FullHash, m.selected)
+		statWidth := m.detailsContentWidth
+		if statWidth <= 0 {
+			statWidth = 80
+		}
+		return loadDiffCmd(m.repoPath, m.commits[m.selected].FullHash, m.selected, statWidth)
 	}
 	return nil
 }
@@ -350,78 +355,6 @@ func (m *model) loadRepoInfoFromCLI() {
 	}
 }
 
-func (m *model) loadCommits() ([]commit, error) {
-	const maxCommits = 5000 // Limit for large repos
-
-	log.Println("Loading commits...")
-	ref, err := m.repo.Head()
-	if err != nil {
-		log.Printf("Error getting HEAD: %v\n", err)
-		return nil, err
-	}
-
-	commitIter, err := m.repo.Log(&git.LogOptions{
-		From: ref.Hash(),
-	})
-	if err != nil {
-		log.Printf("Error getting commit log: %v\n", err)
-		return nil, err
-	}
-
-	var commits []commit
-	commitMap := make(map[string]*commit)
-	count := 0
-
-	err = commitIter.ForEach(func(c *object.Commit) error {
-		count++
-		if count > maxCommits {
-			log.Printf("Reached maximum commit limit (%d), stopping...\n", maxCommits)
-			return fmt.Errorf("stopped at %d commits", maxCommits)
-		}
-
-		parents := make([]string, len(c.ParentHashes))
-		for i, p := range c.ParentHashes {
-			parents[i] = p.String()[:7]
-		}
-
-		fullHash := c.Hash.String()
-		commit := commit{
-			Hash:     fullHash[:7],
-			FullHash: fullHash,
-			Author:   c.Author.Name,
-			Date:     c.Author.When,
-			Message:  strings.Split(c.Message, "\n")[0],
-			Parents:  parents,
-		}
-		commits = append(commits, commit)
-		commitMap[commit.Hash] = &commits[len(commits)-1]
-
-		if count%1000 == 0 {
-			log.Printf("Loaded %d commits...\n", count)
-		}
-
-		return nil
-	})
-
-	// Don't treat maxCommits error as fatal
-	if err != nil && count < maxCommits {
-		log.Printf("Error iterating commits: %v\n", err)
-		// Check if it's a packfile error - if so, try CLI fallback
-		if strings.Contains(err.Error(), "packfile") || strings.Contains(err.Error(), "object not found") {
-			log.Println("Detected packfile error, falling back to git CLI...")
-			return m.loadCommitsFromGitCLI()
-		}
-		return nil, err
-	}
-
-	log.Printf("Successfully loaded %d commits\n", len(commits))
-
-	// Generate graph lines
-	m.generateGraph(commits)
-
-	return commits, nil
-}
-
 func (m *model) loadCommitsFromGitCLI() ([]commit, error) {
 	const maxCommits = 5000
 
@@ -430,7 +363,7 @@ func (m *model) loadCommitsFromGitCLI() ([]commit, error) {
 	// Use git log with a custom format
 	cmd := exec.Command("git", "log",
 		fmt.Sprintf("-n%d", maxCommits),
-		"--pretty=format:%H|%an|%at|%s|%P",
+		"--pretty=format:%H%x00%an%x00%at%x00%s%x00%P",
 		"--all")
 	cmd.Dir = m.repoPath
 
@@ -444,7 +377,8 @@ func (m *model) loadCommitsFromGitCLI() ([]commit, error) {
 		return nil, fmt.Errorf("git command failed: %v", err)
 	}
 
-	lines := strings.Split(out.String(), "\n")
+	raw := strings.ReplaceAll(out.String(), "\r", "")
+	lines := strings.Split(raw, "\n")
 	commits := make([]commit, 0, len(lines))
 
 	for i, line := range lines {
@@ -452,7 +386,7 @@ func (m *model) loadCommitsFromGitCLI() ([]commit, error) {
 			continue
 		}
 
-		parts := strings.Split(line, "|")
+		parts := strings.SplitN(line, "\x00", 5)
 		if len(parts) < 4 {
 			continue
 		}
@@ -553,7 +487,8 @@ func (m *model) loadGraphData() error {
 		return fmt.Errorf("git log --graph failed: %v (%s)", err, errOut.String())
 	}
 
-	lines := strings.Split(out.String(), "\n")
+	raw := strings.ReplaceAll(out.String(), "\r", "")
+	lines := strings.Split(raw, "\n")
 	hashPattern := regexp.MustCompile(`[0-9a-f]{40}`)
 
 	m.commits = nil
@@ -831,6 +766,21 @@ func (m *model) renderCommitList() string {
 	return strings.Join(resultLines, "\n")
 }
 
+// truncateLines truncates each line of s to maxWidth visible characters,
+// correctly handling ANSI escape sequences.
+func truncateLines(s string, maxWidth int) string {
+	if maxWidth <= 0 {
+		return s
+	}
+	lines := strings.Split(s, "\n")
+	for i, line := range lines {
+		if ansi.StringWidth(line) > maxWidth {
+			lines[i] = ansi.Truncate(line, maxWidth, "")
+		}
+	}
+	return strings.Join(lines, "\n")
+}
+
 func (m *model) renderCommitDetails() string {
 	log.Printf("renderCommitDetails: selected=%d, len(commits)=%d", m.selected, len(m.commits))
 	if len(m.commits) == 0 || m.selected < 0 || m.selected >= len(m.commits) {
@@ -921,7 +871,7 @@ func (m *model) renderCommitDetails() string {
 	// Apply scroll offset and truncate to fit panel height.
 	// lipgloss Height() only pads short content, it does NOT clip overflow,
 	// so we must truncate here to prevent the panel from growing unbounded.
-	content := sb.String()
+	content := truncateLines(sb.String(), m.detailsContentWidth)
 	allLines := strings.Split(content, "\n")
 
 	// Clamp scroll
@@ -1142,6 +1092,8 @@ func (m model) View() (result string) {
 		Render(leftContent), "[1]")
 
 	// Create right panel (commit details)
+	// Padding(1,2) → 2*2=4 horizontal padding + 2 borders = 6 overhead
+	m.detailsContentWidth = rightPanelWidth - 6
 	rightContent := m.renderCommitDetails()
 	rightPanel := addBoxLabel(lipgloss.NewStyle().
 		Width(rightPanelWidth-2). // subtract borders (2); Width includes padding
