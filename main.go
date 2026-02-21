@@ -130,13 +130,13 @@ func loadDiffCmd(repoPath string, fullHash string, idx int, statWidth int) tea.C
 		cmd := exec.Command("git", "show", "--format=", fmt.Sprintf("--stat=%d", statWidth), "--no-color", fullHash)
 		cmd.Dir = repoPath
 		if out, err := cmd.Output(); err == nil {
-			stat = strings.TrimSpace(string(out))
+			stat = strings.TrimSpace(strings.ReplaceAll(string(out), "\r", ""))
 		}
 
 		cmd = exec.Command("git", "show", "--format=", "--no-color", "-p", fullHash)
 		cmd.Dir = repoPath
 		if out, err := cmd.Output(); err == nil {
-			diff := string(out)
+			diff := strings.ReplaceAll(string(out), "\r", "")
 			diffLines := strings.Split(diff, "\n")
 			if len(diffLines) > 300 {
 				diffLines = diffLines[:300]
@@ -377,7 +377,8 @@ func (m *model) loadCommitsFromGitCLI() ([]commit, error) {
 		return nil, fmt.Errorf("git command failed: %v", err)
 	}
 
-	lines := strings.Split(out.String(), "\n")
+	raw := strings.ReplaceAll(out.String(), "\r", "")
+	lines := strings.Split(raw, "\n")
 	commits := make([]commit, 0, len(lines))
 
 	for i, line := range lines {
@@ -486,7 +487,8 @@ func (m *model) loadGraphData() error {
 		return fmt.Errorf("git log --graph failed: %v (%s)", err, errOut.String())
 	}
 
-	lines := strings.Split(out.String(), "\n")
+	raw := strings.ReplaceAll(out.String(), "\r", "")
+	lines := strings.Split(raw, "\n")
 	hashPattern := regexp.MustCompile(`[0-9a-f]{40}`)
 
 	m.commits = nil
