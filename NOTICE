@@ -1,0 +1,15 @@
+Gitraffe
+Copyright (c) 2026 John Børge Holen-Tjelta
+
+This project includes color themes derived from tokyonight.nvim:
+
+  tokyonight.nvim
+  Copyright (c) Folke Lemaitre
+  Source: https://github.com/folke/tokyonight.nvim
+  License: Apache License 2.0 (see LICENSES/Apache-2.0.txt)
+
+  The following files are derived from tokyonight.nvim:
+    themes/tokyo-night-night.yml
+    themes/tokyo-night-storm.yml
+    themes/tokyo-night-moon.yml
+    themes/tokyo-night-day.yml

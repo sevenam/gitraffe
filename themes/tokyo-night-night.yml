@@ -1,0 +1,24 @@
+# Tokyo Night (Night) theme for Gitraffe
+# Based on tokyonight.nvim by folke
+# Source: https://github.com/folke/tokyonight.nvim
+# License: Apache License 2.0
+
+colors:
+  title: "#bb9af7"
+  hash: "#ff9e64"
+  author: "#7dcfff"
+  date: "#9ece6a"
+  message: "#c0caf5"
+  branch: "#7aa2f7"
+  help: "#565f89"
+  error: "#db4b4b"
+  section_header: "#9d7cd8"
+  graph: "#ff9e64"
+  border_active: "#ff9e64"
+  border_inactive: "#9d7cd8"
+  selected_fg: "#c0caf5"
+  selected_bg: "#292e42"
+  diff_add: "#9ece6a"
+  diff_del: "#f7768e"
+  diff_hunk: "#7aa2f7"
+  diff_header: "#c0caf5"
