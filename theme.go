@@ -1,6 +1,7 @@
 package main
 
 import (
+	"log"
 	"os"
 	"path/filepath"
 
@@ -64,76 +65,28 @@ func loadTheme() {
 
 	configDir, err := os.UserConfigDir()
 	if err != nil {
+		log.Printf("Theme: config dir unavailable: %v", err)
 		return
 	}
 
-	data, err := os.ReadFile(filepath.Join(configDir, "gitraffe", "theme.yml"))
+	themePath := filepath.Join(configDir, "gitraffe", "theme.yml")
+	log.Printf("Theme: looking for %s", themePath)
+
+	data, err := os.ReadFile(themePath)
 	if err != nil {
-		// File missing is expected; use defaults.
+		log.Printf("Theme: no file at %s, using defaults", themePath)
 		return
 	}
 
 	var tf themeFile
+	tf.Colors = currentTheme
 	if err := yaml.Unmarshal(data, &tf); err != nil {
+		log.Printf("Theme: parse error in %s: %v", themePath, err)
 		return
 	}
 
-	// Merge non-empty fields over defaults.
-	c := tf.Colors
-	if c.Title != "" {
-		currentTheme.Title = c.Title
-	}
-	if c.Hash != "" {
-		currentTheme.Hash = c.Hash
-	}
-	if c.Author != "" {
-		currentTheme.Author = c.Author
-	}
-	if c.Date != "" {
-		currentTheme.Date = c.Date
-	}
-	if c.Message != "" {
-		currentTheme.Message = c.Message
-	}
-	if c.Branch != "" {
-		currentTheme.Branch = c.Branch
-	}
-	if c.Help != "" {
-		currentTheme.Help = c.Help
-	}
-	if c.Error != "" {
-		currentTheme.Error = c.Error
-	}
-	if c.SectionHeader != "" {
-		currentTheme.SectionHeader = c.SectionHeader
-	}
-	if c.Graph != "" {
-		currentTheme.Graph = c.Graph
-	}
-	if c.BorderActive != "" {
-		currentTheme.BorderActive = c.BorderActive
-	}
-	if c.BorderInactive != "" {
-		currentTheme.BorderInactive = c.BorderInactive
-	}
-	if c.SelectedFg != "" {
-		currentTheme.SelectedFg = c.SelectedFg
-	}
-	if c.SelectedBg != "" {
-		currentTheme.SelectedBg = c.SelectedBg
-	}
-	if c.DiffAdd != "" {
-		currentTheme.DiffAdd = c.DiffAdd
-	}
-	if c.DiffDel != "" {
-		currentTheme.DiffDel = c.DiffDel
-	}
-	if c.DiffHunk != "" {
-		currentTheme.DiffHunk = c.DiffHunk
-	}
-	if c.DiffHeader != "" {
-		currentTheme.DiffHeader = c.DiffHeader
-	}
+	currentTheme = tf.Colors
+	log.Printf("Theme: loaded from %s", themePath)
 }
 
 func initStyles() {
