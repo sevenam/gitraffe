@@ -1,5 +1,7 @@
-# Tokyo Night theme for Gitraffe
-# Based on https://github.com/folke/tokyonight.nvim (night variant)
+# Tokyo Night (Storm) theme for Gitraffe
+# Based on tokyonight.nvim by folke
+# Source: https://github.com/folke/tokyonight.nvim
+# License: Apache License 2.0
 
 colors:
   title: "#bb9af7"
