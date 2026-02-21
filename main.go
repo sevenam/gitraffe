@@ -594,7 +594,8 @@ func (m *model) renderRepoInfo() string {
 	leftContent := sb.String()
 
 	// Title on the right
-	title := titleStyle.Render("🦒 Gitraffe - Git Graph Viewer")
+	version := "0.2.0"
+	title := titleStyle.Render("🦒 Gitraffe - Git Graph Viewer (v" + version + ")")
 
 	// Calculate available width for content (subtract borders and padding)
 	availableWidth := m.windowWidth - 2 - 2 // borders (2) + padding (2)
