@@ -149,9 +149,6 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		switch msg.String() {
 		case "q", "ctrl+c", "esc":
 			return m, tea.Quit
-		case "0":
-			m.focusedBox = 0
-			return m, nil
 		case "1":
 			m.focusedBox = 1
 			return m, nil
@@ -159,10 +156,18 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.focusedBox = 2
 			return m, nil
 		case "tab":
-			m.focusedBox = (m.focusedBox + 1) % 3
+			if m.focusedBox == 1 {
+				m.focusedBox = 2
+			} else {
+				m.focusedBox = 1
+			}
 			return m, nil
 		case "shift+tab":
-			m.focusedBox = (m.focusedBox - 1 + 3) % 3
+			if m.focusedBox == 2 {
+				m.focusedBox = 1
+			} else {
+				m.focusedBox = 2
+			}
 			return m, nil
 		}
 
@@ -994,7 +999,7 @@ func (m model) View() (result string) {
 			m.err)
 	}
 
-	help := helpStyle.Render("0/1/2: focus box • tab/shift+tab: cycle boxes • ↑/↓/j/k: scroll • d/u: half page • g/G: top/bottom • q/esc: quit")
+	help := helpStyle.Render("1/2: focus box • tab/shift+tab: cycle boxes • ↑/↓/j/k: scroll • d/u: half page • g/G: top/bottom • q/esc: quit")
 
 	// Border colors: active for focused, inactive for unfocused
 	focusedBorderColor := lipgloss.Color(currentTheme.BorderActive)
@@ -1019,7 +1024,7 @@ func (m model) View() (result string) {
 		BorderStyle(lipgloss.RoundedBorder()).
 		BorderForeground(box0Border).
 		Padding(0, 1).
-		Render(repoInfoContent), "[0]")
+		Render(repoInfoContent), "")
 
 	// Calculate dimensions based on actual rendered box 0 height
 	repoInfoHeight := lipgloss.Height(repoInfoBox) // should be 3 (1 content + 2 border)
