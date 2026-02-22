@@ -1084,7 +1084,7 @@ func (m model) View() (result string) {
 		BorderStyle(lipgloss.RoundedBorder()).
 		BorderForeground(box1Border).
 		Padding(0, 1).
-		Render(leftContent), "[1]")
+		Render(leftContent), "[1]-git-graph")
 
 	// Create right panel (commit details)
 	// Padding(1,2) → 2*2=4 horizontal padding + 2 borders = 6 overhead
@@ -1096,7 +1096,7 @@ func (m model) View() (result string) {
 		BorderStyle(lipgloss.RoundedBorder()).
 		BorderForeground(box2Border).
 		Padding(1, 2).
-		Render(rightContent), "[2]")
+		Render(rightContent), "[2]-commit-details")
 
 	// Force both panels to exactly the same height.
 	// lipgloss Height() is a minimum, not a maximum — long lines that wrap
