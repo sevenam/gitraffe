@@ -1,0 +1,111 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  contents: write
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v4
+        with:
+          go-version: '1.24'
+
+      - name: Run tests
+        run: go test -v ./...
+
+  build:
+    needs: test
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        include:
+          - os: ubuntu-latest
+            goos: linux
+            goarch: amd64
+            output: gitraffe
+          - os: ubuntu-latest
+            goos: linux
+            goarch: arm64
+            output: gitraffe
+          - os: macos-latest
+            goos: darwin
+            goarch: amd64
+            output: gitraffe
+          - os: macos-latest
+            goos: darwin
+            goarch: arm64
+            output: gitraffe
+          - os: windows-latest
+            goos: windows
+            goarch: amd64
+            output: gitraffe.exe
+
+    steps:
+      - uses: actions/checkout@v4
+      - name: Set up Go
+        uses: actions/setup-go@v4
+        with:
+          go-version: '1.24'
+
+      - name: Build
+        env:
+          GOOS: ${{ matrix.goos }}
+          GOARCH: ${{ matrix.goarch }}
+        run: go build -o ${{ matrix.output }} .
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: gitraffe-${{ matrix.goos }}-${{ matrix.goarch }}
+          path: ${{ matrix.output }}
+
+  release:
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+
+      - name: Prepare release assets
+        run: |
+          mkdir -p release
+
+          # Linux amd64
+          cp artifacts/gitraffe-linux-amd64/gitraffe release/gitraffe-linux-amd64
+          chmod +x release/gitraffe-linux-amd64
+
+          # Linux arm64
+          cp artifacts/gitraffe-linux-arm64/gitraffe release/gitraffe-linux-arm64
+          chmod +x release/gitraffe-linux-arm64
+
+          # macOS amd64
+          cp artifacts/gitraffe-darwin-amd64/gitraffe release/gitraffe-darwin-amd64
+          chmod +x release/gitraffe-darwin-amd64
+
+          # macOS arm64 (Apple Silicon)
+          cp artifacts/gitraffe-darwin-arm64/gitraffe release/gitraffe-darwin-arm64
+          chmod +x release/gitraffe-darwin-arm64
+
+          # Windows amd64
+          cp artifacts/gitraffe-windows-amd64/gitraffe.exe release/gitraffe-windows-amd64.exe
+
+      - name: Create Release
+        uses: softprops/action-gh-release@v1
+        with:
+          files: release/*
+          generate_release_notes: true
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
