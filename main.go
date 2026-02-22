@@ -604,8 +604,8 @@ func (m *model) renderRepoInfo() string {
 	leftContent := sb.String()
 
 	// Title on the right
-	version := "0.1.0"
-	title := titleStyle.Render("🦒 " + appName + " - Git Graph Viewer (v" + version + ")")
+	version := "v0.1.0"
+	title := titleStyle.Render("🦒 " + appName + " - Git Graph Viewer (" + version + ")")
 
 	// Calculate available width for content (subtract borders and padding)
 	availableWidth := m.windowWidth - 2 - 2 // borders (2) + padding (2)
