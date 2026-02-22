@@ -164,7 +164,7 @@ func downloadAndUpdate(release *Release) error {
 	if runtime.GOOS == "windows" {
 		// On Windows, spawn a helper process to do the replacement after we exit
 		// This is necessary because the running executable is locked
-		return replaceOnWindows(exePath, tmpFile.Name())
+		return replaceWithHelper(exePath, tmpFile.Name())
 	} else {
 		// On Unix-like systems, we can use atomic rename
 		if err := os.Rename(tmpFile.Name(), exePath); err != nil {
@@ -185,36 +185,89 @@ func getBinaryName() string {
 	return fmt.Sprintf("gitraffe-%s-%s%s", runtime.GOOS, runtime.GOARCH, ext)
 }
 
-// replaceOnWindows spawns a helper process to replace the executable
-// since the running binary is locked and can't be renamed
-func replaceOnWindows(exePath, newBinaryPath string) error {
-	// Create a batch script that will:
-	// 1. Wait a moment for the main process to exit
-	// 2. Move the new binary to the target location
-	// 3. Clean up
-
+// replaceWithHelper spawns a cross-platform helper process to replace the executable
+// since on Windows the running binary is locked and can't be renamed
+func replaceWithHelper(exePath, newBinaryPath string) error {
 	tmpDir := filepath.Dir(newBinaryPath)
-	scriptPath := filepath.Join(tmpDir, "gitraffe-update.bat")
 
-	// Create a batch script
-	script := fmt.Sprintf(`@echo off
-timeout /t 1 /nobreak > nul
-move /Y "%s" "%s"
+	if runtime.GOOS == "windows" {
+		scriptPath := filepath.Join(tmpDir, "gitraffe-update.bat")
+
+		// Batch script with retry loop (max 10 attempts = 5 seconds)
+		script := fmt.Sprintf(`@echo off
+setlocal enabledelayedexpansion
+set "maxRetries=10"
+set "retryCount=0"
+set "oldPath=%s"
+set "newPath=%s"
+
+:retry
+if !retryCount! geq !maxRetries! (
+    echo Failed to apply update after !maxRetries! attempts
+    del "%%~0" 2>nul
+    exit /b 1
+)
+
+move /Y "!newPath!" "!oldPath!" >nul 2>&1
+if errorlevel 1 (
+    set /a retryCount+=1
+    timeout /t 1 /nobreak >nul
+    goto retry
+)
+
 del "%s" 2>nul
 exit /b 0
-`, newBinaryPath, exePath, scriptPath)
+`, exePath, newBinaryPath, scriptPath)
 
-	if err := os.WriteFile(scriptPath, []byte(script), 0644); err != nil {
-		os.Remove(newBinaryPath)
-		return fmt.Errorf("failed to create update script: %w", err)
-	}
+		if err := os.WriteFile(scriptPath, []byte(script), 0644); err != nil {
+			os.Remove(newBinaryPath)
+			return fmt.Errorf("failed to create update script: %w", err)
+		}
 
-	// Spawn the batch script in the background
-	cmd := exec.Command("cmd", "/C", "start", "/B", scriptPath)
-	if err := cmd.Start(); err != nil {
-		os.Remove(scriptPath)
-		os.Remove(newBinaryPath)
-		return fmt.Errorf("failed to start update process: %w", err)
+		// Spawn batch in the background
+		cmd := exec.Command("cmd", "/C", "start", "/B", scriptPath)
+		if err := cmd.Start(); err != nil {
+			os.Remove(scriptPath)
+			os.Remove(newBinaryPath)
+			return fmt.Errorf("failed to start update process: %w", err)
+		}
+	} else {
+		scriptPath := filepath.Join(tmpDir, "gitraffe-update.sh")
+
+		// Shell script with retry loop (max 10 attempts = 5 seconds)
+		script := fmt.Sprintf(`#!/bin/sh
+maxRetries=10
+retryCount=0
+oldPath="%s"
+newPath="%s"
+scriptPath="%s"
+
+while [ $retryCount -lt $maxRetries ]; do
+    if mv "$newPath" "$oldPath" 2>/dev/null; then
+        rm -f "$scriptPath" 2>/dev/null
+        exit 0
+    fi
+    retryCount=$((retryCount + 1))
+    sleep 0.5
+done
+
+echo "Failed to apply update after $maxRetries attempts"
+rm -f "$scriptPath" 2>/dev/null
+exit 1
+`, exePath, newBinaryPath, scriptPath)
+
+		if err := os.WriteFile(scriptPath, []byte(script), 0755); err != nil {
+			os.Remove(newBinaryPath)
+			return fmt.Errorf("failed to create update script: %w", err)
+		}
+
+		// Spawn shell script in the background
+		cmd := exec.Command("/bin/sh", "-c", scriptPath+" &")
+		if err := cmd.Start(); err != nil {
+			os.Remove(scriptPath)
+			os.Remove(newBinaryPath)
+			return fmt.Errorf("failed to start update process: %w", err)
+		}
 	}
 
 	// Exit after spawning the updater
