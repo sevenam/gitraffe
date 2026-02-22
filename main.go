@@ -599,7 +599,7 @@ func (m *model) renderRepoInfo() string {
 	leftContent := sb.String()
 
 	// Title on the right
-	version := "0.2.0"
+	version := "0.3.0"
 	title := titleStyle.Render("🦒 Gitraffe - Git Graph Viewer (v" + version + ")")
 
 	// Calculate available width for content (subtract borders and padding)
@@ -1030,7 +1030,7 @@ func (m model) View() (result string) {
 	repoInfoHeight := lipgloss.Height(repoInfoBox) // should be 3 (1 content + 2 border)
 	// Layout: repoInfoBox + \n + content panels (contentHeight + 2 border) + \n + help
 	// Total = repoInfoHeight + 1 + contentHeight + 2 + 1 + 1 = repoInfoHeight + contentHeight + 5
-	contentHeight := m.windowHeight - repoInfoHeight - 5
+	contentHeight := m.windowHeight - repoInfoHeight - 3
 
 	if contentHeight < 3 {
 		contentHeight = 3
