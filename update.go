@@ -6,6 +6,8 @@ import (
 	"io"
 	"net/http"
 	"os"
+	"os/exec"
+	"path/filepath"
 	"runtime"
 	"time"
 )
@@ -159,20 +161,10 @@ func downloadAndUpdate(release *Release) error {
 	}
 
 	// Replace the old executable with the new one
-	// On Windows, we need to remove the old file first
 	if runtime.GOOS == "windows" {
-		backupPath := exePath + ".bak"
-		if err := os.Rename(exePath, backupPath); err != nil {
-			os.Remove(tmpFile.Name())
-			return fmt.Errorf("failed to backup old executable: %w", err)
-		}
-		if err := os.Rename(tmpFile.Name(), exePath); err != nil {
-			// Try to restore from backup
-			os.Rename(backupPath, exePath)
-			os.Remove(tmpFile.Name())
-			return fmt.Errorf("failed to install new executable: %w", err)
-		}
-		os.Remove(backupPath)
+		// On Windows, spawn a helper process to do the replacement after we exit
+		// This is necessary because the running executable is locked
+		return replaceOnWindows(exePath, tmpFile.Name())
 	} else {
 		// On Unix-like systems, we can use atomic rename
 		if err := os.Rename(tmpFile.Name(), exePath); err != nil {
@@ -191,4 +183,43 @@ func getBinaryName() string {
 	}
 
 	return fmt.Sprintf("gitraffe-%s-%s%s", runtime.GOOS, runtime.GOARCH, ext)
+}
+
+// replaceOnWindows spawns a helper process to replace the executable
+// since the running binary is locked and can't be renamed
+func replaceOnWindows(exePath, newBinaryPath string) error {
+	// Create a batch script that will:
+	// 1. Wait a moment for the main process to exit
+	// 2. Move the new binary to the target location
+	// 3. Clean up
+
+	tmpDir := filepath.Dir(newBinaryPath)
+	scriptPath := filepath.Join(tmpDir, "gitraffe-update.bat")
+
+	// Create a batch script
+	script := fmt.Sprintf(`@echo off
+timeout /t 1 /nobreak > nul
+move /Y "%s" "%s"
+del "%s" 2>nul
+exit /b 0
+`, newBinaryPath, exePath, scriptPath)
+
+	if err := os.WriteFile(scriptPath, []byte(script), 0644); err != nil {
+		os.Remove(newBinaryPath)
+		return fmt.Errorf("failed to create update script: %w", err)
+	}
+
+	// Spawn the batch script in the background
+	cmd := exec.Command("cmd", "/C", "start", "/B", scriptPath)
+	if err := cmd.Start(); err != nil {
+		os.Remove(scriptPath)
+		os.Remove(newBinaryPath)
+		return fmt.Errorf("failed to start update process: %w", err)
+	}
+
+	// Exit after spawning the updater
+	fmt.Println("Update will be applied in the background. Exiting...")
+	os.Exit(0)
+
+	return nil // Never reached, but keeps compiler happy
 }
