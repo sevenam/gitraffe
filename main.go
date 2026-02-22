@@ -49,22 +49,22 @@ type displayRow struct {
 }
 
 type model struct {
-	repo          *git.Repository
-	commits       []commit
-	ready         bool
-	repoPath      string
-	err           error
-	selected      int
-	windowHeight  int
-	windowWidth   int
-	repoName      string
-	currentBranch string
-	currentCommit string
-	focusedBox    int // 0 = repo info, 1 = commit list, 2 = commit details
-	detailsScroll int // scroll offset for the details panel
-	displayRows          []displayRow
-	maxGraphWidth        int
-	detailsContentWidth  int
+	repo                *git.Repository
+	commits             []commit
+	ready               bool
+	repoPath            string
+	err                 error
+	selected            int
+	windowHeight        int
+	windowWidth         int
+	repoName            string
+	currentBranch       string
+	currentCommit       string
+	focusedBox          int // 0 = repo info, 1 = commit list, 2 = commit details
+	detailsScroll       int // scroll offset for the details panel
+	displayRows         []displayRow
+	maxGraphWidth       int
+	detailsContentWidth int
 }
 
 func initialModel(repoPath string) model {
@@ -157,6 +157,12 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return m, nil
 		case "2":
 			m.focusedBox = 2
+			return m, nil
+		case "tab":
+			m.focusedBox = (m.focusedBox + 1) % 3
+			return m, nil
+		case "shift+tab":
+			m.focusedBox = (m.focusedBox - 1 + 3) % 3
 			return m, nil
 		}
 
@@ -987,7 +993,7 @@ func (m model) View() (result string) {
 			m.err)
 	}
 
-	help := helpStyle.Render("0/1/2: focus box • ↑/↓/j/k: scroll • d/u: half page • g/G: top/bottom • q/esc: quit")
+	help := helpStyle.Render("0/1/2: focus box • tab/shift+tab: cycle boxes • ↑/↓/j/k: scroll • d/u: half page • g/G: top/bottom • q/esc: quit")
 
 	// Border colors: active for focused, inactive for unfocused
 	focusedBorderColor := lipgloss.Color(currentTheme.BorderActive)
