@@ -636,7 +636,7 @@ func (m *model) renderCommitList() string {
 
 	graphColor := lipgloss.NewStyle().Foreground(lipgloss.Color(currentTheme.Graph))
 	selGraphColor := lipgloss.NewStyle().Foreground(lipgloss.Color(currentTheme.SelectedFg)).Bold(true)
-	selHashStyle := commitHashStyle.Background(lipgloss.Color(currentTheme.SelectedBg))
+	selHashStyle := lipgloss.NewStyle().Foreground(lipgloss.Color(currentTheme.SelectedFg)).Bold(true)
 
 	if len(m.displayRows) > 0 {
 		// Graph mode: use displayRows from git log --graph
