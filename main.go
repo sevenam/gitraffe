@@ -17,6 +17,11 @@ import (
 	"github.com/go-git/go-git/v5"
 )
 
+const (
+	appName     = "Gitraffe"
+	logFileName = "gitraffe.log"
+)
+
 var (
 	// Styles — initialized by initStyles() after theme is loaded.
 	titleStyle      lipgloss.Style
@@ -599,8 +604,8 @@ func (m *model) renderRepoInfo() string {
 	leftContent := sb.String()
 
 	// Title on the right
-	version := "0.3.0"
-	title := titleStyle.Render("🦒 Gitraffe - Git Graph Viewer (v" + version + ")")
+	version := "0.1.0"
+	title := titleStyle.Render("🦒 " + appName + " - Git Graph Viewer (v" + version + ")")
 
 	// Calculate available width for content (subtract borders and padding)
 	availableWidth := m.windowWidth - 2 - 2 // borders (2) + padding (2)
@@ -974,7 +979,7 @@ func (m model) View() (result string) {
 	defer func() {
 		if r := recover(); r != nil {
 			log.Printf("PANIC in View: %v", r)
-			result = fmt.Sprintf("\n  PANIC caught: %v\n\n  Check gitraffe.log for details.\n  Press q to quit.", r)
+			result = fmt.Sprintf("\n  PANIC caught: %v\n\n  Check %s for details.\n  Press q to quit.", r, logFileName)
 		}
 	}()
 	log.Printf("View: ready=%v, err=%v, commits=%d, displayRows=%d, window=%dx%d, focused=%d",
@@ -994,9 +999,9 @@ func (m model) View() (result string) {
 		errorStyle := lipgloss.NewStyle().
 			Foreground(lipgloss.Color(currentTheme.Error)).
 			Bold(true)
-		return fmt.Sprintf("\n  %s\n\n  Error: %v\n\n  Press q to quit. Check gitraffe.log for details.\n",
+		return fmt.Sprintf("\n  %s\n\n  Error: %v\n\n  Press q to quit. Check %s for details.\n",
 			errorStyle.Render("❌ Error loading repository"),
-			m.err)
+			m.err, logFileName)
 	}
 
 	help := helpStyle.Render("1/2: focus box • tab/shift+tab: cycle boxes • ↑/↓/j/k: scroll • d/u: half page • g/G: top/bottom • q/esc: quit")
@@ -1130,13 +1135,13 @@ func (m model) View() (result string) {
 
 func main() {
 	// Set up logging to file for debugging
-	logFile, err := os.OpenFile("gitraffe.log", os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0666)
+	logFile, err := os.OpenFile(logFileName, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0666)
 	if err == nil {
 		log.SetOutput(logFile)
 		defer logFile.Close()
 	}
 
-	log.Println("Starting Gitraffe...")
+	log.Println("Starting " + appName + "...")
 
 	loadTheme()
 	initStyles()
@@ -1147,6 +1152,10 @@ func main() {
 	}
 
 	log.Printf("Opening repository: %s\n", repoPath)
+
+	// Set terminal title (works on Windows 10+, macOS, Linux)
+	setTerminalTitle(appName)
+	defer resetTerminalTitle()
 
 	p := tea.NewProgram(
 		initialModel(repoPath),
@@ -1160,5 +1169,16 @@ func main() {
 		os.Exit(1)
 	}
 
-	log.Println("Gitraffe exited normally")
+	log.Println(appName + " exited normally")
+}
+
+// setTerminalTitle sets the terminal window title using ANSI escape sequence
+// Works on Windows 10+, macOS, and Linux
+func setTerminalTitle(title string) {
+	fmt.Printf("\033]0;%s\007", title)
+}
+
+// resetTerminalTitle clears the terminal title back to default
+func resetTerminalTitle() {
+	fmt.Printf("\033]0;\007")
 }
