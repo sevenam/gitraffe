@@ -55,6 +55,13 @@ gitraffe /path/to/repo
 - [go-git](https://github.com/go-git/go-git) - Pure Go implementation of Git
 - [Bubbles](https://github.com/charmbracelet/bubbles) - TUI components for Bubble Tea
 
+## Release
+
+```bash
+git tag v0.1.0
+git push --tags
+```
+
 ## License
 
 MIT License - see [LICENSE](LICENSE) file for details.
