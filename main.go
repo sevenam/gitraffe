@@ -71,6 +71,7 @@ type model struct {
 	displayRows         []displayRow
 	maxGraphWidth       int
 	detailsContentWidth int
+	latestVersion       string // latest version from GitHub, e.g., "v0.2.0"
 }
 
 func initialModel(repoPath string) model {
@@ -81,7 +82,17 @@ func initialModel(repoPath string) model {
 }
 
 func (m model) Init() tea.Cmd {
-	return loadRepo(m.repoPath)
+	return tea.Batch(
+		loadRepo(m.repoPath),
+		checkVersionCmd(),
+	)
+}
+
+func checkVersionCmd() tea.Cmd {
+	return func() tea.Msg {
+		latestVersion := fetchLatestVersion()
+		return versionCheckMsg{latestVersion: latestVersion}
+	}
 }
 
 func loadRepo(path string) tea.Cmd {
@@ -104,6 +115,10 @@ type errMsg struct {
 
 func (e errMsg) Error() string {
 	return e.err.Error()
+}
+
+type versionCheckMsg struct {
+	latestVersion string
 }
 
 type diffLoadedMsg struct {
@@ -290,6 +305,10 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.commits[msg.commitIdx].DiffStat = msg.diffStat
 			m.commits[msg.commitIdx].DiffBody = msg.diffBody
 		}
+		return m, nil
+
+	case versionCheckMsg:
+		m.latestVersion = msg.latestVersion
 		return m, nil
 	}
 
@@ -605,7 +624,12 @@ func (m *model) renderRepoInfo() string {
 	leftContent := sb.String()
 
 	// Title on the right
-	title := titleStyle.Render("🦒 " + appName + " - Git Graph Viewer (" + version + ")")
+	versionStr := "v" + version
+	if m.latestVersion != "" && m.latestVersion != versionStr {
+		// New version available
+		versionStr = versionStr + " → " + m.latestVersion + " available"
+	}
+	title := titleStyle.Render("🦒 " + appName + " - Git Graph Viewer (" + versionStr + ")")
 
 	// Calculate available width for content (subtract borders and padding)
 	availableWidth := m.windowWidth - 2 - 2 // borders (2) + padding (2)

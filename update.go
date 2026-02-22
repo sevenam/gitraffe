@@ -78,6 +78,36 @@ func fetchLatestRelease() (*Release, error) {
 	return &release, nil
 }
 
+// fetchLatestVersion checks for the latest version without downloading
+// Returns the tag name (e.g., "v0.2.0") or empty string on error
+func fetchLatestVersion() string {
+	url := fmt.Sprintf("https://api.github.com/repos/%s/%s/releases/latest", owner, repo)
+
+	req, err := http.NewRequest("GET", url, nil)
+	if err != nil {
+		return ""
+	}
+	req.Header.Set("Accept", "application/vnd.github.v3+json")
+
+	client := &http.Client{Timeout: 5 * time.Second}
+	resp, err := client.Do(req)
+	if err != nil {
+		return ""
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		return ""
+	}
+
+	var release Release
+	if err := json.NewDecoder(resp.Body).Decode(&release); err != nil {
+		return ""
+	}
+
+	return release.TagName
+}
+
 func downloadAndUpdate(release *Release) error {
 	assetName := getBinaryName()
 	var downloadURL string
