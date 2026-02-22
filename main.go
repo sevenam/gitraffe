@@ -19,6 +19,7 @@ import (
 
 const (
 	appName     = "Gitraffe"
+	version     = "0.1.0"
 	logFileName = "gitraffe.log"
 )
 
@@ -604,7 +605,6 @@ func (m *model) renderRepoInfo() string {
 	leftContent := sb.String()
 
 	// Title on the right
-	version := "v0.1.0"
 	title := titleStyle.Render("🦒 " + appName + " - Git Graph Viewer (" + version + ")")
 
 	// Calculate available width for content (subtract borders and padding)
@@ -1142,6 +1142,15 @@ func main() {
 	}
 
 	log.Println("Starting " + appName + "...")
+
+	// Handle update subcommand
+	if len(os.Args) > 1 && os.Args[1] == "update" {
+		if err := checkUpdate(); err != nil {
+			fmt.Printf("Error: %v\n", err)
+			os.Exit(1)
+		}
+		return
+	}
 
 	loadTheme()
 	initStyles()
