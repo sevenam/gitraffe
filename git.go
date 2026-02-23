@@ -373,9 +373,9 @@ func (m *model) loadGraphData() error {
 			m.maxBranchWidth = labelWidth
 		}
 	}
-	if m.maxBranchWidth > 25 {
+	if m.maxBranchWidth > 50 {
 		// Truncate to runes, not bytes
-		m.maxBranchWidth = 25
+		m.maxBranchWidth = 50
 	}
 
 	log.Printf("Loaded %d commits, %d display rows, max graph width: %d, max branch width: %d\n",
