@@ -17,6 +17,7 @@ type ThemeColors struct {
 	Date           string `yaml:"date"`
 	Message        string `yaml:"message"`
 	Branch         string `yaml:"branch"`
+	Tag            string `yaml:"tag"`
 	Help           string `yaml:"help"`
 	Error          string `yaml:"error"`
 	SectionHeader  string `yaml:"section_header"`
@@ -45,6 +46,7 @@ func defaultTheme() ThemeColors {
 		Date:           "#A3BE8C",
 		Message:        "#E5E9F0",
 		Branch:         "#88C0D0",
+		Tag:            "#EBCB8B",
 		Help:           "#626262",
 		Error:          "#FF0000",
 		SectionHeader:  "#7D56F4",
@@ -110,6 +112,10 @@ func initStyles() {
 
 	branchStyle = lipgloss.NewStyle().
 		Foreground(lipgloss.Color(currentTheme.Branch)).
+		Bold(true)
+
+	tagStyle = lipgloss.NewStyle().
+		Foreground(lipgloss.Color(currentTheme.Tag)).
 		Bold(true)
 
 	helpStyle = lipgloss.NewStyle().

@@ -125,23 +125,55 @@ func (m *model) renderCommitList() string {
 			}
 			graphPadded := row.GraphChars + strings.Repeat(" ", padLen)
 
-			// Branch label column
+			// Branch/tag label column
 			branchLabel := ""
+			tagLabel := ""
+			combined := ""
 			if isCommit {
-				branchLabel = extractBranchLabel(m.commits[row.CommitIdx].Refs)
+				branches, tags := parseRefs(m.commits[row.CommitIdx].Refs)
+				if len(branches) > 0 {
+					branchLabel = strings.Join(branches, ", ")
+				}
+				if len(tags) > 0 {
+					tagLabel = strings.Join(tags, ", ")
+				}
+				// produce the string we use for width/truncation
+				combined = branchLabel
+				if tagLabel != "" {
+					if combined != "" {
+						combined += ", "
+					}
+					combined += tagLabel
+				}
 				// Truncate to runes, not bytes
-				branchRunes := []rune(branchLabel)
-				if len(branchRunes) > m.maxBranchWidth {
-					branchLabel = string(branchRunes[:m.maxBranchWidth])
+				runes := []rune(combined)
+				if len(runes) > m.maxBranchWidth {
+					combined = string(runes[:m.maxBranchWidth])
 				}
 			}
 
-			// Helper to render the branch label with padding, using the given style
-			renderBranchLabel := func(style lipgloss.Style) {
+			// Helper to render the branch/tag label with padding, using the given style(s)
+			renderBranchLabel := func() {
 				if m.maxBranchWidth > 0 {
-					blPad := m.maxBranchWidth - utf8.RuneCountInString(branchLabel)
-					if branchLabel != "" {
-						sb.WriteString(style.Render(branchLabel))
+					blPad := m.maxBranchWidth - utf8.RuneCountInString(combined)
+					if combined != "" {
+						// split on comma+space to style tags differently
+						tokens := strings.Split(combined, ", ")
+						for j, tok := range tokens {
+							// decide style: if this token exactly matches one of the
+							// original tags, use tagStyle; otherwise branchStyle.
+							styleToUse := branchStyle
+							for _, t := range strings.Split(tagLabel, ", ") {
+								if tok == t {
+									styleToUse = tagStyle
+									break
+								}
+							}
+							if j > 0 {
+								sb.WriteString(", ")
+							}
+							sb.WriteString(styleToUse.Render(tok))
+						}
 					}
 					if blPad > 0 {
 						sb.WriteString(strings.Repeat(" ", blPad))
@@ -153,13 +185,13 @@ func (m *model) renderCommitList() string {
 			if isSel {
 				highlighted := strings.ReplaceAll(graphPadded, "●", "◉")
 				sb.WriteString("> ")
-				renderBranchLabel(selHashStyle)
+				renderBranchLabel()
 				sb.WriteString(selGraphColor.Render(highlighted))
 				sb.WriteString(" ")
 				sb.WriteString(selHashStyle.Render(m.commits[row.CommitIdx].Hash))
 			} else {
 				sb.WriteString("  ")
-				renderBranchLabel(branchStyle)
+				renderBranchLabel()
 				sb.WriteString(graphColor.Render(graphPadded))
 				if isCommit {
 					sb.WriteString(" ")

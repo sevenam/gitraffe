@@ -226,28 +226,50 @@ func transliterateGraph(s string) string {
 	return r.Replace(s)
 }
 
-func extractBranchLabel(refs string) string {
+// parseRefs splits the raw --pretty=%D string into separate branch and tag slices.
+// "refs" is the comma-separated list emitted by git log (e.g. "HEAD -> main, tag: v1.0, origin/main").
+// Branch names (including remotes) are returned in the first slice; tag names are returned in the second.
+func parseRefs(refs string) (branches, tags []string) {
 	if refs == "" {
-		return ""
+		return
 	}
-	var branches []string
 	for _, ref := range strings.Split(refs, ", ") {
 		ref = strings.TrimSpace(ref)
-		if strings.HasPrefix(ref, "tag: ") {
+		if ref == "" {
 			continue
 		}
+		// strip HEAD pointer
 		if strings.HasPrefix(ref, "HEAD -> ") {
 			ref = strings.TrimPrefix(ref, "HEAD -> ")
 		}
 		if ref == "HEAD" {
 			continue
 		}
-		branches = append(branches, ref)
+		if strings.HasPrefix(ref, "tag: ") {
+			tags = append(tags, strings.TrimPrefix(ref, "tag: "))
+		} else {
+			branches = append(branches, ref)
+		}
 	}
-	if len(branches) == 0 {
+	return
+}
+
+// extractBranchLabel returns a comma‑separated string containing both branches and
+// tags (tags appended after branches). It is used for width calculation and as a
+// convenience wrapper for callers that just need the full label.
+func extractBranchLabel(refs string) string {
+	branches, tags := parseRefs(refs)
+	if len(branches) == 0 && len(tags) == 0 {
 		return ""
 	}
-	return strings.Join(branches, ", ")
+	s := strings.Join(branches, ", ")
+	if len(tags) > 0 {
+		if s != "" {
+			s += ", "
+		}
+		s += strings.Join(tags, ", ")
+	}
+	return s
 }
 
 func (m *model) loadGraphData() error {
@@ -364,18 +386,20 @@ func (m *model) loadGraphData() error {
 		}
 	}
 
-	// Calculate max branch label width for column alignment
+	// Calculate max combined label width (branches + tags) for column alignment
 	m.maxBranchWidth = 0
 	for _, c := range m.commits {
+		// using the convenience wrapper here is fine; parseRefs is used
+		// elsewhere for styling.
 		label := extractBranchLabel(c.Refs)
 		labelWidth := utf8.RuneCountInString(label)
 		if labelWidth > m.maxBranchWidth {
 			m.maxBranchWidth = labelWidth
 		}
 	}
-	if m.maxBranchWidth > 25 {
+	if m.maxBranchWidth > 50 {
 		// Truncate to runes, not bytes
-		m.maxBranchWidth = 25
+		m.maxBranchWidth = 50
 	}
 
 	log.Printf("Loaded %d commits, %d display rows, max graph width: %d, max branch width: %d\n",

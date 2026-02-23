@@ -25,6 +25,7 @@ var (
 	dateStyle       lipgloss.Style
 	messageStyle    lipgloss.Style
 	branchStyle     lipgloss.Style
+	tagStyle        lipgloss.Style
 	helpStyle       lipgloss.Style
 )
 
@@ -292,7 +293,7 @@ func (m model) View() (result string) {
 	if leftPanelWidth < 25 {
 		leftPanelWidth = 25
 	}
-	maxLeftWidth := m.windowWidth * 3 / 5
+	maxLeftWidth := m.windowWidth * 4 / 5
 	if leftPanelWidth > maxLeftWidth {
 		leftPanelWidth = maxLeftWidth
 	}
