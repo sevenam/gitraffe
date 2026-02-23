@@ -283,9 +283,10 @@ func (m model) View() (result string) {
 	}
 
 	// Panel widths - dynamic based on graph width
-	// graph needs: 2 (selection "> ") + maxGraphWidth + 1 (space) + 7 (hash) + borders(2) + padding(2) = maxGraphWidth + 14
+	// Base graph needs: 2 (selection "> ") + maxGraphWidth + 1 (space) + 7 (hash) + borders(2) + padding(2) = maxGraphWidth + 14
 	leftPanelWidth := m.maxGraphWidth + 14
 	if m.maxBranchWidth > 0 {
+		// When branch labels are shown, also add: maxBranchWidth + 1 (space between graph and label)
 		leftPanelWidth += m.maxBranchWidth + 1
 	}
 	if leftPanelWidth < 25 {

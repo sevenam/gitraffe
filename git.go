@@ -10,6 +10,7 @@ import (
 	"strconv"
 	"strings"
 	"time"
+	"unicode/utf8"
 
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/go-git/go-git/v5"
@@ -367,11 +368,13 @@ func (m *model) loadGraphData() error {
 	m.maxBranchWidth = 0
 	for _, c := range m.commits {
 		label := extractBranchLabel(c.Refs)
-		if len(label) > m.maxBranchWidth {
-			m.maxBranchWidth = len(label)
+		labelWidth := utf8.RuneCountInString(label)
+		if labelWidth > m.maxBranchWidth {
+			m.maxBranchWidth = labelWidth
 		}
 	}
 	if m.maxBranchWidth > 25 {
+		// Truncate to runes, not bytes
 		m.maxBranchWidth = 25
 	}
 

@@ -3,6 +3,7 @@ package main
 import (
 	"log"
 	"strings"
+	"unicode/utf8"
 
 	"github.com/charmbracelet/lipgloss"
 	"github.com/charmbracelet/x/ansi"
@@ -128,39 +129,37 @@ func (m *model) renderCommitList() string {
 			branchLabel := ""
 			if isCommit {
 				branchLabel = extractBranchLabel(m.commits[row.CommitIdx].Refs)
-				if len(branchLabel) > m.maxBranchWidth {
-					branchLabel = branchLabel[:m.maxBranchWidth]
+				// Truncate to runes, not bytes
+				branchRunes := []rune(branchLabel)
+				if len(branchRunes) > m.maxBranchWidth {
+					branchLabel = string(branchRunes[:m.maxBranchWidth])
+				}
+			}
+
+			// Helper to render the branch label with padding, using the given style
+			renderBranchLabel := func(style lipgloss.Style) {
+				if m.maxBranchWidth > 0 {
+					blPad := m.maxBranchWidth - utf8.RuneCountInString(branchLabel)
+					if branchLabel != "" {
+						sb.WriteString(style.Render(branchLabel))
+					}
+					if blPad > 0 {
+						sb.WriteString(strings.Repeat(" ", blPad))
+					}
+					sb.WriteString(" ")
 				}
 			}
 
 			if isSel {
 				highlighted := strings.ReplaceAll(graphPadded, "●", "◉")
 				sb.WriteString("> ")
-				if m.maxBranchWidth > 0 {
-					blPad := m.maxBranchWidth - len(branchLabel)
-					if branchLabel != "" {
-						sb.WriteString(selHashStyle.Render(branchLabel))
-					}
-					if blPad > 0 {
-						sb.WriteString(strings.Repeat(" ", blPad))
-					}
-					sb.WriteString(" ")
-				}
+				renderBranchLabel(selHashStyle)
 				sb.WriteString(selGraphColor.Render(highlighted))
 				sb.WriteString(" ")
 				sb.WriteString(selHashStyle.Render(m.commits[row.CommitIdx].Hash))
 			} else {
 				sb.WriteString("  ")
-				if m.maxBranchWidth > 0 {
-					blPad := m.maxBranchWidth - len(branchLabel)
-					if branchLabel != "" {
-						sb.WriteString(branchStyle.Render(branchLabel))
-					}
-					if blPad > 0 {
-						sb.WriteString(strings.Repeat(" ", blPad))
-					}
-					sb.WriteString(" ")
-				}
+				renderBranchLabel(branchStyle)
 				sb.WriteString(graphColor.Render(graphPadded))
 				if isCommit {
 					sb.WriteString(" ")
