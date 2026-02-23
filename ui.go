@@ -124,14 +124,43 @@ func (m *model) renderCommitList() string {
 			}
 			graphPadded := row.GraphChars + strings.Repeat(" ", padLen)
 
+			// Branch label column
+			branchLabel := ""
+			if isCommit {
+				branchLabel = extractBranchLabel(m.commits[row.CommitIdx].Refs)
+				if len(branchLabel) > m.maxBranchWidth {
+					branchLabel = branchLabel[:m.maxBranchWidth]
+				}
+			}
+
 			if isSel {
 				highlighted := strings.ReplaceAll(graphPadded, "●", "◉")
 				sb.WriteString("> ")
+				if m.maxBranchWidth > 0 {
+					blPad := m.maxBranchWidth - len(branchLabel)
+					if branchLabel != "" {
+						sb.WriteString(selHashStyle.Render(branchLabel))
+					}
+					if blPad > 0 {
+						sb.WriteString(strings.Repeat(" ", blPad))
+					}
+					sb.WriteString(" ")
+				}
 				sb.WriteString(selGraphColor.Render(highlighted))
 				sb.WriteString(" ")
 				sb.WriteString(selHashStyle.Render(m.commits[row.CommitIdx].Hash))
 			} else {
 				sb.WriteString("  ")
+				if m.maxBranchWidth > 0 {
+					blPad := m.maxBranchWidth - len(branchLabel)
+					if branchLabel != "" {
+						sb.WriteString(branchStyle.Render(branchLabel))
+					}
+					if blPad > 0 {
+						sb.WriteString(strings.Repeat(" ", blPad))
+					}
+					sb.WriteString(" ")
+				}
 				sb.WriteString(graphColor.Render(graphPadded))
 				if isCommit {
 					sb.WriteString(" ")

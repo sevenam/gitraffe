@@ -44,6 +44,7 @@ type model struct {
 	detailsScroll       int // scroll offset for the details panel
 	displayRows         []displayRow
 	maxGraphWidth       int
+	maxBranchWidth      int
 	detailsContentWidth int
 	latestVersion       string // latest version from GitHub, e.g., "v0.2.0"
 }
@@ -284,6 +285,9 @@ func (m model) View() (result string) {
 	// Panel widths - dynamic based on graph width
 	// graph needs: 2 (selection "> ") + maxGraphWidth + 1 (space) + 7 (hash) + borders(2) + padding(2) = maxGraphWidth + 14
 	leftPanelWidth := m.maxGraphWidth + 14
+	if m.maxBranchWidth > 0 {
+		leftPanelWidth += m.maxBranchWidth + 1
+	}
 	if leftPanelWidth < 25 {
 		leftPanelWidth = 25
 	}
