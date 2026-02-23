@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"log"
 	"os"
+	"path/filepath"
 	"strings"
 
 	tea "github.com/charmbracelet/bubbletea"
@@ -12,10 +13,14 @@ import (
 )
 
 const (
-	appName     = "Gitraffe"
-	version     = "0.2.5"
-	logFileName = "gitraffe.log"
+	appName = "Gitraffe"
+	version = "0.2.3"
+	// logFileName is initialized at runtime in main so we can compute
+	// a platform-appropriate location (cache/log dir) instead of using the
+	// current working directory.
 )
+
+var logFileName string
 
 var (
 	// Styles — initialized by initStyles() after theme is loaded.
@@ -379,7 +384,26 @@ func (m model) View() (result string) {
 	return output
 }
 
+// getLogFilePath returns a suitable path for the application's log file.
+// It uses the OS-specific cache directory (as returned by os.UserCacheDir)
+// and creates a "gitraffe" subdirectory. Falling back to the current
+// directory on error keeps behaviour safe.
+func getLogFilePath() string {
+	dir, err := os.UserCacheDir()
+	if err != nil || dir == "" {
+		// last-resort fallback
+		return "gitraffe.log"
+	}
+	// create subdirectory for our logs
+	dir = filepath.Join(dir, "gitraffe")
+	_ = os.MkdirAll(dir, 0o755)
+	return filepath.Join(dir, "gitraffe.log")
+}
+
 func main() {
+	// Determine where the log file should live based on OS conventions
+	logFileName = getLogFilePath()
+
 	// Set up logging to file for debugging
 	logFile, err := os.OpenFile(logFileName, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0666)
 	if err == nil {
