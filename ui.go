@@ -52,9 +52,12 @@ func (m *model) renderRepoInfo() string {
 }
 
 // renderCommitList renders the left panel with the commit list/graph
-func (m *model) renderCommitList() string {
-	log.Printf("renderCommitList: commits=%d, displayRows=%d, selected=%d, windowHeight=%d, maxGraphWidth=%d",
-		len(m.commits), len(m.displayRows), m.selected, m.windowHeight, m.maxGraphWidth)
+// branchColWidth describes how many runes are available for labels in this
+// layout pass; it is computed by View() based on window size and may be
+// smaller than m.maxBranchWidth when space is tight.
+func (m *model) renderCommitList(branchColWidth int) string {
+	log.Printf("renderCommitList: commits=%d, displayRows=%d, selected=%d, windowHeight=%d, maxGraphWidth=%d, branchColWidth=%d",
+		len(m.commits), len(m.displayRows), m.selected, m.windowHeight, m.maxGraphWidth, branchColWidth)
 
 	if len(m.commits) == 0 {
 		return "No commits found"
@@ -147,15 +150,15 @@ func (m *model) renderCommitList() string {
 				}
 				// Truncate to runes, not bytes
 				runes := []rune(combined)
-				if len(runes) > m.maxBranchWidth {
-					combined = string(runes[:m.maxBranchWidth])
+				if len(runes) > branchColWidth {
+					combined = string(runes[:branchColWidth])
 				}
 			}
 
 			// Helper to render the branch/tag label with padding, using the given style(s)
 			renderBranchLabel := func() {
-				if m.maxBranchWidth > 0 {
-					blPad := m.maxBranchWidth - utf8.RuneCountInString(combined)
+				if branchColWidth > 0 {
+					blPad := branchColWidth - utf8.RuneCountInString(combined)
 					if combined != "" {
 						// split on comma+space to style tags differently
 						tokens := strings.Split(combined, ", ")

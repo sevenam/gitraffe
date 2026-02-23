@@ -4,7 +4,7 @@ A beautiful text-based UI git graph command line tool built with Golang, Bubble 
 
 ## Features
 
-- 📊 Visual git commit graph in your terminal (branches **and tags** are shown)
+- 📊 Visual git commit graph in your terminal (branches **and tags** are shown; the graph expands to use available space and long branch names are truncated as needed)
 - 🎨 Beautiful styling with Lip Gloss
 - ⌨️  Keyboard navigation (arrow keys, vim-style)
 - 🖱️  Mouse wheel scrolling support
