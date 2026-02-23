@@ -288,24 +288,58 @@ func (m model) View() (result string) {
 		contentHeight = 3
 	}
 
-	// Panel widths - dynamic based on graph width
-	// Base graph needs: 2 (selection "> ") + maxGraphWidth + 1 (space) + 7 (hash) + borders(2) + padding(2) = maxGraphWidth + 14
-	leftPanelWidth := m.maxGraphWidth + 14
+	// Panel widths - dynamic based on graph width. We prioritise the graph
+	// itself and only allocate branch label space from the remainder. This
+	// prevents long branch names from starving the graph of room.
+	// Base graph needs: 2 (selection "> ") + maxGraphWidth + 1 (space) +
+	// 7 (hash) + borders(2) + padding(2) = maxGraphWidth + 14
+	graphBase := m.maxGraphWidth + 14
+
+	// minimum width we want to keep for the right panel (details)
+	minRightWidth := 30
+
+	branchColWidth := 0
 	if m.maxBranchWidth > 0 {
-		// When branch labels are shown, also add: maxBranchWidth + 1 (space after label)
-		leftPanelWidth += m.maxBranchWidth + 1
+		// available for branch labels after accounting for graph and min right
+		avail := m.windowWidth - graphBase - minRightWidth
+		if avail > 0 {
+			branchColWidth = m.maxBranchWidth
+			if branchColWidth > avail {
+				branchColWidth = avail
+			}
+		}
+	}
+
+	leftPanelWidth := graphBase
+	if branchColWidth > 0 {
+		leftPanelWidth += branchColWidth + 1 // space following label
 	}
 	if leftPanelWidth < 25 {
 		leftPanelWidth = 25
 	}
+
 	maxLeftWidth := m.windowWidth * 4 / 5
-	if leftPanelWidth > maxLeftWidth {
+	if graphBase > maxLeftWidth {
+		// graph alone is wider than our normal cap; give it the full window
+		leftPanelWidth = m.windowWidth
+		branchColWidth = 0
+	} else if leftPanelWidth > maxLeftWidth {
+		// shrink branch column to fit
 		leftPanelWidth = maxLeftWidth
+		// recalc branch width based on remaining
+		if leftPanelWidth > graphBase+1 {
+			newBranch := leftPanelWidth - graphBase - 1
+			if newBranch < branchColWidth {
+				branchColWidth = newBranch
+			}
+		} else {
+			branchColWidth = 0
+		}
 	}
+
 	rightPanelWidth := m.windowWidth - leftPanelWidth // fill remaining space
 
 	// Ensure right panel has a minimum width, but never let total exceed window
-	minRightWidth := 30
 	if rightPanelWidth < minRightWidth {
 		rightPanelWidth = minRightWidth
 		leftPanelWidth = m.windowWidth - rightPanelWidth
@@ -327,13 +361,13 @@ func (m model) View() (result string) {
 		}
 	}
 
-	log.Printf("View: leftPanelWidth=%d, rightPanelWidth=%d, contentHeight=%d", leftPanelWidth, rightPanelWidth, contentHeight)
+	log.Printf("View: leftPanelWidth=%d, rightPanelWidth=%d, contentHeight=%d, branchColWidth=%d", leftPanelWidth, rightPanelWidth, contentHeight, branchColWidth)
 
 	// Target height for both panels (content + 2 border lines)
 	targetPanelHeight := contentHeight + 2
 
 	// Create left panel (commit list)
-	leftContent := m.renderCommitList()
+	leftContent := m.renderCommitList(branchColWidth)
 	leftPanel := addBoxLabel(lipgloss.NewStyle().
 		Width(leftPanelWidth-2). // subtract borders (2); Width includes padding
 		Height(contentHeight).
