@@ -13,7 +13,7 @@ import (
 
 const (
 	appName     = "Gitraffe"
-	version     = "0.2.4"
+	version     = "0.2.5"
 	logFileName = "gitraffe.log"
 )
 
