@@ -225,6 +225,30 @@ func transliterateGraph(s string) string {
 	return r.Replace(s)
 }
 
+func extractBranchLabel(refs string) string {
+	if refs == "" {
+		return ""
+	}
+	var branches []string
+	for _, ref := range strings.Split(refs, ", ") {
+		ref = strings.TrimSpace(ref)
+		if strings.HasPrefix(ref, "tag: ") {
+			continue
+		}
+		if strings.HasPrefix(ref, "HEAD -> ") {
+			ref = strings.TrimPrefix(ref, "HEAD -> ")
+		}
+		if ref == "HEAD" {
+			continue
+		}
+		branches = append(branches, ref)
+	}
+	if len(branches) == 0 {
+		return ""
+	}
+	return strings.Join(branches, ", ")
+}
+
 func (m *model) loadGraphData() error {
 	const maxCommits = 5000
 	log.Println("Loading graph data from git CLI...")
@@ -339,8 +363,20 @@ func (m *model) loadGraphData() error {
 		}
 	}
 
-	log.Printf("Loaded %d commits, %d display rows, max graph width: %d\n",
-		len(m.commits), len(m.displayRows), m.maxGraphWidth)
+	// Calculate max branch label width for column alignment
+	m.maxBranchWidth = 0
+	for _, c := range m.commits {
+		label := extractBranchLabel(c.Refs)
+		if len(label) > m.maxBranchWidth {
+			m.maxBranchWidth = len(label)
+		}
+	}
+	if m.maxBranchWidth > 25 {
+		m.maxBranchWidth = 25
+	}
+
+	log.Printf("Loaded %d commits, %d display rows, max graph width: %d, max branch width: %d\n",
+		len(m.commits), len(m.displayRows), m.maxGraphWidth, m.maxBranchWidth)
 	return nil
 }
 
