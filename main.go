@@ -25,6 +25,7 @@ var (
 	dateStyle       lipgloss.Style
 	messageStyle    lipgloss.Style
 	branchStyle     lipgloss.Style
+	tagStyle        lipgloss.Style
 	helpStyle       lipgloss.Style
 )
 
