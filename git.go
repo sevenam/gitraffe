@@ -16,28 +16,6 @@ import (
 	"github.com/go-git/go-git/v5"
 )
 
-// commit represents a single git commit with metadata
-type commit struct {
-	Hash       string
-	FullHash   string
-	Author     string
-	Date       time.Time
-	Message    string
-	Parents    []string
-	Refs       string
-	GraphLine  string
-	DiffLoaded bool
-	DiffStat   string
-	DiffBody   string
-}
-
-// displayRow represents a single line in the commit graph display
-type displayRow struct {
-	GraphChars string // transliterated Unicode graph characters
-	CommitIdx  int    // index into commits slice, -1 for graph-only lines
-	GraphWidth int    // visual width of the graph portion
-}
-
 // Async commands for loading repo and diff data
 
 func loadRepo(path string) tea.Cmd {

@@ -1,6 +1,7 @@
 package main
 
 import (
+	"fmt"
 	"log"
 	"strings"
 	"unicode/utf8"
@@ -8,6 +9,202 @@ import (
 	"github.com/charmbracelet/lipgloss"
 	"github.com/charmbracelet/x/ansi"
 )
+
+func (m model) View() (result string) {
+	defer func() {
+		if r := recover(); r != nil {
+			log.Printf("PANIC in View: %v", r)
+			result = fmt.Sprintf("\n  PANIC caught: %v\n\n  Check %s for details.\n  Press q to quit.", r, logFileName)
+		}
+	}()
+	log.Printf("View: ready=%v, err=%v, commits=%d, displayRows=%d, window=%dx%d, focused=%d",
+		m.ready, m.err, len(m.commits), len(m.displayRows), m.windowWidth, m.windowHeight, m.focusedBox)
+
+	if !m.ready {
+		return "\n  Initializing..."
+	}
+
+	// Guard against zero window dimensions (WindowSizeMsg not yet received)
+	if m.windowWidth < 20 || m.windowHeight < 10 {
+		log.Printf("View: window too small (%dx%d), waiting for resize", m.windowWidth, m.windowHeight)
+		return "\n  Waiting for terminal size..."
+	}
+
+	if m.err != nil {
+		errorStyle := lipgloss.NewStyle().
+			Foreground(lipgloss.Color(currentTheme.Error)).
+			Bold(true)
+		return fmt.Sprintf("\n  %s\n\n  Error: %v\n\n  Press q to quit. Check %s for details.\n",
+			errorStyle.Render("❌ Error loading repository"),
+			m.err, logFileName)
+	}
+
+	help := helpStyle.Render("1/2: focus box • tab/shift+tab: cycle boxes • ↑/↓/j/k: scroll • d/u: half page • g/G: top/bottom • q/esc: quit")
+
+	// Border colors: active for focused, inactive for unfocused
+	focusedBorderColor := lipgloss.Color(currentTheme.BorderActive)
+	unfocusedBorderColor := lipgloss.Color(currentTheme.BorderInactive)
+	box0Border := unfocusedBorderColor
+	box1Border := unfocusedBorderColor
+	box2Border := unfocusedBorderColor
+	switch m.focusedBox {
+	case 0:
+		box0Border = focusedBorderColor
+	case 1:
+		box1Border = focusedBorderColor
+	case 2:
+		box2Border = focusedBorderColor
+	}
+
+	// Create repo info box - fixed Height(1) so it never changes size
+	repoInfoContent := m.renderRepoInfo()
+	repoInfoBox := addBoxLabel(lipgloss.NewStyle().
+		Width(m.windowWidth-2).
+		Height(1).
+		BorderStyle(lipgloss.RoundedBorder()).
+		BorderForeground(box0Border).
+		Padding(0, 1).
+		Render(repoInfoContent), "")
+
+	// Calculate dimensions based on actual rendered box 0 height
+	repoInfoHeight := lipgloss.Height(repoInfoBox) // should be 3 (1 content + 2 border)
+	// Layout: repoInfoBox + \n + content panels (contentHeight + 2 border) + \n + help
+	// Total = repoInfoHeight + 1 + contentHeight + 2 + 1 + 1 = repoInfoHeight + contentHeight + 5
+	contentHeight := m.windowHeight - repoInfoHeight - 3
+
+	if contentHeight < 3 {
+		contentHeight = 3
+	}
+
+	// Panel widths - dynamic based on graph width. We prioritise the graph
+	// itself and only allocate branch label space from the remainder. This
+	// prevents long branch names from starving the graph of room.
+	// Base graph needs: 2 (selection "> ") + maxGraphWidth + 1 (space) +
+	// 7 (hash) + borders(2) + padding(2) = maxGraphWidth + 14
+	graphBase := m.maxGraphWidth + 14
+
+	// minimum width we want to keep for the right panel (details)
+	minRightWidth := 30
+
+	branchColWidth := 0
+	if m.maxBranchWidth > 0 {
+		// available for branch labels after accounting for graph and min right
+		avail := m.windowWidth - graphBase - minRightWidth
+		if avail > 0 {
+			branchColWidth = m.maxBranchWidth
+			if branchColWidth > avail {
+				branchColWidth = avail
+			}
+		}
+	}
+
+	leftPanelWidth := graphBase
+	if branchColWidth > 0 {
+		leftPanelWidth += branchColWidth + 1 // space following label
+	}
+	if leftPanelWidth < 25 {
+		leftPanelWidth = 25
+	}
+
+	maxLeftWidth := m.windowWidth * 4 / 5
+	if graphBase > maxLeftWidth {
+		// graph alone is wider than our normal cap; give it the full window
+		leftPanelWidth = m.windowWidth
+		branchColWidth = 0
+	} else if leftPanelWidth > maxLeftWidth {
+		// shrink branch column to fit
+		leftPanelWidth = maxLeftWidth
+		// recalc branch width based on remaining
+		if leftPanelWidth > graphBase+1 {
+			newBranch := leftPanelWidth - graphBase - 1
+			if newBranch < branchColWidth {
+				branchColWidth = newBranch
+			}
+		} else {
+			branchColWidth = 0
+		}
+	}
+
+	rightPanelWidth := m.windowWidth - leftPanelWidth // fill remaining space
+
+	// Ensure right panel has a minimum width, but never let total exceed window
+	if rightPanelWidth < minRightWidth {
+		rightPanelWidth = minRightWidth
+		leftPanelWidth = m.windowWidth - rightPanelWidth
+		if leftPanelWidth < 15 {
+			leftPanelWidth = 15
+			rightPanelWidth = m.windowWidth - leftPanelWidth
+		}
+	}
+
+	// Final safety: total must not exceed window width
+	totalWidth := leftPanelWidth + rightPanelWidth
+	if totalWidth > m.windowWidth {
+		log.Printf("View: width overflow detected: left=%d + right=%d = %d > window=%d, adjusting",
+			leftPanelWidth, rightPanelWidth, totalWidth, m.windowWidth)
+		rightPanelWidth = m.windowWidth - leftPanelWidth
+		if rightPanelWidth < 10 {
+			rightPanelWidth = m.windowWidth / 3
+			leftPanelWidth = m.windowWidth - rightPanelWidth
+		}
+	}
+
+	log.Printf("View: leftPanelWidth=%d, rightPanelWidth=%d, contentHeight=%d, branchColWidth=%d", leftPanelWidth, rightPanelWidth, contentHeight, branchColWidth)
+
+	// Target height for both panels (content + 2 border lines)
+	targetPanelHeight := contentHeight + 2
+
+	// Create left panel (commit list)
+	leftContent := m.renderCommitList(branchColWidth)
+	leftPanel := addBoxLabel(lipgloss.NewStyle().
+		Width(leftPanelWidth-2). // subtract borders (2); Width includes padding
+		Height(contentHeight).
+		BorderStyle(lipgloss.RoundedBorder()).
+		BorderForeground(box1Border).
+		Padding(0, 1).
+		Render(leftContent), "[1]-git-graph")
+
+	// Create right panel (commit details)
+	// Padding(1,2) → 2*2=4 horizontal padding + 2 borders = 6 overhead
+	m.detailsContentWidth = rightPanelWidth - 6
+	rightContent := m.renderCommitDetails()
+	rightPanel := addBoxLabel(lipgloss.NewStyle().
+		Width(rightPanelWidth-2). // subtract borders (2); Width includes padding
+		Height(contentHeight).
+		BorderStyle(lipgloss.RoundedBorder()).
+		BorderForeground(box2Border).
+		Padding(1, 2).
+		Render(rightContent), "[2]-commit-details")
+
+	// Force both panels to exactly the same height.
+	// lipgloss Height() is a minimum, not a maximum — long lines that wrap
+	// inside the panel can make it taller. Trim any excess lines from either panel.
+	leftPanel = trimToHeight(leftPanel, targetPanelHeight)
+	rightPanel = trimToHeight(rightPanel, targetPanelHeight)
+
+	// Join panels horizontally
+	content := lipgloss.JoinHorizontal(lipgloss.Top, leftPanel, rightPanel)
+
+	output := fmt.Sprintf("%s\n%s\n%s", repoInfoBox, content, help)
+
+	// Force exact windowHeight lines. We count lines via lipgloss.Height which
+	// correctly handles ANSI escape sequences, then trim or pad as needed.
+	actualHeight := lipgloss.Height(output)
+	log.Printf("View: actualHeight=%d, windowHeight=%d", actualHeight, m.windowHeight)
+
+	if actualHeight > m.windowHeight {
+		// Trim from the bottom
+		lines := strings.Split(output, "\n")
+		output = strings.Join(lines[:m.windowHeight], "\n")
+	} else if actualHeight < m.windowHeight {
+		// Pad bottom with empty lines
+		for i := actualHeight; i < m.windowHeight; i++ {
+			output += "\n"
+		}
+	}
+
+	return output
+}
 
 // renderRepoInfo renders the top repository info box
 func (m *model) renderRepoInfo() string {
