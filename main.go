@@ -12,7 +12,7 @@ import (
 
 const (
 	appName = "Gitraffe"
-	version = "0.9.0"
+	version = "0.10.0"
 
 // logFileName is initialized at runtime in main so we can compute
 // a platform-appropriate location (cache/log dir) instead of using the
@@ -29,6 +29,8 @@ var (
 	dateStyle         lipgloss.Style
 	messageStyle      lipgloss.Style
 	localBranchStyle  lipgloss.Style
+	aheadStyle        lipgloss.Style
+	behindStyle       lipgloss.Style
 	remoteBranchStyle lipgloss.Style
 	mergedBranchStyle lipgloss.Style
 	tagStyle          lipgloss.Style
