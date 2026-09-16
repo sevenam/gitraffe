@@ -13,6 +13,7 @@ import (
 	"unicode/utf8"
 
 	tea "github.com/charmbracelet/bubbletea"
+	"github.com/charmbracelet/x/ansi"
 	"github.com/go-git/go-git/v5"
 )
 
@@ -460,6 +461,11 @@ func (m *model) loadGraphData() error {
 	m.labelMergedBranches()
 	m.applyRemoteTags()
 	m.updateLabelWidth()
+
+	m.maxAuthorWidth = 0
+	for _, c := range m.commits {
+		m.maxAuthorWidth = max(m.maxAuthorWidth, ansi.StringWidth(c.Author))
+	}
 
 	log.Printf("Loaded %d commits, %d display rows, max graph width: %d, max branch width: %d\n",
 		len(m.commits), len(m.displayRows), m.maxGraphWidth, m.maxBranchWidth)
