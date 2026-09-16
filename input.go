@@ -90,14 +90,14 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 						m.detailsScroll = 0
 					}
 					return m, m.maybeLoadDiff()
-				case "d", "ctrl+d":
+				case "d", "ctrl+d", "pgdown":
 					m.selected += 10
 					if m.selected >= len(m.commits) {
 						m.selected = len(m.commits) - 1
 					}
 					m.detailsScroll = 0
 					return m, m.maybeLoadDiff()
-				case "u", "ctrl+u":
+				case "u", "ctrl+u", "pgup":
 					m.selected -= 10
 					if m.selected < 0 {
 						m.selected = 0
@@ -123,10 +123,10 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 						m.detailsScroll--
 					}
 					return m, nil
-				case "d", "ctrl+d":
+				case "d", "ctrl+d", "pgdown":
 					m.detailsScroll += 10
 					return m, nil
-				case "u", "ctrl+u":
+				case "u", "ctrl+u", "pgup":
 					m.detailsScroll -= 10
 					if m.detailsScroll < 0 {
 						m.detailsScroll = 0
