@@ -12,7 +12,7 @@ import (
 
 const (
 	appName = "Gitraffe"
-	version = "0.3.2"
+	version = "0.4.1"
 
 // logFileName is initialized at runtime in main so we can compute
 // a platform-appropriate location (cache/log dir) instead of using the
