@@ -6,7 +6,7 @@ A beautiful text-based UI git graph command line tool built with Golang, Bubble 
 
 - 📊 Visual git commit graph in your terminal (branches **and tags** are shown; the graph expands to use available space and long branch names are truncated as needed)
 - 🌿 Names merged-and-deleted branches at their tip commit, recovered from merge commit messages (see [Merged branches](#merged-branches))
-- 👤 Each commit's author in a right-hand column (dropped before branch labels when the terminal is too narrow for both)
+- 👤 Each commit's date and author in columns beside the hash (on a narrow terminal the author goes first, then the date, before branch labels are cut)
 - 🎨 Beautiful styling with Lip Gloss
 - ⌨️  Keyboard navigation (arrow keys, vim-style)
 - 🖱️  Mouse wheel scrolling support

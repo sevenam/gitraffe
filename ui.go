@@ -76,18 +76,23 @@ func (m model) View() (result string) {
 		contentHeight = 3
 	}
 
-	layout := computePanelLayout(m.windowWidth, m.maxGraphWidth, m.maxBranchWidth, m.maxAuthorWidth)
+	// Only graph mode draws the date column; the fallback list has no room for it.
+	dateWidth := 0
+	if len(m.displayRows) > 0 {
+		dateWidth = len(dateColumnFormat)
+	}
+	layout := computePanelLayout(m.windowWidth, m.maxGraphWidth, m.maxBranchWidth, dateWidth, m.maxAuthorWidth)
 	leftPanelWidth, rightPanelWidth := layout.leftWidth, layout.rightWidth
 
-	log.Printf("View: leftPanelWidth=%d, rightPanelWidth=%d, contentHeight=%d, branchColWidth=%d, authorColWidth=%d",
-		leftPanelWidth, rightPanelWidth, contentHeight, layout.branchCol, layout.authorCol)
+	log.Printf("View: leftPanelWidth=%d, rightPanelWidth=%d, contentHeight=%d, branchColWidth=%d, dateColWidth=%d, authorColWidth=%d",
+		leftPanelWidth, rightPanelWidth, contentHeight, layout.branchCol, layout.dateCol, layout.authorCol)
 
 	// Target height for both panels (content + 2 border lines)
 	targetPanelHeight := contentHeight + 2
 
 	// Create left panel (commit list). Content width is the panel minus its
 	// borders (2) and horizontal padding (2).
-	leftContent := m.renderCommitList(layout.branchCol, layout.authorCol, leftPanelWidth-4)
+	leftContent := m.renderCommitList(layout.branchCol, layout.dateCol, layout.authorCol, leftPanelWidth-4)
 	leftPanel := addBoxLabel(lipgloss.NewStyle().
 		Width(leftPanelWidth-2). // subtract borders (2); Width includes padding
 		Height(contentHeight).
@@ -139,6 +144,11 @@ func (m model) View() (result string) {
 }
 
 const (
+	// Date only, fixed width so the column aligns and reads the same in every
+	// locale. Relative dates ("3 days ago") vary in width and go stale, since
+	// the view isn't redrawn on a timer. The time is in the details panel.
+	dateColumnFormat = "2006-01-02"
+
 	minRightPanelWidth = 30
 	// Beyond this an author name buys little and costs graph width on every row.
 	maxAuthorColWidth = 24
@@ -149,14 +159,15 @@ const (
 // panelLayout is how the window's width is shared between the commit list and
 // the details panel, and within the list between its optional columns.
 type panelLayout struct {
-	leftWidth, rightWidth int
-	branchCol, authorCol  int
+	leftWidth, rightWidth         int
+	branchCol, dateCol, authorCol int
 }
 
 // computePanelLayout sizes the panels. The graph always comes first; the room
-// left beside it goes to branch labels, then to authors, because refs say where
-// you are, which matters more than who wrote each commit.
-func computePanelLayout(windowWidth, maxGraphWidth, maxBranchWidth, maxAuthorWidth int) panelLayout {
+// left beside it goes to branch labels, then dates, then authors. Refs say where
+// you are, which matters most; a date is short and fixed, so it is cheaper to
+// keep than a name. dateWidth is 0 when no date column is wanted.
+func computePanelLayout(windowWidth, maxGraphWidth, maxBranchWidth, dateWidth, maxAuthorWidth int) panelLayout {
 	// Base graph needs: 2 (selection "> ") + maxGraphWidth + 1 (space) +
 	// 7 (hash) + borders(2) + padding(2) = maxGraphWidth + 14
 	graphBase := maxGraphWidth + 14
@@ -174,7 +185,17 @@ func computePanelLayout(windowWidth, maxGraphWidth, maxBranchWidth, maxAuthorWid
 			l.branchCol = min(maxBranchWidth, room-1) // -1: the space after the labels
 			room -= l.branchCol + 1
 		}
-		if maxAuthorWidth > 0 && room > 1 {
+		// A cut-off date is useless, so it fits whole (plus its leading space) or
+		// not at all.
+		if dateWidth > 0 && room > dateWidth {
+			l.dateCol = dateWidth
+			room -= dateWidth + 1
+		}
+		// Columns drop strictly in reverse priority as the window narrows. Letting
+		// a short name take room a date couldn't fit would make widening the
+		// window swap the author column for the date column.
+		dateSettled := dateWidth == 0 || l.dateCol > 0
+		if maxAuthorWidth > 0 && room > 1 && dateSettled {
 			l.authorCol = min(maxAuthorWidth, maxAuthorColWidth, room-1) // -1: the space before the name
 			if l.authorCol < minAuthorColWidth {
 				l.authorCol = 0
@@ -184,6 +205,9 @@ func computePanelLayout(windowWidth, maxGraphWidth, maxBranchWidth, maxAuthorWid
 		l.leftWidth = graphBase
 		if l.branchCol > 0 {
 			l.leftWidth += l.branchCol + 1
+		}
+		if l.dateCol > 0 {
+			l.leftWidth += l.dateCol + 1
 		}
 		if l.authorCol > 0 {
 			l.leftWidth += l.authorCol + 1
@@ -283,10 +307,10 @@ func (m *model) renderRepoInfo() string {
 }
 
 // renderCommitList renders the left panel with the commit list/graph
-// branchColWidth and authorColWidth are the columns computePanelLayout
-// allocated for this layout pass (0 hides a column); contentWidth is the width
-// inside the panel's borders and padding.
-func (m *model) renderCommitList(branchColWidth, authorColWidth, contentWidth int) string {
+// branchColWidth, dateColWidth and authorColWidth are the columns
+// computePanelLayout allocated for this layout pass (0 hides a column);
+// contentWidth is the width inside the panel's borders and padding.
+func (m *model) renderCommitList(branchColWidth, dateColWidth, authorColWidth, contentWidth int) string {
 	log.Printf("renderCommitList: commits=%d, displayRows=%d, selected=%d, windowHeight=%d, maxGraphWidth=%d, branchColWidth=%d",
 		len(m.commits), len(m.displayRows), m.selected, m.windowHeight, m.maxGraphWidth, branchColWidth)
 
@@ -319,8 +343,11 @@ func (m *model) renderCommitList(branchColWidth, authorColWidth, contentWidth in
 			if branchColWidth > 0 {
 				labelWidth = branchColWidth + 1
 			}
-			// "> " + labels + graph + " " + 7-char hash
+			// "> " + labels + graph + " " + 7-char hash [+ " " + date]
 			rowWidth := 2 + labelWidth + m.maxGraphWidth + 1 + 7
+			if dateColWidth > 0 {
+				rowWidth += 1 + dateColWidth
+			}
 			authorGap = contentWidth - authorColWidth - rowWidth
 		}
 
@@ -425,6 +452,10 @@ func (m *model) renderCommitList(branchColWidth, authorColWidth, contentWidth in
 					sb.WriteString(" ")
 					sb.WriteString(commitHashStyle.Render(m.commits[row.CommitIdx].Hash))
 				}
+			}
+			if isCommit && dateColWidth > 0 {
+				sb.WriteString(" ")
+				sb.WriteString(dateStyle.Render(m.commits[row.CommitIdx].Date.Format(dateColumnFormat)))
 			}
 			// A gap under 1 means the row doesn't fit as computed; drawing the
 			// name anyway would wrap the row and break the panel's layout.
