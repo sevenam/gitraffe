@@ -17,6 +17,7 @@ type ThemeColors struct {
 	Date           string `yaml:"date"`
 	Message        string `yaml:"message"`
 	Branch         string `yaml:"branch"`
+	LocalBranch    string `yaml:"local_branch"`
 	MergedBranch   string `yaml:"merged_branch"`
 	Tag            string `yaml:"tag"`
 	Help           string `yaml:"help"`
@@ -112,8 +113,20 @@ func initStyles() {
 	messageStyle = lipgloss.NewStyle().
 		Foreground(lipgloss.Color(currentTheme.Message))
 
-	branchStyle = lipgloss.NewStyle().
+	// Remote-tracking branches keep the established "branch" colour, so themes
+	// that already set it are unaffected.
+	remoteBranchStyle = lipgloss.NewStyle().
 		Foreground(lipgloss.Color(currentTheme.Branch)).
+		Bold(true)
+
+	// Local branches default to the date colour rather than a fixed green, so
+	// every existing theme gets a coherent pair without declaring a new key.
+	localColour := currentTheme.LocalBranch
+	if localColour == "" {
+		localColour = currentTheme.Date
+	}
+	localBranchStyle = lipgloss.NewStyle().
+		Foreground(lipgloss.Color(localColour)).
 		Bold(true)
 
 	// Deliberately not bold: a deleted branch is history, and should read as

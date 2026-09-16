@@ -204,29 +204,45 @@ func transliterateGraph(s string) string {
 	return r.Replace(s)
 }
 
-// parseRefs splits the raw --pretty=%D string into separate branch and tag slices.
-// "refs" is the comma-separated list emitted by git log (e.g. "HEAD -> main, tag: v1.0, origin/main").
-// Branch names (including remotes) are returned in the first slice; tag names are returned in the second.
-func parseRefs(refs string) (branches, tags []string) {
+// parseRefs splits the raw --pretty=%D string into local branches,
+// remote-tracking branches and tags, each stripped of its ref prefix for display.
+//
+// It expects the full ref paths produced by --decorate=full. Git's short names
+// are ambiguous: "feature/foo" is both a plausible local branch and a plausible
+// branch "foo" on a remote named "feature", and only the full path
+// (refs/heads/... versus refs/remotes/...) settles it.
+func parseRefs(refs string) (local, remote, tags []string) {
 	if refs == "" {
 		return
 	}
 	for _, ref := range strings.Split(refs, ", ") {
 		ref = strings.TrimSpace(ref)
-		if ref == "" {
+		ref = strings.TrimPrefix(ref, "HEAD -> ")
+		if ref == "" || ref == "HEAD" {
 			continue
 		}
-		// strip HEAD pointer
-		if strings.HasPrefix(ref, "HEAD -> ") {
-			ref = strings.TrimPrefix(ref, "HEAD -> ")
-		}
-		if ref == "HEAD" {
-			continue
-		}
-		if strings.HasPrefix(ref, "tag: ") {
-			tags = append(tags, strings.TrimPrefix(ref, "tag: "))
-		} else {
-			branches = append(branches, ref)
+		ref = strings.TrimPrefix(ref, "tag: ")
+
+		switch {
+		case strings.HasPrefix(ref, "refs/heads/"):
+			local = append(local, strings.TrimPrefix(ref, "refs/heads/"))
+
+		case strings.HasPrefix(ref, "refs/remotes/"):
+			name := strings.TrimPrefix(ref, "refs/remotes/")
+			// origin/HEAD is a symbolic pointer to the remote's default branch,
+			// so it always duplicates a branch already listed beside it.
+			if strings.HasSuffix(name, "/HEAD") {
+				continue
+			}
+			remote = append(remote, name)
+
+		case strings.HasPrefix(ref, "refs/tags/"):
+			tags = append(tags, strings.TrimPrefix(ref, "refs/tags/"))
+
+		default:
+			// Anything else under refs/ (notes, stash, fetched PR refs). Show it
+			// rather than dropping it silently.
+			local = append(local, strings.TrimPrefix(ref, "refs/"))
 		}
 	}
 	return
@@ -293,8 +309,9 @@ func (m *model) labelMergedBranches() {
 		if !ok {
 			continue
 		}
-		// A branch that still exists already labels itself via its ref.
-		if branches, _ := parseRefs(m.commits[idx].Refs); len(branches) > 0 {
+		// A branch that still exists — locally or on a remote — already labels
+		// itself via its ref.
+		if local, remote, _ := parseRefs(m.commits[idx].Refs); len(local) > 0 || len(remote) > 0 {
 			continue
 		}
 		m.commits[idx].MergedBranch = name
@@ -314,22 +331,15 @@ func (c commit) labelText() string {
 	return label
 }
 
-// extractBranchLabel returns a comma‑separated string containing both branches and
-// tags (tags appended after branches). It is used for width calculation and as a
-// convenience wrapper for callers that just need the full label.
+// extractBranchLabel returns the comma-separated ref label for a commit, in the
+// same order refSegments renders it: local branches, then remote, then tags.
 func extractBranchLabel(refs string) string {
-	branches, tags := parseRefs(refs)
-	if len(branches) == 0 && len(tags) == 0 {
-		return ""
-	}
-	s := strings.Join(branches, ", ")
-	if len(tags) > 0 {
-		if s != "" {
-			s += ", "
-		}
-		s += strings.Join(tags, ", ")
-	}
-	return s
+	local, remote, tags := parseRefs(refs)
+	all := make([]string, 0, len(local)+len(remote)+len(tags))
+	all = append(all, local...)
+	all = append(all, remote...)
+	all = append(all, tags...)
+	return strings.Join(all, ", ")
 }
 
 func (m *model) loadGraphData() error {
@@ -340,6 +350,9 @@ func (m *model) loadGraphData() error {
 		"--graph",
 		"--all",
 		fmt.Sprintf("-n%d", maxCommits),
+		// Full ref paths, so refs/heads/ can be told from refs/remotes/ without
+		// guessing — see parseRefs.
+		"--decorate=full",
 		"--pretty=format:%H%x00%an%x00%at%x00%s%x00%P%x00%D",
 	)
 	cmd.Dir = m.repoPath

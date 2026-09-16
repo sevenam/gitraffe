@@ -28,7 +28,8 @@ var (
 	authorStyle       lipgloss.Style
 	dateStyle         lipgloss.Style
 	messageStyle      lipgloss.Style
-	branchStyle       lipgloss.Style
+	localBranchStyle  lipgloss.Style
+	remoteBranchStyle lipgloss.Style
 	mergedBranchStyle lipgloss.Style
 	tagStyle          lipgloss.Style
 	helpStyle         lipgloss.Style
