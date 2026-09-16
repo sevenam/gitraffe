@@ -70,6 +70,15 @@ gitraffe update
 
 ## Release
 
+Bump version number in `main.go`:
+
+```go
+const (
+	appName = "Gitraffe"
+	version = "0.4.1"
+)
+```
+
 ```bash
 git tag v0.1.0
 git push --tags
