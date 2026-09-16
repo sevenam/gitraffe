@@ -331,6 +331,8 @@ func (m *model) renderCommitList(branchColWidth, dateColWidth, authorColWidth, c
 	graphColor := lipgloss.NewStyle().Foreground(lipgloss.Color(currentTheme.Graph))
 	selGraphColor := lipgloss.NewStyle().Foreground(lipgloss.Color(currentTheme.SelectedFg)).Bold(true)
 	selHashStyle := lipgloss.NewStyle().Foreground(lipgloss.Color(currentTheme.SelectedFg)).Bold(true)
+	selectedBg := lipgloss.Color(currentTheme.SelectedBg)
+	plainStyle := lipgloss.NewStyle()
 
 	if len(m.displayRows) > 0 {
 		// Graph mode: use displayRows from git log --graph
@@ -405,6 +407,18 @@ func (m *model) renderCommitList(branchColWidth, dateColWidth, authorColWidth, c
 				segments = labelSegments(m.commits[row.CommitIdx])
 			}
 
+			// write renders one piece of the row. On the selected row every piece,
+			// spaces included, carries the highlight band's background: each styled
+			// piece ends in an SGR reset, so a background wrapped around the whole
+			// row would be cleared after its first piece.
+			rowStart := sb.Len()
+			write := func(style lipgloss.Style, s string) {
+				if isSel {
+					style = style.Background(selectedBg)
+				}
+				sb.WriteString(style.Render(s))
+			}
+
 			// Helper to render the label column, truncated to the width this
 			// layout pass allows and padded so the column stays aligned.
 			renderBranchLabel := func() {
@@ -417,7 +431,7 @@ func (m *model) renderCommitList(branchColWidth, dateColWidth, authorColWidth, c
 						if used+2 > branchColWidth {
 							break
 						}
-						sb.WriteString(", ")
+						write(plainStyle, ", ")
 						used += 2
 					}
 					// Truncate to runes, not bytes
@@ -428,40 +442,46 @@ func (m *model) renderCommitList(branchColWidth, dateColWidth, authorColWidth, c
 					if text == "" {
 						break
 					}
-					sb.WriteString(seg.style.Render(text))
+					write(seg.style, text)
 					used += utf8.RuneCountInString(text)
 				}
 				if pad := branchColWidth - used; pad > 0 {
-					sb.WriteString(strings.Repeat(" ", pad))
+					write(plainStyle, strings.Repeat(" ", pad))
 				}
-				sb.WriteString(" ")
+				write(plainStyle, " ")
 			}
 
 			if isSel {
 				highlighted := strings.ReplaceAll(graphPadded, "●", "◉")
-				sb.WriteString("> ")
+				write(plainStyle, "> ")
 				renderBranchLabel()
-				sb.WriteString(selGraphColor.Render(highlighted))
-				sb.WriteString(" ")
-				sb.WriteString(selHashStyle.Render(m.commits[row.CommitIdx].Hash))
+				write(selGraphColor, highlighted)
+				write(plainStyle, " ")
+				write(selHashStyle, m.commits[row.CommitIdx].Hash)
 			} else {
-				sb.WriteString("  ")
+				write(plainStyle, "  ")
 				renderBranchLabel()
-				sb.WriteString(graphColor.Render(graphPadded))
+				write(graphColor, graphPadded)
 				if isCommit {
-					sb.WriteString(" ")
-					sb.WriteString(commitHashStyle.Render(m.commits[row.CommitIdx].Hash))
+					write(plainStyle, " ")
+					write(commitHashStyle, m.commits[row.CommitIdx].Hash)
 				}
 			}
 			if isCommit && dateColWidth > 0 {
-				sb.WriteString(" ")
-				sb.WriteString(dateStyle.Render(m.commits[row.CommitIdx].Date.Format(dateColumnFormat)))
+				write(plainStyle, " ")
+				write(dateStyle, m.commits[row.CommitIdx].Date.Format(dateColumnFormat))
 			}
 			// A gap under 1 means the row doesn't fit as computed; drawing the
 			// name anyway would wrap the row and break the panel's layout.
 			if isCommit && authorColWidth > 0 && authorGap >= 1 {
-				sb.WriteString(strings.Repeat(" ", authorGap))
-				sb.WriteString(authorStyle.Render(ansi.Truncate(m.commits[row.CommitIdx].Author, authorColWidth, "…")))
+				write(plainStyle, strings.Repeat(" ", authorGap))
+				write(authorStyle, ansi.Truncate(m.commits[row.CommitIdx].Author, authorColWidth, "…"))
+			}
+			// Carry the band to the panel edge, whichever columns are showing.
+			if isSel {
+				if pad := contentWidth - ansi.StringWidth(sb.String()[rowStart:]); pad > 0 {
+					write(plainStyle, strings.Repeat(" ", pad))
+				}
 			}
 			sb.WriteString("\n")
 			linesWritten++
@@ -487,10 +507,17 @@ func (m *model) renderCommitList(branchColWidth, dateColWidth, authorColWidth, c
 			c := m.commits[i]
 
 			if i == m.selected {
-				sb.WriteString("> ")
-				sb.WriteString(selGraphColor.Render(c.GraphLine))
-				sb.WriteString(" ")
-				sb.WriteString(selHashStyle.Render(c.Hash))
+				// Same band as graph mode; each piece carries the background (see
+				// the note on write there).
+				band := func(s lipgloss.Style) lipgloss.Style { return s.Background(selectedBg) }
+				row := band(plainStyle).Render("> ") +
+					band(selGraphColor).Render(c.GraphLine) +
+					band(plainStyle).Render(" ") +
+					band(selHashStyle).Render(c.Hash)
+				if pad := contentWidth - ansi.StringWidth(row); pad > 0 {
+					row += band(plainStyle).Render(strings.Repeat(" ", pad))
+				}
+				sb.WriteString(row)
 			} else {
 				sb.WriteString("  ")
 				sb.WriteString(graphColor.Render(c.GraphLine))
