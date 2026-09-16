@@ -73,7 +73,7 @@ type model struct {
 
 // updateAvailable reports whether GitHub advertises a release newer than this build.
 func (m *model) updateAvailable() bool {
-	return m.latestVersion != "" && m.latestVersion != "v"+version
+	return isNewerVersion(m.latestVersion, version)
 }
 
 func initialModel(repoPath string) model {

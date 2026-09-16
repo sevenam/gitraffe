@@ -60,6 +60,11 @@ func performUpdateCmd() tea.Cmd {
 		if err != nil {
 			return updateFinishedMsg{err: err}
 		}
+		// The prompt was based on the startup check; if the latest release has
+		// since become older (e.g. a tag being re-cut), installing would downgrade.
+		if !isNewerVersion(release.TagName, version) {
+			return updateFinishedMsg{err: fmt.Errorf("latest release %s is not newer than v%s", release.TagName, version)}
+		}
 		if err := downloadAndUpdate(release); err != nil {
 			return updateFinishedMsg{err: err}
 		}
