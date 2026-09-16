@@ -24,7 +24,7 @@ Or clone and build:
 ```bash
 git clone https://github.com/sevenam/gitraffe.git
 cd gitraffe
-go build -o gitraffe main.go
+go build -o gitraffe.exe .
 ```
 
 ## Usage
@@ -46,7 +46,20 @@ gitraffe /path/to/repo
 - `↑/↓` or `k/j` - Scroll up/down
 - `PgUp/PgDn` - Page up/down
 - `Home/End` - Jump to top/bottom
+- `U` - Update to the latest release (shown in the help line when one is available)
 - `q` or `Esc` or `Ctrl+C` - Quit
+
+## Updating
+
+Gitraffe checks for a newer release on startup and shows it in the title bar.
+Press `U` to install it — you'll be asked to confirm, and gitraffe quits once the
+download finishes so the new binary can take its place. Restart to pick it up.
+
+The same thing works without the TUI:
+
+```bash
+gitraffe update
+```
 
 ## Dependencies
 

@@ -17,9 +17,39 @@ func (m model) Init() tea.Cmd {
 func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
 	case tea.KeyMsg:
+		// The confirmation prompt owns the keyboard until it is answered, so a
+		// stray "j" can't scroll the graph behind a pending yes/no.
+		if m.updateState == updateConfirming {
+			switch msg.String() {
+			case "y", "Y", "enter":
+				m.updateState = updateDownloading
+				m.updateMessage = "Downloading " + m.latestVersion + "..."
+				return m, performUpdateCmd()
+			default:
+				m.updateState = updateIdle
+				m.updateMessage = ""
+				return m, nil
+			}
+		}
+
+		// Mid-download the binary is being swapped underneath us; only quitting
+		// is meaningful, and it stays available in case the download hangs.
+		if m.updateState == updateDownloading {
+			switch msg.String() {
+			case "q", "ctrl+c", "esc":
+				return m, tea.Quit
+			}
+			return m, nil
+		}
+
+		// Any keystroke dismisses a lingering update notice.
+		m.updateMessage = ""
+
 		switch msg.String() {
 		case "q", "ctrl+c", "esc":
 			return m, tea.Quit
+		case "U":
+			return m.startUpdate(), nil
 		case "1":
 			m.focusedBox = 1
 			return m, nil
@@ -162,7 +192,34 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case versionCheckMsg:
 		m.latestVersion = msg.latestVersion
 		return m, nil
+
+	case updateFinishedMsg:
+		if msg.err != nil {
+			log.Printf("Update failed: %v\n", msg.err)
+			m.updateState = updateIdle
+			m.updateMessage = "Update failed: " + msg.err.Error()
+			return m, nil
+		}
+		// Quitting is part of installing, not just politeness: on Windows the
+		// helper can't replace the binary until this process releases it.
+		log.Printf("Update downloaded: %s\n", msg.version)
+		m.updateState = updateDone
+		m.updatedTo = msg.version
+		return m, tea.Quit
 	}
 
 	return m, nil
+}
+
+// startUpdate arms the confirmation prompt, or explains why there is nothing to do.
+func (m model) startUpdate() model {
+	switch {
+	case m.latestVersion == "":
+		m.updateMessage = "Update check unavailable — could not reach GitHub"
+	case !m.updateAvailable():
+		m.updateMessage = "Already on the latest version (v" + version + ")"
+	default:
+		m.updateState = updateConfirming
+	}
+	return m
 }

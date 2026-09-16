@@ -27,6 +27,11 @@ type versionCheckMsg struct {
 	latestVersion string
 }
 
+type updateFinishedMsg struct {
+	version string
+	err     error
+}
+
 type diffLoadedMsg struct {
 	commitIdx int
 	diffStat  string
@@ -39,6 +44,22 @@ func checkVersionCmd() tea.Cmd {
 	return func() tea.Msg {
 		latestVersion := fetchLatestVersion()
 		return versionCheckMsg{latestVersion: latestVersion}
+	}
+}
+
+// performUpdateCmd downloads and installs the latest release. It re-fetches the
+// release rather than reusing the startup check so a long-running session
+// installs what is current now, not what was current at launch.
+func performUpdateCmd() tea.Cmd {
+	return func() tea.Msg {
+		release, err := fetchLatestRelease()
+		if err != nil {
+			return updateFinishedMsg{err: err}
+		}
+		if err := downloadAndUpdate(release); err != nil {
+			return updateFinishedMsg{err: err}
+		}
+		return updateFinishedMsg{version: release.TagName}
 	}
 }
 
