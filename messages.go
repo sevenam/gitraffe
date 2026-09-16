@@ -27,6 +27,10 @@ type versionCheckMsg struct {
 	latestVersion string
 }
 
+type remoteTagsMsg struct {
+	tags map[tagRef]bool // nil when unknown: no remotes, or one didn't answer
+}
+
 type updateFinishedMsg struct {
 	version string
 	err     error

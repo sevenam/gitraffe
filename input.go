@@ -11,6 +11,7 @@ func (m model) Init() tea.Cmd {
 	return tea.Batch(
 		loadRepo(m.repoPath),
 		checkVersionCmd(),
+		loadRemoteTagsCmd(m.repoPath),
 	)
 }
 
@@ -191,6 +192,14 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	case versionCheckMsg:
 		m.latestVersion = msg.latestVersion
+		return m, nil
+
+	case remoteTagsMsg:
+		// May arrive before or after the graph loads; loadGraphData applies it
+		// in the other order.
+		m.remoteTags = msg.tags
+		m.applyRemoteTags()
+		m.updateLabelWidth()
 		return m, nil
 
 	case updateFinishedMsg:

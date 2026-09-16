@@ -8,21 +8,24 @@ import (
 
 // commit represents a single git commit with metadata
 type commit struct {
-	Hash       string
-	FullHash   string
-	Author     string
-	Date       time.Time
-	Message    string
-	Parents    []string
-	Refs       string
+	Hash     string
+	FullHash string
+	Author   string
+	Date     time.Time
+	Message  string
+	Parents  []string
+	Refs     string
 	// MergedBranch is the name of a branch whose tip this commit was, recovered
 	// from the message of the merge commit that absorbed it. Set only when no
 	// ref points here any more, i.e. the branch has since been deleted.
 	MergedBranch string
-	GraphLine    string
-	DiffLoaded bool
-	DiffStat   string
-	DiffBody   string
+	// Tag sync state, filled in once every remote has answered; empty until then.
+	UnpushedTags   map[string]bool // tags here that no remote has at this commit
+	RemoteOnlyTags []string        // tags a remote has at this commit, missing locally
+	GraphLine      string
+	DiffLoaded     bool
+	DiffStat       string
+	DiffBody       string
 }
 
 // displayRow represents a single line in the commit graph display
@@ -60,7 +63,8 @@ type model struct {
 	maxGraphWidth       int
 	maxBranchWidth      int
 	detailsContentWidth int
-	latestVersion       string // latest version from GitHub, e.g., "v0.2.0"
+	latestVersion       string          // latest version from GitHub, e.g., "v0.2.0"
+	remoteTags          map[tagRef]bool // union of all remotes' tags; nil while unknown
 	updateState         updateState
 	updateMessage       string // prompt, progress or error text for the status line
 	updatedTo           string // tag installed this session; read by main after Run returns

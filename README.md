@@ -82,6 +82,26 @@ Local and remote are told apart by their full ref path, so a local branch called
 Existing themes need no changes — `local_branch` falls back to that theme's `date`
 colour, so the pairing stays coherent whatever palette you use.
 
+## Tag sync
+
+A tag that exists on only one side is marked (colour already says "tag", so the
+mark is a symbol instead):
+
+| Label | Meaning |
+| --- | --- |
+| `v1.0` | On your machine and on a remote — in sync |
+| `v1.0↑` | Only local — not pushed to any remote |
+| `v1.0↓` | Only on a remote — not fetched |
+
+Tags are compared by name *and* commit, so a tag that was moved shows at both ends:
+`↑` where it now points locally, `↓` where the remote still has it.
+
+Git keeps no remote-tracking copy of tags the way it does for branches, so this has
+to ask each remote with `git ls-remote`. That runs in the background on startup,
+never prompts for credentials, and gives up after 15 seconds. Until every remote has
+answered — or if there is no remote, or one can't be reached — tags stay unmarked
+rather than all appearing unpushed.
+
 ## Updating
 
 Gitraffe checks for a newer release on startup and shows it in the title bar.

@@ -318,28 +318,26 @@ func (m *model) labelMergedBranches() {
 	}
 }
 
-// labelText is the full label-column text for a commit, used for width
-// calculation so the column is sized for what actually gets rendered.
+// labelText is the full label-column text for a commit. It is built from the
+// very segments the renderer draws, so the column can never be sized for
+// different text than it shows.
 func (c commit) labelText() string {
-	label := extractBranchLabel(c.Refs)
-	if c.MergedBranch != "" {
-		if label != "" {
-			label += ", "
-		}
-		label += c.MergedBranch
+	segs := labelSegments(c)
+	texts := make([]string, len(segs))
+	for i, seg := range segs {
+		texts[i] = seg.text
 	}
-	return label
+	return strings.Join(texts, ", ")
 }
 
-// extractBranchLabel returns the comma-separated ref label for a commit, in the
-// same order refSegments renders it: local branches, then remote, then tags.
-func extractBranchLabel(refs string) string {
-	local, remote, tags := parseRefs(refs)
-	all := make([]string, 0, len(local)+len(remote)+len(tags))
-	all = append(all, local...)
-	all = append(all, remote...)
-	all = append(all, tags...)
-	return strings.Join(all, ", ")
+// updateLabelWidth sizes the label column to the widest label in the graph.
+func (m *model) updateLabelWidth() {
+	m.maxBranchWidth = 0
+	for _, c := range m.commits {
+		if w := utf8.RuneCountInString(c.labelText()); w > m.maxBranchWidth {
+			m.maxBranchWidth = w
+		}
+	}
 }
 
 func (m *model) loadGraphData() error {
@@ -460,16 +458,8 @@ func (m *model) loadGraphData() error {
 	}
 
 	m.labelMergedBranches()
-
-	// Calculate max combined label width (branches + tags + merged branches) for
-	// column alignment
-	m.maxBranchWidth = 0
-	for _, c := range m.commits {
-		labelWidth := utf8.RuneCountInString(c.labelText())
-		if labelWidth > m.maxBranchWidth {
-			m.maxBranchWidth = labelWidth
-		}
-	}
+	m.applyRemoteTags()
+	m.updateLabelWidth()
 
 	log.Printf("Loaded %d commits, %d display rows, max graph width: %d, max branch width: %d\n",
 		len(m.commits), len(m.displayRows), m.maxGraphWidth, m.maxBranchWidth)
