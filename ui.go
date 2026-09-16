@@ -266,15 +266,15 @@ func (m *model) renderStatusLine() string {
 }
 
 // syncLabel renders how the current branch differs from its upstream, e.g.
-// "↑3 ↓1". In sync or unknown renders nothing, so only a difference draws the
-// eye — the same convention as the tag sync marks.
+// "↑3 ↓1", each direction in its own colour. In sync or unknown renders nothing,
+// so only a difference draws the eye — the same convention as the tag sync marks.
 func syncLabel(ahead, behind int) string {
 	var parts []string
 	if ahead > 0 {
-		parts = append(parts, fmt.Sprintf("↑%d", ahead))
+		parts = append(parts, aheadStyle.Render(fmt.Sprintf("↑%d", ahead)))
 	}
 	if behind > 0 {
-		parts = append(parts, fmt.Sprintf("↓%d", behind))
+		parts = append(parts, behindStyle.Render(fmt.Sprintf("↓%d", behind)))
 	}
 	return strings.Join(parts, " ")
 }
@@ -293,7 +293,7 @@ func (m *model) renderRepoInfo() string {
 	sb.WriteString(localBranchStyle.Render(m.currentBranch))
 	if s := syncLabel(m.ahead, m.behind); s != "" {
 		sb.WriteString(" ")
-		sb.WriteString(localBranchStyle.Render(s))
+		sb.WriteString(s)
 	}
 	sb.WriteString("  ")
 

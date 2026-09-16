@@ -29,6 +29,8 @@ var (
 	dateStyle         lipgloss.Style
 	messageStyle      lipgloss.Style
 	localBranchStyle  lipgloss.Style
+	aheadStyle        lipgloss.Style
+	behindStyle       lipgloss.Style
 	remoteBranchStyle lipgloss.Style
 	mergedBranchStyle lipgloss.Style
 	tagStyle          lipgloss.Style

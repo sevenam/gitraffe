@@ -76,6 +76,8 @@ Refs are coloured by what they are:
 | Remote-tracking branch (`origin/main`) | blue | `branch` |
 | Tag (`v1.0`) | yellow | `tag` |
 | Merged-and-deleted branch | dim grey | `merged_branch` |
+| Ahead count (`↑3`) | cyan | `ahead` (defaults to `author`) |
+| Behind count (`↓1`) | red | `behind` (defaults to `diff_del`) |
 
 Local and remote are told apart by their full ref path, so a local branch called
 `feature/foo` is never mistaken for a branch `foo` on a remote named `feature`.

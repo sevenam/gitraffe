@@ -18,6 +18,8 @@ type ThemeColors struct {
 	Message        string `yaml:"message"`
 	Branch         string `yaml:"branch"`
 	LocalBranch    string `yaml:"local_branch"`
+	Ahead          string `yaml:"ahead"`
+	Behind         string `yaml:"behind"`
 	MergedBranch   string `yaml:"merged_branch"`
 	Tag            string `yaml:"tag"`
 	Help           string `yaml:"help"`
@@ -94,6 +96,14 @@ func loadTheme() {
 	log.Printf("Theme: loaded from %s", themePath)
 }
 
+// firstColour returns the theme's own setting if it has one, else the fallback.
+func firstColour(own, fallback string) string {
+	if own != "" {
+		return own
+	}
+	return fallback
+}
+
 func initStyles() {
 	titleStyle = lipgloss.NewStyle().
 		Bold(true).
@@ -127,6 +137,19 @@ func initStyles() {
 	}
 	localBranchStyle = lipgloss.NewStyle().
 		Foreground(lipgloss.Color(localColour)).
+		Bold(true)
+
+	// The ahead/behind counts sit right after the branch name, so they must not
+	// share its colour, nor the orange "Commit:" that follows. They borrow
+	// colours every theme already defines — behind is the diff-deletion red
+	// (commits you're missing), ahead the author cyan (your unpushed work);
+	// green is taken by the branch name, and the tag yellow is undefined in the
+	// bundled themes and unreadable on light ones.
+	aheadStyle = lipgloss.NewStyle().
+		Foreground(lipgloss.Color(firstColour(currentTheme.Ahead, currentTheme.Author))).
+		Bold(true)
+	behindStyle = lipgloss.NewStyle().
+		Foreground(lipgloss.Color(firstColour(currentTheme.Behind, currentTheme.DiffDel))).
 		Bold(true)
 
 	// Deliberately not bold: a deleted branch is history, and should read as
