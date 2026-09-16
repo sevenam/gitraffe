@@ -9,6 +9,8 @@ import (
 	"os/exec"
 	"path/filepath"
 	"runtime"
+	"strconv"
+	"strings"
 	"time"
 )
 
@@ -40,6 +42,12 @@ func checkUpdate() error {
 		fmt.Println("You are already on the latest version:", currentTag)
 		return nil
 	}
+	// The latest release can be older than this build — a release being
+	// re-cut, or a locally built binary — and installing it would downgrade.
+	if !isNewerVersion(release.TagName, version) {
+		fmt.Printf("No newer release available (latest published: %s, current: %s)\n", release.TagName, currentTag)
+		return nil
+	}
 
 	fmt.Printf("New version available: %s (current: %s)\n", release.TagName, currentTag)
 	fmt.Println("Downloading...")
@@ -56,6 +64,47 @@ func checkUpdate() error {
 
 	fmt.Printf("Successfully updated to %s\n", release.TagName)
 	return nil
+}
+
+// isNewerVersion reports whether tag names a strictly later release than
+// current. Versions are compared as numbers, not strings — as text "0.10.0"
+// sorts below "0.9.0". Anything unparseable counts as not newer, because
+// offering an unrecognised tag risks installing a downgrade.
+func isNewerVersion(tag, current string) bool {
+	a, ok := parseVersion(tag)
+	if !ok {
+		return false
+	}
+	b, ok := parseVersion(current)
+	if !ok {
+		return false
+	}
+	for i := range a {
+		if a[i] != b[i] {
+			return a[i] > b[i]
+		}
+	}
+	return false
+}
+
+// parseVersion reads "v1.2.3" or "1.2.3". Pre-release and build suffixes
+// ("-rc1", "+meta") are rejected rather than ordered: releases here are plain
+// numbers, and guessing at suffix order could offer a release candidate as an
+// upgrade.
+func parseVersion(s string) ([3]int, bool) {
+	var v [3]int
+	parts := strings.Split(strings.TrimPrefix(s, "v"), ".")
+	if len(parts) != len(v) {
+		return v, false
+	}
+	for i, p := range parts {
+		n, err := strconv.Atoi(p)
+		if err != nil || n < 0 || strings.HasPrefix(p, "+") {
+			return v, false
+		}
+		v[i] = n
+	}
+	return v, true
 }
 
 func fetchLatestRelease() (*Release, error) {
