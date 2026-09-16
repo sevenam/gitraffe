@@ -94,14 +94,28 @@ func TestLoadUpstreamSync(t *testing.T) {
 	run(t, env, work, "checkout", "-q", "--detach")
 	check("detached HEAD", work, 0, 0)
 
-	run(t, env, work, "checkout", "-q", "-b", "local-only")
-	check("branch with no upstream", work, 0, 0)
+	// Unpushed branches count commits no remote has, and are never "behind".
+	run(t, env, work, "checkout", "-q", "-b", "fresh", "origin/main", "--no-track")
+	check("new branch, nothing committed yet", work, 0, 0)
+	run(t, env, work, "commit", "-q", "--allow-empty", "-m", "feature work")
+	check("new branch with one commit, never pushed", work, 1, 0)
 
-	// A tracking branch whose remote branch has since been deleted.
+	// Pushed, but without -u: the commits are on the remote, so nothing is ahead.
+	run(t, env, work, "push", "-q", "origin", "fresh")
+	run(t, env, work, "fetch", "-q")
+	check("pushed without -u", work, 0, 0)
+
+	// Branched from the diverged local main, whose two commits were never pushed.
+	run(t, env, work, "checkout", "-q", "-b", "local-only", "main", "--no-track")
+	check("branch with no upstream carrying unpushed commits", work, 2, 0)
+
+	// A tracking branch whose remote branch has since been deleted: its commits
+	// are on no remote any more.
 	run(t, env, work, "push", "-q", "-u", "origin", "local-only")
+	check("tracking and in sync", work, 0, 0)
 	run(t, env, other, "push", "-q", "origin", "--delete", "local-only")
 	run(t, env, work, "fetch", "-q", "--prune")
-	check("upstream deleted", work, 0, 0)
+	check("upstream deleted", work, 2, 0)
 
 	noRemote := filepath.Join(root, "no-remote")
 	run(t, env, root, "init", "-q", "-b", "main", noRemote)

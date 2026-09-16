@@ -89,10 +89,14 @@ colour, so the pairing stays coherent whatever palette you use.
 The branch in the info box shows how it differs from its upstream: `↑3` means three
 local commits not yet pushed, `↓1` means one commit on the remote you haven't pulled.
 
-The counts compare against your remote-tracking branch as of your last `git fetch` —
+A branch that hasn't been pushed with `-u` (or whose remote branch was deleted) has no
+upstream to compare with, but it is still ahead: `↑` then counts its commits that no
+remote has yet. It never shows `↓`, since there is nothing to be behind.
+
+The counts compare against your remote-tracking branches as of your last `git fetch` —
 gitraffe never fetches, so run `git fetch` first to see the remote's current state.
-Nothing is shown when the branch is in sync, and nothing when there is no answer to
-give: a detached HEAD, a branch with no upstream, or an upstream that was deleted.
+Nothing is shown when the branch is in sync, on a detached HEAD, or in a repository
+with no remote.
 
 ## Tag sync
 

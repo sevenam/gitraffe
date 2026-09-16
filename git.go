@@ -60,31 +60,52 @@ func (m *model) loadRepoInfo() {
 	}
 }
 
-// loadUpstreamSync counts the commits the current branch and its upstream don't
+// loadUpstreamSync counts the commits the current branch and the remote don't
 // share. It reads only local refs, so the counts are as of the last fetch —
-// gitraffe never fetches. Anything without a meaningful answer (detached HEAD,
-// no upstream configured, upstream deleted, no remote) makes rev-list fail and
-// leaves both counts at zero, which renders as nothing.
+// gitraffe never fetches. Where there is no meaningful answer (detached HEAD,
+// no remote) both counts stay zero, which renders as nothing.
 func (m *model) loadUpstreamSync() {
 	m.ahead, m.behind = 0, 0
 
-	cmd := exec.Command("git", "rev-list", "--left-right", "--count", "@{upstream}...HEAD")
+	if out, err := m.git("rev-list", "--left-right", "--count", "@{upstream}...HEAD"); err == nil {
+		// Left of "..." is the upstream, right is HEAD: "<behind>\t<ahead>".
+		fields := strings.Fields(out)
+		if len(fields) != 2 {
+			return
+		}
+		behind, err1 := strconv.Atoi(fields[0])
+		ahead, err2 := strconv.Atoi(fields[1])
+		if err1 != nil || err2 != nil {
+			return
+		}
+		m.ahead, m.behind = ahead, behind
+		return
+	}
+
+	// No upstream: never pushed with -u, or its remote branch was deleted. Such
+	// a branch is still ahead by any sensible reading — it has commits the remote
+	// doesn't — so count commits no remote-tracking branch contains. "Behind" has
+	// nothing to measure against, so it stays zero. Showing nothing here would
+	// make an unpushed branch look identical to one that is in sync.
+	if _, err := m.git("symbolic-ref", "-q", "HEAD"); err != nil {
+		return // detached HEAD: no branch to push
+	}
+	if refs, err := m.git("for-each-ref", "--count=1", "refs/remotes"); err != nil || refs == "" {
+		return // no remote: nowhere to push, and counting all history would be noise
+	}
+	if out, err := m.git("rev-list", "--count", "HEAD", "--not", "--remotes"); err == nil {
+		if ahead, err := strconv.Atoi(strings.TrimSpace(out)); err == nil {
+			m.ahead = ahead
+		}
+	}
+}
+
+// git runs a read-only git command in the repository and returns its stdout.
+func (m *model) git(args ...string) (string, error) {
+	cmd := exec.Command("git", args...)
 	cmd.Dir = m.repoPath
 	out, err := cmd.Output()
-	if err != nil {
-		return
-	}
-	// Left of "..." is the upstream, right is HEAD: "<behind>\t<ahead>".
-	fields := strings.Fields(string(out))
-	if len(fields) != 2 {
-		return
-	}
-	behind, err1 := strconv.Atoi(fields[0])
-	ahead, err2 := strconv.Atoi(fields[1])
-	if err1 != nil || err2 != nil {
-		return
-	}
-	m.ahead, m.behind = ahead, behind
+	return strings.TrimSpace(string(out)), err
 }
 
 func (m *model) loadRepoInfoFromCLI() {
