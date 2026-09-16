@@ -15,7 +15,11 @@ type commit struct {
 	Message    string
 	Parents    []string
 	Refs       string
-	GraphLine  string
+	// MergedBranch is the name of a branch whose tip this commit was, recovered
+	// from the message of the merge commit that absorbed it. Set only when no
+	// ref points here any more, i.e. the branch has since been deleted.
+	MergedBranch string
+	GraphLine    string
 	DiffLoaded bool
 	DiffStat   string
 	DiffBody   string

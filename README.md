@@ -5,6 +5,7 @@ A beautiful text-based UI git graph command line tool built with Golang, Bubble 
 ## Features
 
 - 📊 Visual git commit graph in your terminal (branches **and tags** are shown; the graph expands to use available space and long branch names are truncated as needed)
+- 🌿 Names merged-and-deleted branches at their tip commit, recovered from merge commit messages (see [Merged branches](#merged-branches))
 - 🎨 Beautiful styling with Lip Gloss
 - ⌨️  Keyboard navigation (arrow keys, vim-style)
 - 🖱️  Mouse wheel scrolling support
@@ -48,6 +49,20 @@ gitraffe /path/to/repo
 - `Home/End` - Jump to top/bottom
 - `U` - Update to the latest release (shown in the help line when one is available)
 - `q` or `Esc` or `Ctrl+C` - Quit
+
+## Merged branches
+
+Git does not store a branch name on a commit — a branch is only a movable pointer,
+so deleting it erases the name. Gitraffe recovers it from the merge commit instead:
+the auto-generated subject (`Merge pull request #33 from you/add-feature`, or
+`Merge branch 'add-feature'`) holds the name, and the merge's second parent is the
+branch's tip. That name is shown at the tip in a dimmer colour than live branches.
+
+This only works for real merge commits. Squash and rebase merges keep no second
+parent and no branch name, and fast-forwards create no merge commit at all — for
+those the name is genuinely gone from the repository.
+
+Set `merged_branch` in your theme to restyle these labels.
 
 ## Updating
 

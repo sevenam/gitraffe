@@ -348,61 +348,42 @@ func (m *model) renderCommitList(branchColWidth int) string {
 			}
 			graphPadded := row.GraphChars + strings.Repeat(" ", padLen)
 
-			// Branch/tag label column
-			branchLabel := ""
-			tagLabel := ""
-			combined := ""
+			// Branch / tag / merged-branch label column
+			var segments []labelSegment
 			if isCommit {
-				branches, tags := parseRefs(m.commits[row.CommitIdx].Refs)
-				if len(branches) > 0 {
-					branchLabel = strings.Join(branches, ", ")
-				}
-				if len(tags) > 0 {
-					tagLabel = strings.Join(tags, ", ")
-				}
-				// produce the string we use for width/truncation
-				combined = branchLabel
-				if tagLabel != "" {
-					if combined != "" {
-						combined += ", "
-					}
-					combined += tagLabel
-				}
-				// Truncate to runes, not bytes
-				runes := []rune(combined)
-				if len(runes) > branchColWidth {
-					combined = string(runes[:branchColWidth])
-				}
+				segments = labelSegments(m.commits[row.CommitIdx])
 			}
 
-			// Helper to render the branch/tag label with padding, using the given style(s)
+			// Helper to render the label column, truncated to the width this
+			// layout pass allows and padded so the column stays aligned.
 			renderBranchLabel := func() {
-				if branchColWidth > 0 {
-					blPad := branchColWidth - utf8.RuneCountInString(combined)
-					if combined != "" {
-						// split on comma+space to style tags differently
-						tokens := strings.Split(combined, ", ")
-						for j, tok := range tokens {
-							// decide style: if this token exactly matches one of the
-							// original tags, use tagStyle; otherwise branchStyle.
-							styleToUse := branchStyle
-							for _, t := range strings.Split(tagLabel, ", ") {
-								if tok == t {
-									styleToUse = tagStyle
-									break
-								}
-							}
-							if j > 0 {
-								sb.WriteString(", ")
-							}
-							sb.WriteString(styleToUse.Render(tok))
-						}
-					}
-					if blPad > 0 {
-						sb.WriteString(strings.Repeat(" ", blPad))
-					}
-					sb.WriteString(" ")
+				if branchColWidth <= 0 {
+					return
 				}
+				used := 0
+				for i, seg := range segments {
+					if i > 0 {
+						if used+2 > branchColWidth {
+							break
+						}
+						sb.WriteString(", ")
+						used += 2
+					}
+					// Truncate to runes, not bytes
+					text := seg.text
+					if r := []rune(text); len(r) > branchColWidth-used {
+						text = string(r[:branchColWidth-used])
+					}
+					if text == "" {
+						break
+					}
+					sb.WriteString(seg.style.Render(text))
+					used += utf8.RuneCountInString(text)
+				}
+				if pad := branchColWidth - used; pad > 0 {
+					sb.WriteString(strings.Repeat(" ", pad))
+				}
+				sb.WriteString(" ")
 			}
 
 			if isSel {
@@ -477,6 +458,30 @@ func (m *model) renderCommitList(branchColWidth int) string {
 		resultLines = resultLines[:maxLines]
 	}
 	return strings.Join(resultLines, "\n")
+}
+
+// labelSegment is one styled entry in the branch/tag label column.
+type labelSegment struct {
+	text  string
+	style lipgloss.Style
+}
+
+// labelSegments lists what belongs in a commit's label column, in the same order
+// labelText measures it: live branches, tags, then the name of a deleted branch
+// this commit was the tip of.
+func labelSegments(c commit) []labelSegment {
+	branches, tags := parseRefs(c.Refs)
+	segs := make([]labelSegment, 0, len(branches)+len(tags)+1)
+	for _, b := range branches {
+		segs = append(segs, labelSegment{b, branchStyle})
+	}
+	for _, t := range tags {
+		segs = append(segs, labelSegment{t, tagStyle})
+	}
+	if c.MergedBranch != "" {
+		segs = append(segs, labelSegment{c.MergedBranch, mergedBranchStyle})
+	}
+	return segs
 }
 
 // truncateLines truncates each line of s to maxWidth visible characters,

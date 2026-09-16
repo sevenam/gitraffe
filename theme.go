@@ -17,6 +17,7 @@ type ThemeColors struct {
 	Date           string `yaml:"date"`
 	Message        string `yaml:"message"`
 	Branch         string `yaml:"branch"`
+	MergedBranch   string `yaml:"merged_branch"`
 	Tag            string `yaml:"tag"`
 	Help           string `yaml:"help"`
 	Error          string `yaml:"error"`
@@ -46,6 +47,7 @@ func defaultTheme() ThemeColors {
 		Date:           "#A3BE8C",
 		Message:        "#E5E9F0",
 		Branch:         "#88C0D0",
+		MergedBranch:   "#707880",
 		Tag:            "#EBCB8B",
 		Help:           "#626262",
 		Error:          "#FF0000",
@@ -113,6 +115,11 @@ func initStyles() {
 	branchStyle = lipgloss.NewStyle().
 		Foreground(lipgloss.Color(currentTheme.Branch)).
 		Bold(true)
+
+	// Deliberately not bold: a deleted branch is history, and should read as
+	// quieter than the refs that still exist.
+	mergedBranchStyle = lipgloss.NewStyle().
+		Foreground(lipgloss.Color(currentTheme.MergedBranch))
 
 	tagStyle = lipgloss.NewStyle().
 		Foreground(lipgloss.Color(currentTheme.Tag)).
