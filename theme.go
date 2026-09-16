@@ -1,6 +1,10 @@
 package main
 
 import (
+	"bytes"
+	"errors"
+	"fmt"
+	"io"
 	"log"
 	"os"
 	"path/filepath"
@@ -67,13 +71,34 @@ func defaultTheme() ThemeColors {
 	}
 }
 
-func loadTheme() {
+// loadTheme applies a theme over the default colours.
+//
+// With a path (the -theme flag) every problem is returned, and unknown keys
+// count as problems: the user named that file, so quietly showing defaults
+// instead would look as if the flag had been ignored. Without one it looks for
+// the theme in the user's config directory, where having no file is the normal
+// case and problems are only logged.
+func loadTheme(path string) error {
 	currentTheme = defaultTheme()
+
+	if path != "" {
+		data, err := os.ReadFile(path)
+		if err != nil {
+			return fmt.Errorf("theme: %w", err)
+		}
+		colors, err := parseTheme(data, true)
+		if err != nil {
+			return fmt.Errorf("theme %s: %w", path, err)
+		}
+		currentTheme = colors
+		log.Printf("Theme: loaded from %s (-theme)", path)
+		return nil
+	}
 
 	configDir, err := os.UserConfigDir()
 	if err != nil {
 		log.Printf("Theme: config dir unavailable: %v", err)
-		return
+		return nil
 	}
 
 	themePath := filepath.Join(configDir, "gitraffe", "theme.yml")
@@ -82,18 +107,32 @@ func loadTheme() {
 	data, err := os.ReadFile(themePath)
 	if err != nil {
 		log.Printf("Theme: no file at %s, using defaults", themePath)
-		return
+		return nil
 	}
 
-	var tf themeFile
-	tf.Colors = currentTheme
-	if err := yaml.Unmarshal(data, &tf); err != nil {
+	colors, err := parseTheme(data, false)
+	if err != nil {
 		log.Printf("Theme: parse error in %s: %v", themePath, err)
-		return
+		return nil
 	}
 
-	currentTheme = tf.Colors
+	currentTheme = colors
 	log.Printf("Theme: loaded from %s", themePath)
+	return nil
+}
+
+// parseTheme reads a theme file's colours over the defaults, so a file only has
+// to name the colours it changes. strict rejects unknown keys, which is how a
+// misspelt key gets caught instead of silently doing nothing.
+func parseTheme(data []byte, strict bool) (ThemeColors, error) {
+	tf := themeFile{Colors: defaultTheme()}
+	dec := yaml.NewDecoder(bytes.NewReader(data))
+	dec.KnownFields(strict)
+	// An empty file decodes to io.EOF: nothing to override, not an error.
+	if err := dec.Decode(&tf); err != nil && !errors.Is(err, io.EOF) {
+		return ThemeColors{}, err
+	}
+	return tf.Colors, nil
 }
 
 // firstColour returns the theme's own setting if it has one, else the fallback.

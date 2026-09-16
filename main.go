@@ -1,7 +1,10 @@
 package main
 
 import (
+	"errors"
+	"flag"
 	"fmt"
+	"io"
 	"log"
 	"os"
 	"path/filepath"
@@ -53,6 +56,60 @@ func getLogFilePath() string {
 	return filepath.Join(dir, "gitraffe.log")
 }
 
+type cliOptions struct {
+	repoPath  string
+	themePath string
+	update    bool
+}
+
+// errUsage marks a command line parseArgs has already reported.
+var errUsage = errors.New("invalid arguments")
+
+// parseArgs reads the command line: an optional repository path or the
+// "update" subcommand, plus flags. Flags are accepted before or after the path.
+// Go's flag package on its own stops at the first non-flag argument, so
+// "gitraffe . -theme x.yml" would start with the theme silently ignored.
+func parseArgs(args []string, output io.Writer) (cliOptions, error) {
+	opts := cliOptions{repoPath: "."}
+
+	fs := flag.NewFlagSet("gitraffe", flag.ContinueOnError)
+	fs.SetOutput(output)
+	fs.StringVar(&opts.themePath, "theme", "",
+		"colour theme `file` to use instead of your theme config, e.g. themes/tokyo-night-storm.yml")
+	fs.Usage = func() {
+		fmt.Fprintf(output, "Usage:\n  gitraffe [flags] [repository path]\n  gitraffe update\n\nFlags:\n")
+		fs.PrintDefaults()
+		fmt.Fprintf(output, "\nFlags take one or two dashes: -theme and --theme are the same.\n")
+	}
+
+	var positional []string
+	for {
+		if err := fs.Parse(args); err != nil {
+			return opts, err // flag has printed the error and the usage
+		}
+		if fs.NArg() == 0 {
+			break
+		}
+		positional = append(positional, fs.Arg(0))
+		args = fs.Args()[1:]
+	}
+
+	switch len(positional) {
+	case 0:
+	case 1:
+		if positional[0] == "update" {
+			opts.update = true
+		} else {
+			opts.repoPath = positional[0]
+		}
+	default:
+		fmt.Fprintf(output, "expected at most one repository path, got %q\n\n", positional)
+		fs.Usage()
+		return opts, errUsage
+	}
+	return opts, nil
+}
+
 func main() {
 	// Determine where the log file should live based on OS conventions
 	logFileName = getLogFilePath()
@@ -66,8 +123,16 @@ func main() {
 
 	log.Println("Starting " + appName + "...")
 
-	// Handle update subcommand
-	if len(os.Args) > 1 && os.Args[1] == "update" {
+	opts, err := parseArgs(os.Args[1:], os.Stderr)
+	if errors.Is(err, flag.ErrHelp) {
+		return
+	}
+	if err != nil {
+		// parseArgs has already printed the problem and the usage.
+		os.Exit(2)
+	}
+
+	if opts.update {
 		if err := checkUpdate(); err != nil {
 			fmt.Printf("Error: %v\n", err)
 			os.Exit(1)
@@ -75,13 +140,14 @@ func main() {
 		return
 	}
 
-	loadTheme()
+	// Before the TUI starts, so a bad -theme is reported on the normal screen.
+	if err := loadTheme(opts.themePath); err != nil {
+		fmt.Fprintf(os.Stderr, "Error: %v\n", err)
+		os.Exit(1)
+	}
 	initStyles()
 
-	repoPath := "."
-	if len(os.Args) > 1 {
-		repoPath = os.Args[1]
-	}
+	repoPath := opts.repoPath
 
 	log.Printf("Opening repository: %s\n", repoPath)
 
