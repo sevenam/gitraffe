@@ -60,6 +60,33 @@ func (m *model) loadRepoInfo() {
 	}
 }
 
+// loadUpstreamSync counts the commits the current branch and its upstream don't
+// share. It reads only local refs, so the counts are as of the last fetch —
+// gitraffe never fetches. Anything without a meaningful answer (detached HEAD,
+// no upstream configured, upstream deleted, no remote) makes rev-list fail and
+// leaves both counts at zero, which renders as nothing.
+func (m *model) loadUpstreamSync() {
+	m.ahead, m.behind = 0, 0
+
+	cmd := exec.Command("git", "rev-list", "--left-right", "--count", "@{upstream}...HEAD")
+	cmd.Dir = m.repoPath
+	out, err := cmd.Output()
+	if err != nil {
+		return
+	}
+	// Left of "..." is the upstream, right is HEAD: "<behind>\t<ahead>".
+	fields := strings.Fields(string(out))
+	if len(fields) != 2 {
+		return
+	}
+	behind, err1 := strconv.Atoi(fields[0])
+	ahead, err2 := strconv.Atoi(fields[1])
+	if err1 != nil || err2 != nil {
+		return
+	}
+	m.ahead, m.behind = ahead, behind
+}
+
 func (m *model) loadRepoInfoFromCLI() {
 	// Get repository name from path
 	m.repoName = m.repoPath

@@ -7,6 +7,7 @@ A beautiful text-based UI git graph command line tool built with Golang, Bubble 
 - 📊 Visual git commit graph in your terminal (branches **and tags** are shown; the graph expands to use available space and long branch names are truncated as needed)
 - 🌿 Names merged-and-deleted branches at their tip commit, recovered from merge commit messages (see [Merged branches](#merged-branches))
 - 👤 Each commit's date and author in columns beside the hash (on a narrow terminal the author goes first, then the date, before branch labels are cut)
+- 🔀 Ahead/behind for the current branch next to its name, e.g. `main ↑3 ↓1` (see [Ahead and behind](#ahead-and-behind))
 - 🎨 Beautiful styling with Lip Gloss
 - ⌨️  Keyboard navigation (arrow keys, vim-style)
 - 🖱️  Mouse wheel scrolling support
@@ -82,6 +83,16 @@ Local and remote are told apart by their full ref path, so a local branch called
 
 Existing themes need no changes — `local_branch` falls back to that theme's `date`
 colour, so the pairing stays coherent whatever palette you use.
+
+## Ahead and behind
+
+The branch in the info box shows how it differs from its upstream: `↑3` means three
+local commits not yet pushed, `↓1` means one commit on the remote you haven't pulled.
+
+The counts compare against your remote-tracking branch as of your last `git fetch` —
+gitraffe never fetches, so run `git fetch` first to see the remote's current state.
+Nothing is shown when the branch is in sync, and nothing when there is no answer to
+give: a detached HEAD, a branch with no upstream, or an upstream that was deleted.
 
 ## Tag sync
 

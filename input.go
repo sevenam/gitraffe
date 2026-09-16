@@ -149,6 +149,7 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			log.Println("Repository opened successfully with go-git")
 		}
 		m.loadRepoInfo()
+		m.loadUpstreamSync()
 
 		if err := m.loadGraphData(); err != nil {
 			log.Printf("Graph loading failed: %v, trying simple load...\n", err)
@@ -167,6 +168,7 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case errMsg:
 		log.Printf("Error from go-git: %v\n", msg.err)
 		m.loadRepoInfoFromCLI()
+		m.loadUpstreamSync()
 
 		if err := m.loadGraphData(); err != nil {
 			log.Printf("Graph loading failed: %v, trying simple load...\n", err)
