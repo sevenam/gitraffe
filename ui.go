@@ -466,11 +466,12 @@ type labelSegment struct {
 	style lipgloss.Style
 }
 
-// refSegments lists a commit's live refs in the order extractBranchLabel
-// measures them: local branches, then remote-tracking branches, then tags.
+// refSegments lists a commit's refs: local branches, remote-tracking branches,
+// then tags. Tag sync state is shown as a mark rather than a colour, because
+// colour already says "this is a tag".
 func refSegments(c commit) []labelSegment {
 	local, remote, tags := parseRefs(c.Refs)
-	segs := make([]labelSegment, 0, len(local)+len(remote)+len(tags))
+	segs := make([]labelSegment, 0, len(local)+len(remote)+len(tags)+len(c.RemoteOnlyTags))
 	for _, b := range local {
 		segs = append(segs, labelSegment{b, localBranchStyle})
 	}
@@ -478,13 +479,19 @@ func refSegments(c commit) []labelSegment {
 		segs = append(segs, labelSegment{b, remoteBranchStyle})
 	}
 	for _, t := range tags {
+		if c.UnpushedTags[t] {
+			t += tagLocalOnlyMark
+		}
 		segs = append(segs, labelSegment{t, tagStyle})
+	}
+	for _, t := range c.RemoteOnlyTags {
+		segs = append(segs, labelSegment{t + tagRemoteOnlyMark, tagStyle})
 	}
 	return segs
 }
 
 // labelSegments is refSegments plus the name of a deleted branch this commit was
-// the tip of, matching the order labelText measures.
+// the tip of.
 func labelSegments(c commit) []labelSegment {
 	segs := refSegments(c)
 	if c.MergedBranch != "" {
@@ -552,6 +559,16 @@ func (m *model) renderCommitDetails() string {
 			sb.WriteString(seg.style.Render(seg.text))
 		}
 		sb.WriteString("\n")
+
+		// The graph has no room for a legend, so explain any tag marks here.
+		if len(c.UnpushedTags) > 0 {
+			sb.WriteString(helpStyle.Render("         " + tagLocalOnlyMark + " local only — not on any remote"))
+			sb.WriteString("\n")
+		}
+		if len(c.RemoteOnlyTags) > 0 {
+			sb.WriteString(helpStyle.Render("         " + tagRemoteOnlyMark + " remote only — not fetched"))
+			sb.WriteString("\n")
+		}
 	}
 
 	// A branch recovered from a merge commit has no ref of its own, so it would
