@@ -8,6 +8,7 @@ import (
 
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
+	"github.com/charmbracelet/x/ansi"
 )
 
 func TestMain(m *testing.M) {
@@ -203,15 +204,5 @@ func TestStatusLineFitsAndKeepsLayout(t *testing.T) {
 }
 
 func stripANSI(s string) string {
-	var b strings.Builder
-	for i := 0; i < len(s); i++ {
-		if s[i] == 0x1b {
-			for i < len(s) && !(s[i] >= 0x40 && s[i] <= 0x7e) {
-				i++
-			}
-			continue
-		}
-		b.WriteByte(s[i])
-	}
-	return b.String()
+	return ansi.Strip(s)
 }
