@@ -232,6 +232,88 @@ func parseRefs(refs string) (branches, tags []string) {
 	return
 }
 
+// mergedBranchName recovers the branch name recorded in a merge commit's subject.
+//
+// Git stores no branch name on a commit — a branch is just a ref, and deleting it
+// erases the only pointer. The auto-generated merge subject is therefore the one
+// place the name of a merged-then-deleted branch survives in the repository, and
+// it exists only for real merge commits: squash and rebase merges leave nothing
+// behind to recover.
+func mergedBranchName(subject string) string {
+	// GitHub: "Merge pull request #33 from owner/branch-name"
+	if strings.HasPrefix(subject, "Merge pull request ") {
+		_, after, ok := strings.Cut(subject, " from ")
+		if !ok {
+			return ""
+		}
+		fields := strings.Fields(after)
+		if len(fields) == 0 {
+			return ""
+		}
+		// Strip the owner (or fork owner) prefix; the remainder is the branch,
+		// which may itself contain slashes.
+		if _, branch, ok := strings.Cut(fields[0], "/"); ok {
+			return branch
+		}
+		return fields[0]
+	}
+
+	// git: "Merge branch 'foo'", "Merge branch 'foo' into bar",
+	// "Merge remote-tracking branch 'origin/foo'"
+	if strings.HasPrefix(subject, "Merge branch ") || strings.HasPrefix(subject, "Merge remote-tracking branch ") {
+		if _, after, ok := strings.Cut(subject, "'"); ok {
+			if name, _, ok := strings.Cut(after, "'"); ok {
+				return name
+			}
+		}
+	}
+
+	return ""
+}
+
+// labelMergedBranches tags each merge commit's second parent — the tip of the
+// branch that was merged — with that branch's name.
+func (m *model) labelMergedBranches() {
+	byHash := make(map[string]int, len(m.commits))
+	for i, c := range m.commits {
+		byHash[c.Hash] = i
+	}
+
+	for _, c := range m.commits {
+		// The second parent is the merged branch's tip; the first is the branch
+		// that absorbed it.
+		if len(c.Parents) < 2 {
+			continue
+		}
+		name := mergedBranchName(c.Message)
+		if name == "" {
+			continue
+		}
+		idx, ok := byHash[c.Parents[1]]
+		if !ok {
+			continue
+		}
+		// A branch that still exists already labels itself via its ref.
+		if branches, _ := parseRefs(m.commits[idx].Refs); len(branches) > 0 {
+			continue
+		}
+		m.commits[idx].MergedBranch = name
+	}
+}
+
+// labelText is the full label-column text for a commit, used for width
+// calculation so the column is sized for what actually gets rendered.
+func (c commit) labelText() string {
+	label := extractBranchLabel(c.Refs)
+	if c.MergedBranch != "" {
+		if label != "" {
+			label += ", "
+		}
+		label += c.MergedBranch
+	}
+	return label
+}
+
 // extractBranchLabel returns a comma‑separated string containing both branches and
 // tags (tags appended after branches). It is used for width calculation and as a
 // convenience wrapper for callers that just need the full label.
@@ -364,13 +446,13 @@ func (m *model) loadGraphData() error {
 		}
 	}
 
-	// Calculate max combined label width (branches + tags) for column alignment
+	m.labelMergedBranches()
+
+	// Calculate max combined label width (branches + tags + merged branches) for
+	// column alignment
 	m.maxBranchWidth = 0
 	for _, c := range m.commits {
-		// using the convenience wrapper here is fine; parseRefs is used
-		// elsewhere for styling.
-		label := extractBranchLabel(c.Refs)
-		labelWidth := utf8.RuneCountInString(label)
+		labelWidth := utf8.RuneCountInString(c.labelText())
 		if labelWidth > m.maxBranchWidth {
 			m.maxBranchWidth = labelWidth
 		}
