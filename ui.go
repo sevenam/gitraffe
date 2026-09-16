@@ -76,86 +76,18 @@ func (m model) View() (result string) {
 		contentHeight = 3
 	}
 
-	// Panel widths - dynamic based on graph width. We prioritise the graph
-	// itself and only allocate branch label space from the remainder. This
-	// prevents long branch names from starving the graph of room.
-	// Base graph needs: 2 (selection "> ") + maxGraphWidth + 1 (space) +
-	// 7 (hash) + borders(2) + padding(2) = maxGraphWidth + 14
-	graphBase := m.maxGraphWidth + 14
+	layout := computePanelLayout(m.windowWidth, m.maxGraphWidth, m.maxBranchWidth, m.maxAuthorWidth)
+	leftPanelWidth, rightPanelWidth := layout.leftWidth, layout.rightWidth
 
-	// minimum width we want to keep for the right panel (details)
-	minRightWidth := 30
-
-	branchColWidth := 0
-	if m.maxBranchWidth > 0 {
-		// available for branch labels after accounting for graph and min right
-		avail := m.windowWidth - graphBase - minRightWidth
-		if avail > 0 {
-			branchColWidth = m.maxBranchWidth
-			if branchColWidth > avail {
-				branchColWidth = avail
-			}
-		}
-	}
-
-	leftPanelWidth := graphBase
-	if branchColWidth > 0 {
-		leftPanelWidth += branchColWidth + 1 // space following label
-	}
-	if leftPanelWidth < 25 {
-		leftPanelWidth = 25
-	}
-
-	maxLeftWidth := m.windowWidth * 4 / 5
-	if graphBase > maxLeftWidth {
-		// graph alone is wider than our normal cap; give it the full window
-		leftPanelWidth = m.windowWidth
-		branchColWidth = 0
-	} else if leftPanelWidth > maxLeftWidth {
-		// shrink branch column to fit
-		leftPanelWidth = maxLeftWidth
-		// recalc branch width based on remaining
-		if leftPanelWidth > graphBase+1 {
-			newBranch := leftPanelWidth - graphBase - 1
-			if newBranch < branchColWidth {
-				branchColWidth = newBranch
-			}
-		} else {
-			branchColWidth = 0
-		}
-	}
-
-	rightPanelWidth := m.windowWidth - leftPanelWidth // fill remaining space
-
-	// Ensure right panel has a minimum width, but never let total exceed window
-	if rightPanelWidth < minRightWidth {
-		rightPanelWidth = minRightWidth
-		leftPanelWidth = m.windowWidth - rightPanelWidth
-		if leftPanelWidth < 15 {
-			leftPanelWidth = 15
-			rightPanelWidth = m.windowWidth - leftPanelWidth
-		}
-	}
-
-	// Final safety: total must not exceed window width
-	totalWidth := leftPanelWidth + rightPanelWidth
-	if totalWidth > m.windowWidth {
-		log.Printf("View: width overflow detected: left=%d + right=%d = %d > window=%d, adjusting",
-			leftPanelWidth, rightPanelWidth, totalWidth, m.windowWidth)
-		rightPanelWidth = m.windowWidth - leftPanelWidth
-		if rightPanelWidth < 10 {
-			rightPanelWidth = m.windowWidth / 3
-			leftPanelWidth = m.windowWidth - rightPanelWidth
-		}
-	}
-
-	log.Printf("View: leftPanelWidth=%d, rightPanelWidth=%d, contentHeight=%d, branchColWidth=%d", leftPanelWidth, rightPanelWidth, contentHeight, branchColWidth)
+	log.Printf("View: leftPanelWidth=%d, rightPanelWidth=%d, contentHeight=%d, branchColWidth=%d, authorColWidth=%d",
+		leftPanelWidth, rightPanelWidth, contentHeight, layout.branchCol, layout.authorCol)
 
 	// Target height for both panels (content + 2 border lines)
 	targetPanelHeight := contentHeight + 2
 
-	// Create left panel (commit list)
-	leftContent := m.renderCommitList(branchColWidth)
+	// Create left panel (commit list). Content width is the panel minus its
+	// borders (2) and horizontal padding (2).
+	leftContent := m.renderCommitList(layout.branchCol, layout.authorCol, leftPanelWidth-4)
 	leftPanel := addBoxLabel(lipgloss.NewStyle().
 		Width(leftPanelWidth-2). // subtract borders (2); Width includes padding
 		Height(contentHeight).
@@ -204,6 +136,85 @@ func (m model) View() (result string) {
 	}
 
 	return output
+}
+
+const (
+	minRightPanelWidth = 30
+	// Beyond this an author name buys little and costs graph width on every row.
+	maxAuthorColWidth = 24
+	// Below this a name is truncated past recognition, so the column is dropped.
+	minAuthorColWidth = 6
+)
+
+// panelLayout is how the window's width is shared between the commit list and
+// the details panel, and within the list between its optional columns.
+type panelLayout struct {
+	leftWidth, rightWidth int
+	branchCol, authorCol  int
+}
+
+// computePanelLayout sizes the panels. The graph always comes first; the room
+// left beside it goes to branch labels, then to authors, because refs say where
+// you are, which matters more than who wrote each commit.
+func computePanelLayout(windowWidth, maxGraphWidth, maxBranchWidth, maxAuthorWidth int) panelLayout {
+	// Base graph needs: 2 (selection "> ") + maxGraphWidth + 1 (space) +
+	// 7 (hash) + borders(2) + padding(2) = maxGraphWidth + 14
+	graphBase := maxGraphWidth + 14
+	maxLeftWidth := windowWidth * 4 / 5
+
+	var l panelLayout
+	if graphBase > maxLeftWidth {
+		// graph alone is wider than our normal cap; give it the full window
+		l.leftWidth = windowWidth
+	} else {
+		// Room beside the graph must respect both the left panel's cap and the
+		// details panel's minimum.
+		room := min(windowWidth-graphBase-minRightPanelWidth, maxLeftWidth-graphBase)
+		if maxBranchWidth > 0 && room > 1 {
+			l.branchCol = min(maxBranchWidth, room-1) // -1: the space after the labels
+			room -= l.branchCol + 1
+		}
+		if maxAuthorWidth > 0 && room > 1 {
+			l.authorCol = min(maxAuthorWidth, maxAuthorColWidth, room-1) // -1: the space before the name
+			if l.authorCol < minAuthorColWidth {
+				l.authorCol = 0
+			}
+		}
+
+		l.leftWidth = graphBase
+		if l.branchCol > 0 {
+			l.leftWidth += l.branchCol + 1
+		}
+		if l.authorCol > 0 {
+			l.leftWidth += l.authorCol + 1
+		}
+		l.leftWidth = max(l.leftWidth, 25)
+	}
+
+	l.rightWidth = windowWidth - l.leftWidth // fill remaining space
+
+	// Ensure right panel has a minimum width, but never let total exceed window
+	if l.rightWidth < minRightPanelWidth {
+		l.rightWidth = minRightPanelWidth
+		l.leftWidth = windowWidth - l.rightWidth
+		if l.leftWidth < 15 {
+			l.leftWidth = 15
+			l.rightWidth = windowWidth - l.leftWidth
+		}
+	}
+
+	// Final safety: total must not exceed window width
+	if total := l.leftWidth + l.rightWidth; total > windowWidth {
+		log.Printf("View: width overflow detected: left=%d + right=%d = %d > window=%d, adjusting",
+			l.leftWidth, l.rightWidth, total, windowWidth)
+		l.rightWidth = windowWidth - l.leftWidth
+		if l.rightWidth < 10 {
+			l.rightWidth = windowWidth / 3
+			l.leftWidth = windowWidth - l.rightWidth
+		}
+	}
+
+	return l
 }
 
 // renderStatusLine renders the bottom line: the update prompt or notice when one
@@ -272,10 +283,10 @@ func (m *model) renderRepoInfo() string {
 }
 
 // renderCommitList renders the left panel with the commit list/graph
-// branchColWidth describes how many runes are available for labels in this
-// layout pass; it is computed by View() based on window size and may be
-// smaller than m.maxBranchWidth when space is tight.
-func (m *model) renderCommitList(branchColWidth int) string {
+// branchColWidth and authorColWidth are the columns computePanelLayout
+// allocated for this layout pass (0 hides a column); contentWidth is the width
+// inside the panel's borders and padding.
+func (m *model) renderCommitList(branchColWidth, authorColWidth, contentWidth int) string {
 	log.Printf("renderCommitList: commits=%d, displayRows=%d, selected=%d, windowHeight=%d, maxGraphWidth=%d, branchColWidth=%d",
 		len(m.commits), len(m.displayRows), m.selected, m.windowHeight, m.maxGraphWidth, branchColWidth)
 
@@ -299,6 +310,19 @@ func (m *model) renderCommitList(branchColWidth int) string {
 
 	if len(m.displayRows) > 0 {
 		// Graph mode: use displayRows from git log --graph
+
+		// The author column sits against the panel's right edge, so the gap in
+		// front of it absorbs any slack width and names line up on every row.
+		authorGap := 0
+		if authorColWidth > 0 {
+			labelWidth := 0
+			if branchColWidth > 0 {
+				labelWidth = branchColWidth + 1
+			}
+			// "> " + labels + graph + " " + 7-char hash
+			rowWidth := 2 + labelWidth + m.maxGraphWidth + 1 + 7
+			authorGap = contentWidth - authorColWidth - rowWidth
+		}
 
 		// Find the display row index of the selected commit
 		selectedRowIdx := 0
@@ -401,6 +425,12 @@ func (m *model) renderCommitList(branchColWidth int) string {
 					sb.WriteString(" ")
 					sb.WriteString(commitHashStyle.Render(m.commits[row.CommitIdx].Hash))
 				}
+			}
+			// A gap under 1 means the row doesn't fit as computed; drawing the
+			// name anyway would wrap the row and break the panel's layout.
+			if isCommit && authorColWidth > 0 && authorGap >= 1 {
+				sb.WriteString(strings.Repeat(" ", authorGap))
+				sb.WriteString(authorStyle.Render(ansi.Truncate(m.commits[row.CommitIdx].Author, authorColWidth, "…")))
 			}
 			sb.WriteString("\n")
 			linesWritten++

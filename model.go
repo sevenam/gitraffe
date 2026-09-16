@@ -62,6 +62,7 @@ type model struct {
 	displayRows         []displayRow
 	maxGraphWidth       int
 	maxBranchWidth      int
+	maxAuthorWidth      int // display columns, not runes: names may be wide (CJK)
 	detailsContentWidth int
 	latestVersion       string          // latest version from GitHub, e.g., "v0.2.0"
 	remoteTags          map[tagRef]bool // union of all remotes' tags; nil while unknown
