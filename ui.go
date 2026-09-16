@@ -39,7 +39,7 @@ func (m model) View() (result string) {
 			m.err, logFileName)
 	}
 
-	help := helpStyle.Render("1/2: focus box • tab/shift+tab: cycle boxes • ↑/↓/j/k: scroll • d/u: half page • g/G: top/bottom • q/esc: quit")
+	help := m.renderStatusLine()
 
 	// Border colors: active for focused, inactive for unfocused
 	focusedBorderColor := lipgloss.Color(currentTheme.BorderActive)
@@ -206,6 +206,30 @@ func (m model) View() (result string) {
 	return output
 }
 
+// renderStatusLine renders the bottom line: the update prompt or notice when one
+// is pending, otherwise the usual key help. Sharing the single line keeps the
+// height arithmetic in View() unchanged.
+func (m *model) renderStatusLine() string {
+	noticeStyle := lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color(currentTheme.Tag))
+
+	if m.updateState == updateConfirming {
+		return truncateLines(noticeStyle.Render(
+			fmt.Sprintf("Update v%s → %s? This replaces the binary and quits. (y/n)", version, m.latestVersion)),
+			m.windowWidth)
+	}
+	if m.updateMessage != "" {
+		return truncateLines(noticeStyle.Render(m.updateMessage), m.windowWidth)
+	}
+
+	help := "1/2: focus box • tab/shift+tab: cycle boxes • ↑/↓/j/k: scroll • d/u: half page • g/G: top/bottom • q/esc: quit"
+	if m.updateAvailable() {
+		// Leads rather than trails: the line is already near a typical terminal's
+		// width, so a trailing hint is the first thing truncation eats.
+		help = "U: update to " + m.latestVersion + " • " + help
+	}
+	return truncateLines(helpStyle.Render(help), m.windowWidth)
+}
+
 // renderRepoInfo renders the top repository info box
 func (m *model) renderRepoInfo() string {
 	var sb strings.Builder
@@ -228,8 +252,7 @@ func (m *model) renderRepoInfo() string {
 
 	// Title on the right
 	versionStr := "v" + version
-	if m.latestVersion != "" && m.latestVersion != versionStr {
-		// New version available
+	if m.updateAvailable() {
 		versionStr = versionStr + " → " + m.latestVersion + " available"
 	}
 	title := titleStyle.Render("🦒 " + appName + " - Git Graph Viewer (" + versionStr + ")")

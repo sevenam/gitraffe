@@ -28,6 +28,16 @@ type displayRow struct {
 	GraphWidth int    // visual width of the graph portion
 }
 
+// updateState tracks a self-update started from within the TUI.
+type updateState int
+
+const (
+	updateIdle updateState = iota
+	updateConfirming
+	updateDownloading
+	updateDone
+)
+
 type model struct {
 	repo                *git.Repository
 	commits             []commit
@@ -47,6 +57,14 @@ type model struct {
 	maxBranchWidth      int
 	detailsContentWidth int
 	latestVersion       string // latest version from GitHub, e.g., "v0.2.0"
+	updateState         updateState
+	updateMessage       string // prompt, progress or error text for the status line
+	updatedTo           string // tag installed this session; read by main after Run returns
+}
+
+// updateAvailable reports whether GitHub advertises a release newer than this build.
+func (m *model) updateAvailable() bool {
+	return m.latestVersion != "" && m.latestVersion != "v"+version
 }
 
 func initialModel(repoPath string) model {

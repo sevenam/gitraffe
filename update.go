@@ -48,6 +48,12 @@ func checkUpdate() error {
 		return fmt.Errorf("failed to update: %w", err)
 	}
 
+	if runtime.GOOS == "windows" {
+		// The helper can only swap the file once this process releases its lock.
+		fmt.Printf("Update to %s will be applied as gitraffe exits.\n", release.TagName)
+		return nil
+	}
+
 	fmt.Printf("Successfully updated to %s\n", release.TagName)
 	return nil
 }
@@ -186,7 +192,12 @@ func getBinaryName() string {
 }
 
 // replaceWithHelper spawns a cross-platform helper process to replace the executable
-// since on Windows the running binary is locked and can't be renamed
+// since on Windows the running binary is locked and can't be renamed.
+//
+// It deliberately does not exit the process: the TUI has to unwind Bubble Tea
+// first or it leaves the terminal in the alt screen with raw mode still on. The
+// caller must quit promptly instead — the helper only retries for a few seconds
+// before giving up.
 func replaceWithHelper(exePath, newBinaryPath string) error {
 	tmpDir := filepath.Dir(newBinaryPath)
 
@@ -270,9 +281,5 @@ exit 1
 		}
 	}
 
-	// Exit after spawning the updater
-	fmt.Println("Update will be applied in the background. Exiting...")
-	os.Exit(0)
-
-	return nil // Never reached, but keeps compiler happy
+	return nil
 }

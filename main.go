@@ -91,10 +91,17 @@ func main() {
 		tea.WithMouseCellMotion(),
 	)
 
-	if _, err := p.Run(); err != nil {
+	finalModel, err := p.Run()
+	if err != nil {
 		log.Printf("Program error: %v\n", err)
 		fmt.Printf("Error: %v\n", err)
 		os.Exit(1)
+	}
+
+	// Reported here rather than from the TUI so it lands on the normal screen
+	// that Bubble Tea has just restored, instead of the alt screen it tore down.
+	if m, ok := finalModel.(model); ok && m.updatedTo != "" {
+		fmt.Printf("Updated to %s — restart gitraffe to use the new version.\n", m.updatedTo)
 	}
 
 	log.Println(appName + " exited normally")
