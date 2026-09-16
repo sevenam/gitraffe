@@ -44,6 +44,12 @@ Or specify a repository path:
 gitraffe /path/to/repo
 ```
 
+Use a colour theme for this run (see [Themes](#themes)); `-theme` and `--theme` both work:
+
+```bash
+gitraffe --theme themes/tokyo-night-storm.yml
+```
+
 ### Keyboard Shortcuts
 
 - `↑/↓` or `k/j` - Scroll up/down
@@ -85,6 +91,32 @@ Local and remote are told apart by their full ref path, so a local branch called
 
 Existing themes need no changes — `local_branch` falls back to that theme's `date`
 colour, so the pairing stays coherent whatever palette you use.
+
+## Themes
+
+Colours come from a YAML file with a `colors:` section. Any key you leave out keeps
+its default, so a theme only needs the colours it changes (keys are listed in
+[Branch colours](#branch-colours) and in the bundled themes):
+
+```yaml
+colors:
+  branch: "#7aa2f7"
+  selected_bg: "#2f334d"
+```
+
+There are two ways to use one:
+
+- **Every run:** save it as `theme.yml` in your config directory —
+  `%APPDATA%\gitraffe\theme.yml` on Windows,
+  `~/Library/Application Support/gitraffe/theme.yml` on macOS,
+  `~/.config/gitraffe/theme.yml` on Linux. If this file can't be read, gitraffe
+  starts with the defaults and records why in `gitraffe.log`.
+- **One run:** `gitraffe -theme path/to/theme.yml`, which takes precedence over the
+  config file. Because you named the file, problems stop gitraffe with an error
+  instead: a missing file, invalid YAML, or a misspelt key.
+
+The `themes/` folder in this repository has ready-made Tokyo Night variants to use
+either way. Themes are read at startup, so restart gitraffe after editing one.
 
 ## Ahead and behind
 

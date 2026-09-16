@@ -13,8 +13,9 @@ import (
 
 func TestMain(m *testing.M) {
 	// View() renders through the package-level styles, which main() normally
-	// initialises before starting Bubble Tea.
-	loadTheme()
+	// initialises before starting Bubble Tea. Built from the defaults, never the
+	// user's own theme file, so results don't depend on whose machine runs them.
+	currentTheme = defaultTheme()
 	initStyles()
 	os.Exit(m.Run())
 }
