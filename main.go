@@ -12,7 +12,7 @@ import (
 
 const (
 	appName = "Gitraffe"
-	version = "0.4.1"
+	version = "0.5.0"
 
 // logFileName is initialized at runtime in main so we can compute
 // a platform-appropriate location (cache/log dir) instead of using the
@@ -23,15 +23,15 @@ var logFileName string
 
 var (
 	// Styles — initialized by initStyles() after theme is loaded.
-	titleStyle      lipgloss.Style
-	commitHashStyle lipgloss.Style
-	authorStyle     lipgloss.Style
-	dateStyle       lipgloss.Style
-	messageStyle    lipgloss.Style
+	titleStyle        lipgloss.Style
+	commitHashStyle   lipgloss.Style
+	authorStyle       lipgloss.Style
+	dateStyle         lipgloss.Style
+	messageStyle      lipgloss.Style
 	branchStyle       lipgloss.Style
 	mergedBranchStyle lipgloss.Style
 	tagStyle          lipgloss.Style
-	helpStyle       lipgloss.Style
+	helpStyle         lipgloss.Style
 )
 
 // getLogFilePath returns a suitable path for the application's log file.
