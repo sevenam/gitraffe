@@ -64,6 +64,24 @@ those the name is genuinely gone from the repository.
 
 Set `merged_branch` in your theme to restyle these labels.
 
+## Branch colours
+
+Refs are coloured by what they are:
+
+| Ref | Colour | Theme key |
+| --- | --- | --- |
+| Local branch (`main`) | green | `local_branch` (defaults to `date`) |
+| Remote-tracking branch (`origin/main`) | blue | `branch` |
+| Tag (`v1.0`) | yellow | `tag` |
+| Merged-and-deleted branch | dim grey | `merged_branch` |
+
+Local and remote are told apart by their full ref path, so a local branch called
+`feature/foo` is never mistaken for a branch `foo` on a remote named `feature`.
+`origin/HEAD` is hidden, since it only ever duplicates the remote's default branch.
+
+Existing themes need no changes — `local_branch` falls back to that theme's `date`
+colour, so the pairing stays coherent whatever palette you use.
+
 ## Updating
 
 Gitraffe checks for a newer release on startup and shows it in the title bar.

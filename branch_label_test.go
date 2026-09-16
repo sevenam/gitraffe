@@ -48,16 +48,21 @@ func TestLabelMergedBranches(t *testing.T) {
 	})
 
 	t.Run("skips branches that still exist", func(t *testing.T) {
-		m := model{commits: []commit{
-			{Hash: "aaaaaaa", Message: "Merge pull request #1 from sevenam/feature-x",
-				Parents: []string{"bbbbbbb", "ccccccc"}},
-			{Hash: "bbbbbbb", Message: "earlier work on main"},
-			{Hash: "ccccccc", Message: "tip", Refs: "origin/feature-x"},
-		}}
-		m.labelMergedBranches()
+		for _, refs := range []string{
+			"refs/remotes/origin/feature-x",
+			"refs/heads/feature-x",
+		} {
+			m := model{commits: []commit{
+				{Hash: "aaaaaaa", Message: "Merge pull request #1 from sevenam/feature-x",
+					Parents: []string{"bbbbbbb", "ccccccc"}},
+				{Hash: "bbbbbbb", Message: "earlier work on main"},
+				{Hash: "ccccccc", Message: "tip", Refs: refs},
+			}}
+			m.labelMergedBranches()
 
-		if got := m.commits[2].MergedBranch; got != "" {
-			t.Errorf("labelled %q, want empty: the ref already names it", got)
+			if got := m.commits[2].MergedBranch; got != "" {
+				t.Errorf("with refs %q: labelled %q, want empty — the ref already names it", refs, got)
+			}
 		}
 	})
 
@@ -76,6 +81,58 @@ func TestLabelMergedBranches(t *testing.T) {
 	})
 }
 
+func TestParseRefs(t *testing.T) {
+	for _, tc := range []struct {
+		name, refs          string
+		local, remote, tags []string
+	}{
+		{
+			name: "checked-out branch with its remote",
+			refs: "HEAD -> refs/heads/main, refs/remotes/origin/main, refs/remotes/origin/HEAD",
+			// origin/HEAD is a symref duplicating origin/main, so it is dropped.
+			local: []string{"main"}, remote: []string{"origin/main"},
+		},
+		{
+			name:  "slashes do not make a local branch look remote",
+			refs:  "refs/heads/feature/theme-support",
+			local: []string{"feature/theme-support"},
+		},
+		{
+			name:   "remote-only branch",
+			refs:   "refs/remotes/origin/show-more-branch-info",
+			remote: []string{"origin/show-more-branch-info"},
+		},
+		{
+			name:   "multiple remotes on one commit",
+			refs:   "refs/heads/main, refs/remotes/origin/main, refs/remotes/upstream/main",
+			local:  []string{"main"},
+			remote: []string{"origin/main", "upstream/main"},
+		},
+		{"tag", "tag: refs/tags/v1.0", nil, nil, []string{"v1.0"}},
+		{"detached head", "HEAD", nil, nil, nil},
+		{"empty", "", nil, nil, nil},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			local, remote, tags := parseRefs(tc.refs)
+			eq := func(what string, got, want []string) {
+				if len(got) != len(want) {
+					t.Errorf("%s = %v, want %v", what, got, want)
+					return
+				}
+				for i := range got {
+					if got[i] != want[i] {
+						t.Errorf("%s = %v, want %v", what, got, want)
+						return
+					}
+				}
+			}
+			eq("local", local, tc.local)
+			eq("remote", remote, tc.remote)
+			eq("tags", tags, tc.tags)
+		})
+	}
+}
+
 func TestLabelTextMatchesRenderedSegments(t *testing.T) {
 	// labelText sizes the column and labelSegments fills it; if they disagree on
 	// order or content the column truncates or misaligns.
@@ -84,10 +141,14 @@ func TestLabelTextMatchesRenderedSegments(t *testing.T) {
 		c    commit
 		want string
 	}{
-		{"branch only", commit{Refs: "main"}, "main"},
-		{"branch and tag", commit{Refs: "main, tag: v1.0"}, "main, v1.0"},
+		{"local only", commit{Refs: "refs/heads/main"}, "main"},
+		{"local before remote", commit{Refs: "refs/remotes/origin/main, refs/heads/main"}, "main, origin/main"},
+		{"branch and tag", commit{Refs: "refs/heads/main, tag: refs/tags/v1.0"}, "main, v1.0"},
 		{"merged only", commit{MergedBranch: "feature-x"}, "feature-x"},
-		{"all three", commit{Refs: "main, tag: v1.0", MergedBranch: "feature-x"}, "main, v1.0, feature-x"},
+		{"all kinds", commit{
+			Refs:         "HEAD -> refs/heads/main, refs/remotes/origin/main, tag: refs/tags/v1.0",
+			MergedBranch: "feature-x",
+		}, "main, origin/main, v1.0, feature-x"},
 		{"nothing", commit{}, ""},
 	} {
 		t.Run(tc.name, func(t *testing.T) {

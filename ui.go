@@ -241,7 +241,7 @@ func (m *model) renderRepoInfo() string {
 
 	// Branch
 	sb.WriteString(lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color(currentTheme.Branch)).Render("Branch: "))
-	sb.WriteString(branchStyle.Render(m.currentBranch))
+	sb.WriteString(localBranchStyle.Render(m.currentBranch))
 	sb.WriteString("  ")
 
 	// Current commit
@@ -466,18 +466,27 @@ type labelSegment struct {
 	style lipgloss.Style
 }
 
-// labelSegments lists what belongs in a commit's label column, in the same order
-// labelText measures it: live branches, tags, then the name of a deleted branch
-// this commit was the tip of.
-func labelSegments(c commit) []labelSegment {
-	branches, tags := parseRefs(c.Refs)
-	segs := make([]labelSegment, 0, len(branches)+len(tags)+1)
-	for _, b := range branches {
-		segs = append(segs, labelSegment{b, branchStyle})
+// refSegments lists a commit's live refs in the order extractBranchLabel
+// measures them: local branches, then remote-tracking branches, then tags.
+func refSegments(c commit) []labelSegment {
+	local, remote, tags := parseRefs(c.Refs)
+	segs := make([]labelSegment, 0, len(local)+len(remote)+len(tags))
+	for _, b := range local {
+		segs = append(segs, labelSegment{b, localBranchStyle})
+	}
+	for _, b := range remote {
+		segs = append(segs, labelSegment{b, remoteBranchStyle})
 	}
 	for _, t := range tags {
 		segs = append(segs, labelSegment{t, tagStyle})
 	}
+	return segs
+}
+
+// labelSegments is refSegments plus the name of a deleted branch this commit was
+// the tip of, matching the order labelText measures.
+func labelSegments(c commit) []labelSegment {
+	segs := refSegments(c)
 	if c.MergedBranch != "" {
 		segs = append(segs, labelSegment{c.MergedBranch, mergedBranchStyle})
 	}
@@ -534,9 +543,23 @@ func (m *model) renderCommitDetails() string {
 	}
 
 	// Refs
-	if c.Refs != "" {
+	if segs := refSegments(c); len(segs) > 0 {
 		sb.WriteString(lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color(currentTheme.Branch)).Render("Refs:    "))
-		sb.WriteString(branchStyle.Render(c.Refs))
+		for i, seg := range segs {
+			if i > 0 {
+				sb.WriteString(", ")
+			}
+			sb.WriteString(seg.style.Render(seg.text))
+		}
+		sb.WriteString("\n")
+	}
+
+	// A branch recovered from a merge commit has no ref of its own, so it would
+	// otherwise appear in the graph but nowhere in the details.
+	if c.MergedBranch != "" {
+		sb.WriteString(lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color(currentTheme.Branch)).Render("Branch:  "))
+		sb.WriteString(mergedBranchStyle.Render(c.MergedBranch))
+		sb.WriteString(helpStyle.Render(" (merged, deleted)"))
 		sb.WriteString("\n")
 	}
 
