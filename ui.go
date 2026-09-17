@@ -442,18 +442,21 @@ func (m *model) renderCommitList(branchColWidth, dateColWidth, authorColWidth, c
 			// colouring is on. Characters sharing a lane go out as one piece:
 			// write() re-applies the row styling per piece, so a piece per
 			// character would multiply escape sequences on every row.
-			writeGraph := func(s string) {
+			writeGraph := func(s string, lanes []int) {
 				if !m.colourLanes {
 					write(graphColor, s)
 					return
 				}
 				runes := []rune(s)
 				start, lane := 0, -1
-				for col, ch := range runes {
-					at := laneAt(col, ch)
-					if col > 0 && at != lane {
-						write(laneStyle(lane, graphColor, lanePalette), string(runes[start:col]))
-						start = col
+				for i := range runes {
+					at := 0
+					if i < len(lanes) {
+						at = lanes[i]
+					}
+					if i > 0 && at != lane {
+						write(laneStyle(lane, graphColor, lanePalette), string(runes[start:i]))
+						start = i
 					}
 					lane = at
 				}
@@ -504,7 +507,7 @@ func (m *model) renderCommitList(branchColWidth, dateColWidth, authorColWidth, c
 			} else {
 				write(plainStyle, "  ")
 				renderBranchLabel()
-				writeGraph(row.GraphChars)
+				writeGraph(row.GraphChars, row.Lanes)
 				if padLen > 0 {
 					write(plainStyle, strings.Repeat(" ", padLen))
 				}

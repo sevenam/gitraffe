@@ -33,6 +33,7 @@ type displayRow struct {
 	GraphChars string // transliterated Unicode graph characters
 	CommitIdx  int    // index into commits slice, -1 for graph-only lines
 	GraphWidth int    // visual width of the graph portion
+	Lanes      []int  // lane number per character of GraphChars; see graphLanes
 }
 
 // updateState tracks a self-update started from within the TUI.
