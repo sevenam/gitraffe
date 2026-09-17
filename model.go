@@ -70,6 +70,7 @@ type model struct {
 	updateState         updateState
 	updateMessage       string // prompt, progress or error text for the status line
 	updatedTo           string // tag installed this session; read by main after Run returns
+	colourLanes         bool   // tint each graph column differently; see lanes.go
 }
 
 // updateAvailable reports whether GitHub advertises a release newer than this build.
@@ -79,7 +80,8 @@ func (m *model) updateAvailable() bool {
 
 func initialModel(repoPath string) model {
 	return model{
-		repoPath:   repoPath,
-		focusedBox: 1, // default focus on commit list
+		repoPath:    repoPath,
+		focusedBox:  1,    // default focus on commit list
+		colourLanes: true, // lane colouring is the default; "c" turns it off
 	}
 }

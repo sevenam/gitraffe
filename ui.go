@@ -256,7 +256,7 @@ func (m *model) renderStatusLine() string {
 		return truncateLines(noticeStyle.Render(m.updateMessage), m.windowWidth)
 	}
 
-	help := "1/2: focus box • tab/shift+tab: cycle boxes • ↑/↓/j/k: scroll • d/u: half page • g/G: top/bottom • q/esc: quit"
+	help := "1/2: focus box • tab/shift+tab: cycle • ↑/↓/j/k: scroll • d/u: half page • g/G: top/bottom • c: colours • q/esc: quit"
 	if m.updateAvailable() {
 		// Leads rather than trails: the line is already near a typical terminal's
 		// width, so a trailing hint is the first thing truncation eats.
@@ -347,6 +347,7 @@ func (m *model) renderCommitList(branchColWidth, dateColWidth, authorColWidth, c
 	log.Printf("renderCommitList: visibleHeight=%d", visibleHeight)
 
 	graphColor := lipgloss.NewStyle().Foreground(lipgloss.Color(currentTheme.Graph))
+	lanePalette := buildLanePalette()
 	selGraphColor := lipgloss.NewStyle().Foreground(lipgloss.Color(currentTheme.SelectedFg)).Bold(true)
 	selHashStyle := lipgloss.NewStyle().Foreground(lipgloss.Color(currentTheme.SelectedFg)).Bold(true)
 	selectedBg := lipgloss.Color(currentTheme.SelectedBg)
@@ -437,6 +438,30 @@ func (m *model) renderCommitList(branchColWidth, dateColWidth, authorColWidth, c
 				sb.WriteString(style.Render(s))
 			}
 
+			// writeGraph draws the glyphs, each in its lane colour when lane
+			// colouring is on. Characters sharing a lane go out as one piece:
+			// write() re-applies the row styling per piece, so a piece per
+			// character would multiply escape sequences on every row.
+			writeGraph := func(s string) {
+				if !m.colourLanes {
+					write(graphColor, s)
+					return
+				}
+				runes := []rune(s)
+				start, lane := 0, -1
+				for col, ch := range runes {
+					at := laneAt(col, ch)
+					if col > 0 && at != lane {
+						write(laneStyle(lane, graphColor, lanePalette), string(runes[start:col]))
+						start = col
+					}
+					lane = at
+				}
+				if len(runes) > 0 {
+					write(laneStyle(lane, graphColor, lanePalette), string(runes[start:]))
+				}
+			}
+
 			// Helper to render the label column, truncated to the width this
 			// layout pass allows and padded so the column stays aligned.
 			renderBranchLabel := func() {
@@ -479,7 +504,10 @@ func (m *model) renderCommitList(branchColWidth, dateColWidth, authorColWidth, c
 			} else {
 				write(plainStyle, "  ")
 				renderBranchLabel()
-				write(graphColor, graphPadded)
+				writeGraph(row.GraphChars)
+				if padLen > 0 {
+					write(plainStyle, strings.Repeat(" ", padLen))
+				}
 				if isCommit {
 					write(plainStyle, " ")
 					write(commitHashStyle, m.commits[row.CommitIdx].Hash)

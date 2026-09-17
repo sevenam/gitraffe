@@ -51,6 +51,11 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return m, tea.Quit
 		case "U":
 			return m.startUpdate(), nil
+		case "c":
+			// Global rather than per-box: the graph stays visible whichever
+			// box has focus, so the colours should be reachable from both.
+			m.colourLanes = !m.colourLanes
+			return m, nil
 		case "1":
 			m.focusedBox = 1
 			return m, nil
