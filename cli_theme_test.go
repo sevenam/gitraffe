@@ -24,7 +24,14 @@ func TestParseArgs(t *testing.T) {
 		{"theme only", []string{"-theme", "a.yml"}, cliOptions{repoPath: ".", themePath: "a.yml"}},
 		{"double dash", []string{"--theme", "a.yml"}, cliOptions{repoPath: ".", themePath: "a.yml"}},
 		{"equals form", []string{"-theme=a.yml"}, cliOptions{repoPath: ".", themePath: "a.yml"}},
-		{"update", []string{"update"}, cliOptions{repoPath: ".", update: true}},
+		{"update flag", []string{"-update"}, cliOptions{repoPath: ".", update: true}},
+		{"update flag, double dash", []string{"--update"}, cliOptions{repoPath: ".", update: true}},
+		{"version flag", []string{"-version"}, cliOptions{repoPath: ".", showVersion: true}},
+		{"version flag, double dash", []string{"--version"}, cliOptions{repoPath: ".", showVersion: true}},
+		// The bare word predates the flag and stays as an alias for it.
+		{"update alias", []string{"update"}, cliOptions{repoPath: ".", update: true}},
+		// Which is why a repository in a directory of that name needs a path.
+		{"directory called update", []string{"./update"}, cliOptions{repoPath: "./update"}},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			var out bytes.Buffer
