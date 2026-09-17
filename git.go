@@ -395,6 +395,10 @@ func (m *model) loadGraphData() error {
 
 	cmd := exec.Command("git", "log",
 		"--graph",
+		// Coloured so the lanes can be read back: git tracks which lane is
+		// which across the rows where they shift columns, and its colours are
+		// the only record of that in the output. See graphLanes.
+		"--color=always",
 		"--all",
 		fmt.Sprintf("-n%d", maxCommits),
 		// Full ref paths, so refs/heads/ can be told from refs/remotes/ without
@@ -420,6 +424,7 @@ func (m *model) loadGraphData() error {
 	m.commits = nil
 	m.displayRows = nil
 	m.maxGraphWidth = 0
+	lanes := newGraphLanes()
 
 	for _, line := range lines {
 		if line == "" {
@@ -479,33 +484,38 @@ func (m *model) loadGraphData() error {
 				Refs:     refs,
 			})
 
-			graphStr := transliterateGraph(graphPart)
-			gw := len(graphPart) // ASCII width
+			graphText, graphLanes := lanes.parse(graphPart)
+			graphStr := transliterateGraph(graphText)
+			gw := len(graphLanes) // one lane entry per visible character
 			if gw > m.maxGraphWidth {
 				m.maxGraphWidth = gw
 			}
 
 			m.displayRows = append(m.displayRows, displayRow{
 				GraphChars: graphStr,
+				Lanes:      graphLanes,
 				CommitIdx:  commitIdx,
 				GraphWidth: gw,
 			})
 		} else {
 			// Graph-only line (branch/merge connectors)
-			graphStr := transliterateGraph(line)
-			gw := len(line)
+			graphText, graphLanes := lanes.parse(line)
+			graphStr := transliterateGraph(graphText)
+			gw := len(graphLanes)
 			if gw > m.maxGraphWidth {
 				m.maxGraphWidth = gw
 			}
 
 			m.displayRows = append(m.displayRows, displayRow{
 				GraphChars: graphStr,
+				Lanes:      graphLanes,
 				CommitIdx:  -1,
 				GraphWidth: gw,
 			})
 		}
 	}
 
+	resolveLanePaths(m.displayRows, m.commits)
 	m.labelMergedBranches()
 	m.applyRemoteTags()
 	m.updateLabelWidth()

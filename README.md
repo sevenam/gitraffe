@@ -5,6 +5,7 @@ A beautiful text-based UI git graph command line tool built with Golang, Bubble 
 ## Features
 
 - 📊 Visual git commit graph in your terminal (branches **and tags** are shown; the graph expands to use available space and long branch names are truncated as needed)
+- 🌈 A colour per branch in the graph, held across the columns git shifts it through (press `c` to toggle; see [Graph lane colours](#graph-lane-colours))
 - 🌿 Names merged-and-deleted branches at their tip commit, recovered from merge commit messages (see [Merged branches](#merged-branches))
 - 👤 Each commit's date and author in columns beside the hash (on a narrow terminal the author goes first, then the date, before branch labels are cut)
 - 🔀 Ahead/behind for the current branch next to its name, e.g. `main ↑3 ↓1` (see [Ahead and behind](#ahead-and-behind))
@@ -65,6 +66,7 @@ in `gitraffe ./update`.
 - `↑/↓` or `k/j` - Scroll up/down
 - `PgUp/PgDn` - Page up/down
 - `Home/End` - Jump to top/bottom
+- `c` - Toggle lane colours in the graph (see [Graph lane colours](#graph-lane-colours))
 - `U` - Update to the latest release (shown in the help line when one is available)
 - `q` or `Esc` or `Ctrl+C` - Quit
 
@@ -81,6 +83,28 @@ parent and no branch name, and fast-forwards create no merge commit at all — f
 those the name is genuinely gone from the repository.
 
 Set `merged_branch` in your theme to restyle these labels.
+
+## Graph lane colours
+
+Each branch in the graph gets its own colour, so you can follow one from the row it
+splits off to the row it merges back. The trunk keeps the theme's `graph` colour, and
+the branches fanning out to its right take a colour each from a fixed palette that
+repeats once a repository has more than six branches open at once.
+
+The colour follows the *branch*, not the column it is drawn in. Those are not the same
+thing: git slides lanes sideways to make room, so one branch can be drawn in three
+different columns on its way down the screen, and a column that one branch has merged
+away from is reused by an unrelated one later. Colouring by column therefore recolours
+a branch halfway down and gives two unrelated branches the same colour, which is why
+gitraffe reads the lane identity out of git's own coloured graph output and then maps
+each lane back to the branch it belongs to.
+
+Press `c` to turn it off and render the whole graph in the theme's `graph` colour, the
+way it looked before. The key works whichever panel has focus, and the setting lasts
+for the session — it is not written to your theme file.
+
+The colours are deliberately not theme keys: every bundled theme already leaves the
+optional ref colours unset, so six more would in practice be six more nobody sets.
 
 ## Branch colours
 
