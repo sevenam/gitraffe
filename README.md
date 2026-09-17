@@ -55,9 +55,10 @@ Flags take one or two dashes, so `-theme` and `--theme` are the same, as are `-u
 and `--update`, and `-h` and `--help`. They may appear before or after the repository
 path — `gitraffe . --theme x.yml` and `gitraffe --theme x.yml .` both work.
 
-`gitraffe update`, without the dashes, still works as an alias for `--update`. Note that
-it shadows a repository in a directory named `update`; open that one with a path,
-`gitraffe ./update`.
+The two commands that do something and exit also answer to a bare word, so `gitraffe
+update` and `gitraffe version` mean the same as `--update` and `--version`. Note that a
+bare word shadows a repository in a directory of that name; open those with a path, as
+in `gitraffe ./update`.
 
 ### Keyboard Shortcuts
 

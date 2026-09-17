@@ -28,10 +28,12 @@ func TestParseArgs(t *testing.T) {
 		{"update flag, double dash", []string{"--update"}, cliOptions{repoPath: ".", update: true}},
 		{"version flag", []string{"-version"}, cliOptions{repoPath: ".", showVersion: true}},
 		{"version flag, double dash", []string{"--version"}, cliOptions{repoPath: ".", showVersion: true}},
-		// The bare word predates the flag and stays as an alias for it.
+		// The flags that do something and exit also answer to a bare word.
 		{"update alias", []string{"update"}, cliOptions{repoPath: ".", update: true}},
-		// Which is why a repository in a directory of that name needs a path.
+		{"version alias", []string{"version"}, cliOptions{repoPath: ".", showVersion: true}},
+		// Which is why a repository in a directory of either name needs a path.
 		{"directory called update", []string{"./update"}, cliOptions{repoPath: "./update"}},
+		{"directory called version", []string{"./version"}, cliOptions{repoPath: "./version"}},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			var out bytes.Buffer
