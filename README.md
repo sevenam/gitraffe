@@ -33,23 +33,33 @@ go build -o gitraffe.exe .
 
 ## Usage
 
-Navigate to a git repository and run:
+Every invocation has the same shape — flags, then an optional repository path:
 
-```bash
-gitraffe
+```
+gitraffe [flags] [repository path]
 ```
 
-Or specify a repository path:
+With no path, gitraffe opens the repository in the current directory.
 
-```bash
-gitraffe /path/to/repo
-```
+### Commands
 
-Use a colour theme for this run (see [Themes](#themes)); `-theme` and `--theme` both work:
+| Command | What it does |
+| --- | --- |
+| `gitraffe` | Open the repository in the current directory |
+| `gitraffe /path/to/repo` | Open the repository at that path |
+| `gitraffe --theme <file>` | Open with a colour theme for this run only (see [Themes](#themes)) |
+| `gitraffe --update` | Install the latest release and exit, without opening the TUI (see [Updating](#updating)) |
+| `gitraffe --version` | Print the version and exit |
+| `gitraffe --help` | Print usage and exit |
 
-```bash
-gitraffe --theme themes/tokyo-night-storm.yml
-```
+Flags take one or two dashes, so `-theme` and `--theme` are the same, as are `-update`
+and `--update`, and `-h` and `--help`. They may appear before or after the repository
+path — `gitraffe . --theme x.yml` and `gitraffe --theme x.yml .` both work.
+
+The two commands that do something and exit also answer to a bare word, so `gitraffe
+update` and `gitraffe version` mean the same as `--update` and `--version`. Note that a
+bare word shadows a repository in a directory of that name; open those with a path, as
+in `gitraffe ./update`.
 
 ### Keyboard Shortcuts
 
@@ -128,7 +138,7 @@ There are two ways to use one:
   `~/Library/Application Support/gitraffe/theme.yml` on macOS,
   `~/.config/gitraffe/theme.yml` on Linux. If this file can't be read, gitraffe
   starts with the defaults and records why in `gitraffe.log`.
-- **One run:** `gitraffe -theme path/to/theme.yml`, which takes precedence over the
+- **One run:** `gitraffe --theme path/to/theme.yml`, which takes precedence over the
   config file. Because you named the file, problems stop gitraffe with an error
   instead: a missing file, invalid YAML, or a misspelt key.
 
@@ -178,7 +188,7 @@ download finishes so the new binary can take its place. Restart to pick it up.
 The same thing works without the TUI:
 
 ```bash
-gitraffe update
+gitraffe --update
 ```
 
 ## Dependencies
