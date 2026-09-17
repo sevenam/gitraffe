@@ -15,7 +15,7 @@ import (
 
 const (
 	appName = "Gitraffe"
-	version = "0.11.0"
+	version = "0.12.0"
 
 // logFileName is initialized at runtime in main so we can compute
 // a platform-appropriate location (cache/log dir) instead of using the
@@ -57,16 +57,17 @@ func getLogFilePath() string {
 }
 
 type cliOptions struct {
-	repoPath  string
-	themePath string
-	update    bool
+	repoPath    string
+	themePath   string
+	update      bool
+	showVersion bool
 }
 
 // errUsage marks a command line parseArgs has already reported.
 var errUsage = errors.New("invalid arguments")
 
-// parseArgs reads the command line: an optional repository path or the
-// "update" subcommand, plus flags. Flags are accepted before or after the path.
+// parseArgs reads the command line: flags plus an optional repository path.
+// Flags are accepted before or after the path.
 // Go's flag package on its own stops at the first non-flag argument, so
 // "gitraffe . -theme x.yml" would start with the theme silently ignored.
 func parseArgs(args []string, output io.Writer) (cliOptions, error) {
@@ -76,10 +77,15 @@ func parseArgs(args []string, output io.Writer) (cliOptions, error) {
 	fs.SetOutput(output)
 	fs.StringVar(&opts.themePath, "theme", "",
 		"colour theme `file` to use instead of your theme config, e.g. themes/tokyo-night-storm.yml")
+	fs.BoolVar(&opts.update, "update", false,
+		"install the latest release and exit, instead of opening a repository")
+	fs.BoolVar(&opts.showVersion, "version", false,
+		"print the version and exit")
 	fs.Usage = func() {
-		fmt.Fprintf(output, "Usage:\n  gitraffe [flags] [repository path]\n  gitraffe update\n\nFlags:\n")
+		fmt.Fprintf(output, "Usage:\n  gitraffe [flags] [repository path]\n\nFlags:\n")
 		fs.PrintDefaults()
 		fmt.Fprintf(output, "\nFlags take one or two dashes: -theme and --theme are the same.\n")
+		fmt.Fprintf(output, "The bare words 'gitraffe update' and 'gitraffe version' work too.\n")
 	}
 
 	var positional []string
@@ -97,9 +103,16 @@ func parseArgs(args []string, output io.Writer) (cliOptions, error) {
 	switch len(positional) {
 	case 0:
 	case 1:
-		if positional[0] == "update" {
+		// The flags that do something and exit also answer to a bare word:
+		// "update" shipped before -update existed, and "version" matches it so
+		// the pair does not surprise anyone who tries the other. A bare word
+		// shadows a repository in a directory of that name; "./update" opens it.
+		switch positional[0] {
+		case "update":
 			opts.update = true
-		} else {
+		case "version":
+			opts.showVersion = true
+		default:
 			opts.repoPath = positional[0]
 		}
 	default:
@@ -130,6 +143,12 @@ func main() {
 	if err != nil {
 		// parseArgs has already printed the problem and the usage.
 		os.Exit(2)
+	}
+
+	// Answered before -update so it never waits on the network.
+	if opts.showVersion {
+		fmt.Printf("%s v%s\n", appName, version)
+		return
 	}
 
 	if opts.update {
