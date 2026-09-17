@@ -86,6 +86,110 @@ func TestCommitPaths(t *testing.T) {
 	}
 }
 
+// gitFixture returns helpers for building a throwaway repository: one to run a
+// git command and one to make a commit.
+func gitFixture(t *testing.T) (dir string, git func(...string), commit func(string)) {
+	t.Helper()
+	dir = t.TempDir()
+	// Every commit needs a later timestamp than the last. Left to the clock
+	// they all share one second, and git then orders the log so the branches
+	// never overlap and the graph stays a single column.
+	n := 0
+	git = func(args ...string) {
+		t.Helper()
+		n++
+		at := fmt.Sprintf("2026-01-01T00:%02d:00", n)
+		cmd := exec.Command("git", args...)
+		cmd.Dir = dir
+		cmd.Env = append(os.Environ(),
+			"GIT_AUTHOR_NAME=t", "GIT_AUTHOR_EMAIL=t@t",
+			"GIT_COMMITTER_NAME=t", "GIT_COMMITTER_EMAIL=t@t",
+			"GIT_AUTHOR_DATE="+at, "GIT_COMMITTER_DATE="+at,
+		)
+		if out, err := cmd.CombinedOutput(); err != nil {
+			t.Fatalf("git %s: %v\n%s", strings.Join(args, " "), err, out)
+		}
+	}
+	commit = func(name string) {
+		t.Helper()
+		// A file per commit, so no merge in these shapes can conflict.
+		if err := os.WriteFile(filepath.Join(dir, name), []byte("x"), 0o644); err != nil {
+			t.Fatal(err)
+		}
+		git("add", "-A")
+		git("commit", "-qm", name)
+	}
+	return dir, git, commit
+}
+
+// laneOf reports the lane of the character drawn for a commit, and the lanes of
+// every diagonal in the graph keyed by the row they are on.
+func laneOf(m *model, message string) (int, bool) {
+	for _, row := range m.displayRows {
+		if row.CommitIdx < 0 || m.commits[row.CommitIdx].Message != message {
+			continue
+		}
+		for c, r := range []rune(row.GraphChars) {
+			if r == '●' && c < len(row.Lanes) {
+				return row.Lanes[c], true
+			}
+		}
+	}
+	return 0, false
+}
+
+// A branch that merges into another branch rather than into the trunk closes
+// with a diagonal that touches the lane it is joining. Git gives both the same
+// colour once they converge, so the diagonal used to be drawn in the colour of
+// the branch being merged into instead of the one doing the merging.
+func TestClosingDiagonalKeepsItsOwnBranch(t *testing.T) {
+	dir, git, commit := gitFixture(t)
+	git("init", "-q", "-b", "main")
+	commit("base")
+	git("checkout", "-qb", "feature")
+	commit("F1")
+	git("checkout", "-qb", "sub")
+	commit("S1")
+	git("checkout", "-q", "feature")
+	git("merge", "-q", "--no-ff", "sub", "-m", "merge sub")
+	git("checkout", "-q", "main")
+	commit("m1")
+	git("merge", "-q", "--no-ff", "feature", "-m", "merge feature")
+
+	m := &model{repoPath: dir}
+	if err := m.loadGraphData(); err != nil {
+		t.Fatal(err)
+	}
+
+	subLane, ok := laneOf(m, "S1")
+	if !ok {
+		t.Fatal("S1 is missing from the graph")
+	}
+	featureLane, ok := laneOf(m, "F1")
+	if !ok {
+		t.Fatal("F1 is missing from the graph")
+	}
+	if subLane == featureLane {
+		t.Fatalf("sub and feature share lane %d, so this shape cannot show the bug", subLane)
+	}
+
+	// Every diagonal that leaves the sub-branch must still be the sub-branch.
+	// Find the row holding S1, then the diagonal that closes its lane below.
+	var diagonals []int
+	for _, row := range m.displayRows {
+		for c, r := range []rune(row.GraphChars) {
+			if r == '/' && c < len(row.Lanes) {
+				diagonals = append(diagonals, row.Lanes[c])
+			}
+		}
+	}
+	if !slices.Contains(diagonals, subLane) {
+		t.Errorf("no diagonal carries the sub-branch's lane %d; diagonals are in lanes %v — "+
+			"its closing stroke was drawn as the branch it merged into",
+			subLane, diagonals)
+	}
+}
+
 // laneRepo builds a repository whose graph makes a branch change columns: a
 // long-running branch is still open when a shorter one is created and merged
 // beside it, which pushes the long one out a column and pulls it back.

@@ -200,6 +200,20 @@ func resolveLanePaths(rows []displayRow, commits []commit) {
 		return rows[r].Lanes[c], true
 	}
 
+	// mergingSlash reports whether a character is a diagonal closing into a
+	// lane that is already drawn on the same row. The two touch, but the lane
+	// it joins was there first and belongs to another branch — and once they
+	// converge git gives both the same colour, so the colour alone cannot tell
+	// them apart. Treating the contact as a join hands this branch's last
+	// segment the other branch's colour.
+	mergingSlash := func(r, c int) bool {
+		if r < 0 || r >= len(runesOf) || c < 0 || c >= len(runesOf[r]) || runesOf[r][c] != '/' {
+			return false
+		}
+		_, occupied := colourAt(r, c-1)
+		return occupied
+	}
+
 	// Two characters are the same lane when they are in touching rows, no more
 	// than one column apart, and carry the same colour.
 	//
@@ -214,10 +228,32 @@ func resolveLanePaths(rows []displayRow, commits []commit) {
 				continue // a space, or a commit marker
 			}
 			ensure(cell{r, c})
-			for _, d := range []int{-1, 0, 1} {
-				if k2, ok := colourAt(r+1, c+d); ok && k2 == k {
-					ensure(cell{r + 1, c + d})
-					union(cell{r, c}, cell{r + 1, c + d})
+
+			if !mergingSlash(r, c) {
+				for _, d := range []int{-1, 0, 1} {
+					// The cell below is a diagonal merging into a lane that
+					// was already drawn, so the only neighbour sharing its
+					// lane is the one above and to its right.
+					if d != -1 && mergingSlash(r+1, c+d) {
+						continue
+					}
+					if k2, ok := colourAt(r+1, c+d); ok && k2 == k {
+						ensure(cell{r + 1, c + d})
+						union(cell{r, c}, cell{r + 1, c + d})
+					}
+				}
+				continue
+			}
+
+			// A merging diagonal joins only what is above it: the lane it is
+			// closing, which is either directly overhead or one column to the
+			// right depending on whether it was already stepping across. The
+			// link has to be made from here, because the pass over the row
+			// above skips the edge into a merging diagonal.
+			for _, d := range []int{0, 1} {
+				if k2, ok := colourAt(r-1, c+d); ok && k2 == k {
+					ensure(cell{r - 1, c + d})
+					union(cell{r, c}, cell{r - 1, c + d})
 				}
 			}
 		}
@@ -257,7 +293,15 @@ func resolveLanePaths(rows []displayRow, commits []commit) {
 	}
 
 	for c := range parent {
-		for _, dir := range []struct{ dr, rank int }{{1, below}, {-1, above}} {
+		// A closing diagonal descends from its own commits into another
+		// branch's lane, so the commit above it is its own and the one below
+		// belongs to the lane it is joining — the opposite way round from
+		// every other character, where the lane leads down to its commits.
+		belowRank, aboveRank := below, above
+		if mergingSlash(c.row, c.col) {
+			belowRank, aboveRank = above, below
+		}
+		for _, dir := range []struct{ dr, rank int }{{1, belowRank}, {-1, aboveRank}} {
 			col, path, ok := commitAt(c.row + dir.dr)
 			if !ok || path < 0 {
 				continue
