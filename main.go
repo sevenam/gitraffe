@@ -15,7 +15,7 @@ import (
 
 const (
 	appName = "Gitraffe"
-	version = "0.17.0"
+	version = "0.18.0"
 
 // logFileName is initialized at runtime in main so we can compute
 // a platform-appropriate location (cache/log dir) instead of using the
@@ -177,6 +177,7 @@ func main() {
 
 	m := initialModel(repoPath)
 	m.configDir = configDir
+	m = applyPreferences(m)
 
 	p := tea.NewProgram(
 		m,
@@ -191,10 +192,16 @@ func main() {
 		os.Exit(1)
 	}
 
-	// Reported here rather than from the TUI so it lands on the normal screen
-	// that Bubble Tea has just restored, instead of the alt screen it tore down.
-	if m, ok := finalModel.(model); ok && m.updatedTo != "" {
-		fmt.Printf("Updated to %s — restart gitraffe to use the new version.\n", m.updatedTo)
+	if final, ok := finalModel.(model); ok {
+		if err := savePreferences(final); err != nil {
+			log.Printf("Preferences: could not save: %v", err)
+		}
+		// Reported here rather than from the TUI so it lands on the normal
+		// screen that Bubble Tea has just restored, instead of the alt screen
+		// it tore down.
+		if final.updatedTo != "" {
+			fmt.Printf("Updated to %s — restart gitraffe to use the new version.\n", final.updatedTo)
+		}
 	}
 
 	log.Println(appName + " exited normally")

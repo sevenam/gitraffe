@@ -116,6 +116,23 @@ A few more things about paths:
 repository isn't a dead end. The recent list is kept in `settings.yml` in your config
 directory (see [Picking a theme](#picking-a-theme)), next to your theme choice.
 
+### Remembered preferences
+
+Gitraffe writes what you chose to `settings.yml` in your config directory, so the
+next run starts where the last one left off:
+
+| Key | What it holds |
+| --- | --- |
+| `theme` | the theme picked with `t` (see [Picking a theme](#picking-a-theme)) |
+| `recent_repos` | the repositories the `o` box offers |
+| `lane_colours` | whether the graph is coloured per branch (`c`) |
+| `focused_box` | the panel that had focus, `1` or `2` |
+
+The last two are written when gitraffe exits, not as you press the keys, since `c`
+and `tab` are pressed often and the file is only read at startup. Delete the file,
+or any single key in it, to go back to the defaults: lane colours on, the graph
+focused. A `focused_box` naming a panel that doesn't exist is ignored.
+
 ## Merged branches
 
 Git does not store a branch name on a commit — a branch is only a movable pointer,
@@ -146,8 +163,9 @@ gitraffe reads the lane identity out of git's own coloured graph output and then
 each lane back to the branch it belongs to.
 
 Press `c` to turn it off and render the whole graph in the theme's `graph` colour, the
-way it looked before. The key works whichever panel has focus, and the setting lasts
-for the session — it is not written to your theme file.
+way it looked before. The key works whichever panel has focus, and the setting is
+remembered for next time (see [Remembered preferences](#remembered-preferences)) —
+it is not written to your theme file.
 
 The colours are deliberately not theme keys: most bundled themes already leave the
 optional ref colours unset, so six more would in practice be six more nobody sets.
