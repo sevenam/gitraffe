@@ -34,6 +34,7 @@ var helpSections = []helpSection{
 		{"o", "open another repository"},
 		{"r / f5", "reload this repository"},
 		{"f", "fetch from the remote, then reload"},
+		{"m", "read more of a long history"},
 		{"U", "update to the latest release"},
 		{"mouse wheel", "scroll the panel under the pointer"},
 		{"q / esc / ctrl+c", "quit"},

@@ -76,6 +76,7 @@ in `gitraffe ./update`.
 - `Enter` - Fill the window with the focused panel (see [One panel at a time](#one-panel-at-a-time))
 - `r` or `F5` - Reload the repository (see [Reloading](#reloading))
 - `f` - Fetch from the remote, then reload (see [Fetching](#fetching))
+- `m` - Read more of a long history (see [Long histories](#long-histories))
 - `o` - Open another repository (see [Switching repository](#switching-repository))
 - `t` - Pick a colour theme (see [Picking a theme](#picking-a-theme))
 - `c` - Toggle lane colours in the graph (see [Graph lane colours](#graph-lane-colours))
@@ -104,6 +105,24 @@ show them beside the details panel.
 
 Whether you left gitraffe maximised is remembered (see
 [Remembered preferences](#remembered-preferences)).
+
+### Long histories
+
+Gitraffe reads 5,000 commits at a time, enough that most repositories arrive whole
+and few enough that a very old one doesn't spend seconds drawing history nobody
+asked to see. When there is more, the graph ends with a line saying so:
+
+```
+   … more history — press m
+```
+
+`m` reads the next 5,000. `G` jumps to the bottom, where the line is. However much
+you have loaded is kept when you reload with `r` or fetch with `f`, and starts over
+at 5,000 when you open a different repository.
+
+The whole graph is read again rather than the new commits added to it, because git
+draws the lanes for the commits it is given: a second batch drawn on its own would
+not join up with the first. Your place is kept, as with any reload.
 
 ### Fetching
 

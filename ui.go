@@ -475,6 +475,13 @@ func (m *model) renderCommitList(branchColWidth, dateColWidth, authorColWidth, c
 		linesWritten := 0
 		for i := startIdx; i < endIdx; i++ {
 			row := m.displayRows[i]
+			// A note is text rather than graph: no lanes, no columns.
+			if row.Note != "" {
+				sb.WriteString(helpStyle.Render("  " + ansi.Truncate(row.Note, contentWidth-2, "…")))
+				sb.WriteString("\n")
+				linesWritten++
+				continue
+			}
 			isCommit := row.CommitIdx >= 0
 			isSel := isCommit && row.CommitIdx == m.selected
 

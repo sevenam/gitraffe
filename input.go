@@ -92,6 +92,11 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				return m, nil
 			}
 			return m.startFetch()
+		case "m":
+			if !m.ready {
+				return m, nil
+			}
+			return m.loadMoreCommits()
 		case "r", "f5":
 			if !m.ready {
 				return m, nil
@@ -220,6 +225,7 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.ready = true
 		m.selected = 0
 		m.addWorkingTreeRow()
+		m.addMoreCommitsRow()
 		m.applyReselect()
 		m.rememberCurrentRepo()
 		return m, m.maybeLoadDiff()
@@ -242,6 +248,7 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.ready = true
 		m.selected = 0
 		m.addWorkingTreeRow()
+		m.addMoreCommitsRow()
 		m.applyReselect()
 		m.rememberCurrentRepo()
 		return m, m.maybeLoadDiff()

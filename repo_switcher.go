@@ -275,6 +275,9 @@ func (m model) reloadRepo() (model, tea.Cmd) {
 	next, cmd := m.switchRepo(m.repoPath)
 	next.repoRoot = m.repoRoot
 	next.focusedBox = m.focusedBox
+	// However much history was asked for stays asked for; a reload that threw
+	// away the batches loaded with "m" would be a reload that loses your place.
+	next.commitLimit = m.commitCount()
 	if m.selected >= 0 && m.selected < len(m.commits) {
 		next.reselect = m.commits[m.selected].FullHash
 	}

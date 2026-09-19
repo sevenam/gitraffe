@@ -37,6 +37,9 @@ type displayRow struct {
 	CommitIdx  int    // index into commits slice, -1 for graph-only lines
 	GraphWidth int    // visual width of the graph portion
 	Lanes      []int  // lane number per character of GraphChars; see graphLanes
+	// Note is plain text drawn instead of a graph row, for the line saying the
+	// history was cut short. Empty on every row git produced.
+	Note string
 }
 
 // updateState tracks a self-update started from within the TUI.
@@ -82,6 +85,8 @@ type model struct {
 	reselect            string // full hash to reselect once a reload finishes; see reloadRepo
 	maximised           bool   // the focused panel has the window to itself; toggled with enter
 	fetching            bool   // a fetch is running; see startFetch
+	commitLimit         int    // how many commits to read; grows with "m", see loadMoreCommits
+	moreCommits         bool   // the log was cut off at commitLimit
 	configDir           string // gitraffe's config directory; "" means a picked theme can't be saved
 	notice              string // one-off status line text, e.g. the theme just saved; cleared by the next key
 }
@@ -96,5 +101,6 @@ func initialModel(repoPath string) model {
 		repoPath:    repoPath,
 		focusedBox:  1,    // default focus on commit list
 		colourLanes: true, // lane colouring is the default; "c" turns it off
+		commitLimit: commitBatch,
 	}
 }
