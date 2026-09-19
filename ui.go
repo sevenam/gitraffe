@@ -90,20 +90,7 @@ func (m model) View() (result string) {
 		contentHeight = 3
 	}
 
-	// Only graph mode draws the date column; the fallback list has no room for it.
-	dateWidth := 0
-	if len(m.displayRows) > 0 {
-		dateWidth = len(dateColumnFormat)
-	}
-	// Maximised, the focused panel takes the window and the other is not drawn
-	// at all; its width of 0 is what renderPanels reads to leave it out.
-	layout := computePanelLayout(m.windowWidth, m.maxGraphWidth, m.maxBranchWidth, dateWidth, m.maxAuthorWidth)
-	switch {
-	case m.maximised && m.focusedBox == 2:
-		layout = panelLayout{rightWidth: m.windowWidth}
-	case m.maximised:
-		layout = computeMaximisedLayout(m.windowWidth, m.maxGraphWidth, m.maxBranchWidth, dateWidth, m.maxAuthorWidth)
-	}
+	layout := m.currentLayout()
 	leftPanelWidth, rightPanelWidth := layout.leftWidth, layout.rightWidth
 
 	log.Printf("View: leftPanelWidth=%d, rightPanelWidth=%d, contentHeight=%d, branchColWidth=%d, dateColWidth=%d, authorColWidth=%d",
@@ -259,6 +246,26 @@ func computePanelLayout(windowWidth, maxGraphWidth, maxBranchWidth, dateWidth, m
 	}
 
 	return l
+}
+
+// currentLayout is how the window is divided right now. View draws from it,
+// and the mouse reads it to work out which panel the pointer is over — the
+// division has to be the one on screen, so both ask the same question.
+func (m model) currentLayout() panelLayout {
+	// Only graph mode draws the date column; the fallback list has no room for it.
+	dateWidth := 0
+	if len(m.displayRows) > 0 {
+		dateWidth = len(dateColumnFormat)
+	}
+	// Maximised, the focused panel takes the window and the other is not drawn
+	// at all; a width of 0 is what View reads to leave it out.
+	switch {
+	case m.maximised && m.focusedBox == 2:
+		return panelLayout{rightWidth: m.windowWidth}
+	case m.maximised:
+		return computeMaximisedLayout(m.windowWidth, m.maxGraphWidth, m.maxBranchWidth, dateWidth, m.maxAuthorWidth)
+	}
+	return computePanelLayout(m.windowWidth, m.maxGraphWidth, m.maxBranchWidth, dateWidth, m.maxAuthorWidth)
 }
 
 // allocateColumns shares the room beside the graph between the optional

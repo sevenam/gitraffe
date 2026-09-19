@@ -34,6 +34,7 @@ var helpSections = []helpSection{
 		{"o", "open another repository"},
 		{"r / f5", "reload this repository"},
 		{"U", "update to the latest release"},
+		{"mouse wheel", "scroll the panel under the pointer"},
 		{"q / esc / ctrl+c", "quit"},
 	}},
 	{"[1] git graph", []keyBinding{
