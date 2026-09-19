@@ -538,6 +538,9 @@ func (m *model) maybeLoadDiff() tea.Cmd {
 		if statWidth <= 0 {
 			statWidth = 80
 		}
+		if m.commits[m.selected].WorkingTree {
+			return loadWorkingDiffCmd(m.repoPath, statWidth)
+		}
 		return loadDiffCmd(m.repoPath, m.commits[m.selected].FullHash, m.selected, statWidth)
 	}
 	return nil

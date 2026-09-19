@@ -229,6 +229,13 @@ func initStyles() {
 
 	helpStyle = lipgloss.NewStyle().
 		Foreground(lipgloss.Color(currentTheme.Help))
+
+	// Uncommitted changes borrow the "ahead" colour: like unpushed commits,
+	// they are work of yours that nowhere else has yet, and no bundled theme
+	// has to define anything new for the row to stand out.
+	workingTreeStyle = lipgloss.NewStyle().
+		Foreground(lipgloss.Color(firstColour(currentTheme.Ahead, currentTheme.Author))).
+		Bold(true)
 }
 
 // paintBackground fills the screen with the theme's background colour, if it

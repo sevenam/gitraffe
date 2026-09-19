@@ -37,6 +37,7 @@ var (
 	remoteBranchStyle lipgloss.Style
 	mergedBranchStyle lipgloss.Style
 	tagStyle          lipgloss.Style
+	workingTreeStyle  lipgloss.Style
 	helpStyle         lipgloss.Style
 )
 

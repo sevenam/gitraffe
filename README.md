@@ -13,6 +13,7 @@ A text-based UI git graph command line tool built with Golang, Bubble Tea, go-gi
 - 🌿 Names merged-and-deleted branches at their tip commit, recovered from merge commit messages (see [Merged branches](#merged-branches))
 - 👤 Each commit's date and author in columns beside the hash (on a narrow terminal the author goes first, then the date, before branch labels are cut)
 - 🔀 Ahead/behind for the current branch next to its name, e.g. `main ↑3 ↓1` (see [Ahead and behind](#ahead-and-behind))
+- 📝 Uncommitted changes as a row above the newest commit, with their diff (see [Uncommitted changes](#uncommitted-changes))
 - 🎨 Beautiful styling with Lip Gloss
 - ⌨️  Keyboard navigation (arrow keys, vim-style)
 - 🖱️  Mouse wheel scrolling support
@@ -158,6 +159,20 @@ The last three are written when gitraffe exits, not as you press the keys, since
 and `tab` are pressed often and the file is only read at startup. Delete the file,
 or any single key in it, to go back to the defaults: lane colours on, the graph
 focused. A `focused_box` naming a panel that doesn't exist is ignored.
+
+## Uncommitted changes
+
+When the working tree isn't clean, a row sits above the newest commit with a hollow
+marker and a count — `3 changed, 1 untracked` — so the graph answers "what have I
+got in progress" as well as "where am I". A clean tree adds no row.
+
+Staged and unstaged changes are one number: both are work in progress, and which is
+which is a detail for the details panel. Select the row and it shows the stats and
+the diff of everything against `HEAD`, staged changes included. Untracked files have
+no diff, so they are listed by name instead.
+
+Nothing here is refreshed on a timer; press `r` after editing files (see
+[Reloading](#reloading)).
 
 ## Merged branches
 
