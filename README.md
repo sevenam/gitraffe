@@ -67,10 +67,38 @@ in `gitraffe ./update`.
 - `↑/↓` or `k/j` - Scroll up/down
 - `PgUp/PgDn` - Page up/down
 - `Home/End` - Jump to top/bottom
+- `r` - Open another repository (see [Switching repository](#switching-repository))
 - `t` - Pick a colour theme (see [Picking a theme](#picking-a-theme))
 - `c` - Toggle lane colours in the graph (see [Graph lane colours](#graph-lane-colours))
 - `U` - Update to the latest release (shown in the help line when one is available)
 - `q` or `Esc` or `Ctrl+C` - Quit
+
+### Switching repository
+
+Press `r` to open another repository without leaving gitraffe. The box starts with
+the last ten repositories you opened, most recent first: pick one with `↑/↓` and
+press `Enter`. `Esc` closes the box and keeps the repository you had.
+
+Or type a path, and the list becomes the folders at that path that match what you've
+typed so far, with repositories marked `repo`:
+
+- `Tab` completes the highlighted folder, or the first one if none is highlighted,
+  and moves the list into it.
+- `Enter` on a highlighted repository opens it; on any other folder it goes into
+  it, as a file browser would. With nothing highlighted, it opens the typed path.
+- Matching ignores case. Hidden folders are listed once you type the leading `.`.
+
+A few more things about paths:
+
+- A folder inside a repository opens the whole repository, as it does for git.
+- A relative path is relative to the repository on screen, so `../other` opens a
+  sibling. `~` means your home directory.
+- A path that isn't a repository is refused with the reason, and the box stays
+  open to correct it.
+
+`r` also works from the error screen, so starting gitraffe in a folder that isn't a
+repository isn't a dead end. The recent list is kept in `settings.yml` in your config
+directory (see [Picking a theme](#picking-a-theme)), next to your theme choice.
 
 ## Merged branches
 

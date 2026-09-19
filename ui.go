@@ -24,7 +24,9 @@ func (m model) View() (result string) {
 		m.ready, m.err, len(m.commits), len(m.displayRows), m.windowWidth, m.windowHeight, m.focusedBox)
 
 	if !m.ready {
-		return "\n  Initializing..."
+		// Named, since after a switch it is not obvious which repository is
+		// loading.
+		return "\n  Opening " + displayPath(m.repoPath) + "..."
 	}
 
 	// Guard against zero window dimensions (WindowSizeMsg not yet received)
@@ -37,9 +39,18 @@ func (m model) View() (result string) {
 		errorStyle := lipgloss.NewStyle().
 			Foreground(lipgloss.Color(currentTheme.Error)).
 			Bold(true)
-		return fmt.Sprintf("\n  %s\n\n  Error: %v\n\n  Press q to quit. Check %s for details.\n",
+		screen := fmt.Sprintf("\n  %s\n\n  Error: %v\n\n  Press r to open another repository, or q to quit. Check %s for details.\n",
 			errorStyle.Render("❌ Error loading repository"),
 			m.err, logFileName)
+		// Wrapped rather than left to the terminal: the log path makes the last
+		// line long, and the switcher is spliced in by column.
+		screen = lipgloss.NewStyle().Width(m.windowWidth).Render(screen)
+		// The switcher is the way out of a folder that isn't a repository, so it
+		// has to be drawable here too.
+		if m.switcher.open {
+			screen = overlayCentre(screen, m.switcher.render(m.windowWidth, m.windowHeight), m.windowWidth, m.windowHeight)
+		}
+		return screen
 	}
 
 	help := m.renderStatusLine()
@@ -151,6 +162,9 @@ func (m model) View() (result string) {
 		// the list scrolls rather than being clipped off the screen.
 		box := m.picker.render(m.windowHeight - 10)
 		output = overlayCentre(output, box, m.windowWidth, m.windowHeight)
+	}
+	if m.switcher.open {
+		output = overlayCentre(output, m.switcher.render(m.windowWidth, m.windowHeight), m.windowWidth, m.windowHeight)
 	}
 
 	return output

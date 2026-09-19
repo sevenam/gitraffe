@@ -140,6 +140,9 @@ func fileExists(p string) bool {
 // theme.yml so picking a theme never overwrites colours someone wrote by hand.
 type settings struct {
 	Theme string `yaml:"theme,omitempty"`
+	// RecentRepos lists repository roots, most recently opened first; the
+	// repository switcher offers them. See rememberRepo.
+	RecentRepos []string `yaml:"recent_repos,omitempty"`
 }
 
 func settingsPath(configDir string) string {
@@ -167,11 +170,17 @@ func loadSettings(configDir string) settings {
 
 // saveThemeChoice records the picked theme so it is used on the next start.
 func saveThemeChoice(configDir, name string) error {
+	s := loadSettings(configDir)
+	s.Theme = name
+	return saveSettings(configDir, s)
+}
+
+// saveSettings writes settings.yml. Callers read it first and change only
+// their own field, so one setting never drops another.
+func saveSettings(configDir string, s settings) error {
 	if configDir == "" {
 		return errors.New("no config directory")
 	}
-	s := loadSettings(configDir)
-	s.Theme = name
 	data, err := yaml.Marshal(s)
 	if err != nil {
 		return err
