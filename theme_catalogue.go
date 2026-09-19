@@ -149,6 +149,9 @@ type settings struct {
 	// rather than "off" and "no panel". See applyPreferences.
 	LaneColours *bool `yaml:"lane_colours,omitempty"`
 	FocusedBox  int   `yaml:"focused_box,omitempty"`
+	// Maximised needs no pointer: not maximised is both the default and the
+	// zero value, so an absent key and a saved false mean the same thing.
+	Maximised bool `yaml:"maximised,omitempty"`
 }
 
 func settingsPath(configDir string) string {
@@ -190,6 +193,7 @@ func applyPreferences(m model) model {
 	if s.LaneColours != nil {
 		m.colourLanes = *s.LaneColours
 	}
+	m.maximised = s.Maximised
 	if s.FocusedBox == 1 || s.FocusedBox == 2 {
 		m.focusedBox = s.FocusedBox
 	}
@@ -206,6 +210,7 @@ func savePreferences(m model) error {
 	s := loadSettings(m.configDir)
 	s.LaneColours = &m.colourLanes
 	s.FocusedBox = m.focusedBox
+	s.Maximised = m.maximised
 	return saveSettings(m.configDir, s)
 }
 

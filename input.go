@@ -82,6 +82,11 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				return m, nil
 			}
 			return m.openRepoSwitcher(), nil
+		case "enter":
+			// Whichever panel has focus fills the window; enter again puts the
+			// other one back.
+			m.maximised = !m.maximised
+			return m, nil
 		case "r", "f5":
 			if !m.ready {
 				return m, nil

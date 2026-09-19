@@ -71,12 +71,26 @@ in `gitraffe ./update`.
 - `↑/↓` or `k/j` - Scroll up/down
 - `PgUp/PgDn` - Page up/down
 - `Home/End` - Jump to top/bottom
+- `Enter` - Fill the window with the focused panel (see [One panel at a time](#one-panel-at-a-time))
 - `r` or `F5` - Reload the repository (see [Reloading](#reloading))
 - `o` - Open another repository (see [Switching repository](#switching-repository))
 - `t` - Pick a colour theme (see [Picking a theme](#picking-a-theme))
 - `c` - Toggle lane colours in the graph (see [Graph lane colours](#graph-lane-colours))
 - `U` - Update to the latest release (shown in the help line when one is available)
 - `q` or `Esc` or `Ctrl+C` - Quit
+
+### One panel at a time
+
+Press `Enter` to give the focused panel the whole window, and `Enter` again to bring
+the other one back. `1`, `2` and `tab` still choose which panel that is, so you can
+swap between a full-window graph and a full-window diff without leaving fullscreen.
+
+The graph uses the extra room rather than just stretching: branch labels that were
+truncated fit, and the date and author columns come back on a terminal too narrow to
+show them beside the details panel.
+
+Whether you left gitraffe maximised is remembered (see
+[Remembered preferences](#remembered-preferences)).
 
 ### Reloading
 
@@ -127,8 +141,9 @@ next run starts where the last one left off:
 | `recent_repos` | the repositories the `o` box offers |
 | `lane_colours` | whether the graph is coloured per branch (`c`) |
 | `focused_box` | the panel that had focus, `1` or `2` |
+| `maximised` | whether that panel filled the window (`Enter`) |
 
-The last two are written when gitraffe exits, not as you press the keys, since `c`
+The last three are written when gitraffe exits, not as you press the keys, since `c`
 and `tab` are pressed often and the file is only read at startup. Delete the file,
 or any single key in it, to go back to the defaults: lane colours on, the graph
 focused. A `focused_box` naming a panel that doesn't exist is ignored.
