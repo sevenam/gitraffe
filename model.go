@@ -73,6 +73,9 @@ type model struct {
 	updatedTo           string // tag installed this session; read by main after Run returns
 	colourLanes         bool   // tint each graph column differently; see lanes.go
 	showHelp            bool   // key reference overlay, toggled with "?"
+	picker              themePicker
+	configDir           string // gitraffe's config directory; "" means a picked theme can't be saved
+	notice              string // one-off status line text, e.g. the theme just saved; cleared by the next key
 }
 
 // updateAvailable reports whether GitHub advertises a release newer than this build.

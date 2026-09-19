@@ -29,6 +29,7 @@ var helpSections = []helpSection{
 		{"1 / 2", "focus graph / details"},
 		{"tab / shift+tab", "cycle focus"},
 		{"c", "toggle graph lane colours"},
+		{"t", "choose a colour theme"},
 		{"U", "update to the latest release"},
 		{"q / esc / ctrl+c", "quit"},
 	}},

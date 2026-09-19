@@ -1,7 +1,8 @@
 Gitraffe
 Copyright (c) 2026
 
-This project includes color themes derived from tokyonight.nvim:
+This project includes color themes derived from other projects. The theme
+files below are also compiled into the gitraffe binary.
 
   tokyonight.nvim
   Copyright (c) Folke Lemaitre
@@ -13,3 +14,11 @@ This project includes color themes derived from tokyonight.nvim:
     themes/tokyo-night-storm.yml
     themes/tokyo-night-moon.yml
     themes/tokyo-night-day.yml
+
+  one-dark-syntax (Atom One Dark)
+  Copyright (c) 2016 GitHub Inc.
+  Source: https://github.com/atom/one-dark-syntax
+  License: MIT License (see LICENSES/MIT-one-dark-syntax.txt)
+
+  The following file is derived from one-dark-syntax:
+    themes/atom-one-dark.yml

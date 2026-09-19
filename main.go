@@ -15,7 +15,7 @@ import (
 
 const (
 	appName = "Gitraffe"
-	version = "0.14.0"
+	version = "0.15.0"
 
 // logFileName is initialized at runtime in main so we can compute
 // a platform-appropriate location (cache/log dir) instead of using the
@@ -160,7 +160,8 @@ func main() {
 	}
 
 	// Before the TUI starts, so a bad -theme is reported on the normal screen.
-	if err := loadTheme(opts.themePath); err != nil {
+	configDir := themeConfigDir()
+	if err := loadTheme(opts.themePath, configDir); err != nil {
 		fmt.Fprintf(os.Stderr, "Error: %v\n", err)
 		os.Exit(1)
 	}
@@ -174,8 +175,11 @@ func main() {
 	setTerminalTitle(appName)
 	defer resetTerminalTitle()
 
+	m := initialModel(repoPath)
+	m.configDir = configDir
+
 	p := tea.NewProgram(
-		initialModel(repoPath),
+		m,
 		tea.WithAltScreen(),
 		tea.WithMouseCellMotion(),
 	)
