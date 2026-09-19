@@ -1,4 +1,4 @@
-<img width="925" height="699" alt="image" src="https://github.com/user-attachments/assets/d04ee8de-8ac2-4bd5-bcd7-cbdcf3c1953b" /># 🦒 Gitraffe
+# 🦒 Gitraffe
 
 A text-based UI git graph command line tool built with Golang, Bubble Tea, go-git, and Lip Gloss.
 
