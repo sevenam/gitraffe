@@ -141,7 +141,7 @@ func (m *model) loadRepoInfoFromCLI() {
 // Commit loaders
 
 func (m *model) loadCommitsFromGitCLI() ([]commit, error) {
-	const maxCommits = 5000
+	maxCommits := m.commitCount()
 
 	log.Println("Using git CLI to load commits...")
 
@@ -227,6 +227,7 @@ func (m *model) loadCommitsFromGitCLI() ([]commit, error) {
 	// Generate graph lines
 	m.generateGraph(commits)
 
+	m.moreCommits = len(commits) >= maxCommits
 	return commits, nil
 }
 
@@ -390,7 +391,7 @@ func (m *model) updateLabelWidth() {
 }
 
 func (m *model) loadGraphData() error {
-	const maxCommits = 5000
+	maxCommits := m.commitCount()
 	log.Println("Loading graph data from git CLI...")
 
 	cmd := exec.Command("git", "log",
@@ -524,6 +525,11 @@ func (m *model) loadGraphData() error {
 	for _, c := range m.commits {
 		m.maxAuthorWidth = max(m.maxAuthorWidth, ansi.StringWidth(c.Author))
 	}
+
+	// Exactly the limit means git stopped counting rather than ran out. A
+	// repository with exactly this many commits says "more" once, and loading
+	// again settles it.
+	m.moreCommits = len(m.commits) >= maxCommits
 
 	log.Printf("Loaded %d commits, %d display rows, max graph width: %d, max branch width: %d\n",
 		len(m.commits), len(m.displayRows), m.maxGraphWidth, m.maxBranchWidth)
