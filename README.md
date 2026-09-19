@@ -71,11 +71,23 @@ in `gitraffe ./update`.
 - `↑/↓` or `k/j` - Scroll up/down
 - `PgUp/PgDn` - Page up/down
 - `Home/End` - Jump to top/bottom
+- `r` or `F5` - Reload the repository (see [Reloading](#reloading))
 - `o` - Open another repository (see [Switching repository](#switching-repository))
 - `t` - Pick a colour theme (see [Picking a theme](#picking-a-theme))
 - `c` - Toggle lane colours in the graph (see [Graph lane colours](#graph-lane-colours))
 - `U` - Update to the latest release (shown in the help line when one is available)
 - `q` or `Esc` or `Ctrl+C` - Quit
+
+### Reloading
+
+Gitraffe reads the repository when it opens it and doesn't watch for changes, so
+commits you make in another terminal aren't there until you ask for them. Press `r`
+or `F5` to read it again: the graph, the ahead/behind counts and the tag marks are
+all rebuilt together.
+
+Your place is kept. The commit you had selected stays selected, even though new
+commits have pushed it down the list, and the same panel keeps focus. If that commit
+is gone — amended or rebased away — the selection falls back to the newest commit.
 
 ### Switching repository
 

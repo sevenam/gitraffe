@@ -31,6 +31,7 @@ var helpSections = []helpSection{
 		{"c", "toggle graph lane colours"},
 		{"t", "choose a colour theme"},
 		{"o", "open another repository"},
+		{"r / f5", "reload this repository"},
 		{"U", "update to the latest release"},
 		{"q / esc / ctrl+c", "quit"},
 	}},
