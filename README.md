@@ -67,6 +67,7 @@ in `gitraffe ./update`.
 - `↑/↓` or `k/j` - Scroll up/down
 - `PgUp/PgDn` - Page up/down
 - `Home/End` - Jump to top/bottom
+- `t` - Pick a colour theme (see [Picking a theme](#picking-a-theme))
 - `c` - Toggle lane colours in the graph (see [Graph lane colours](#graph-lane-colours))
 - `U` - Update to the latest release (shown in the help line when one is available)
 - `q` or `Esc` or `Ctrl+C` - Quit
@@ -104,8 +105,10 @@ Press `c` to turn it off and render the whole graph in the theme's `graph` colou
 way it looked before. The key works whichever panel has focus, and the setting lasts
 for the session — it is not written to your theme file.
 
-The colours are deliberately not theme keys: every bundled theme already leaves the
+The colours are deliberately not theme keys: most bundled themes already leave the
 optional ref colours unset, so six more would in practice be six more nobody sets.
+A theme that paints a light `background` gets darker versions of the same six
+instead, since the usual ones are pastels made for dark backgrounds.
 
 ## Branch colours
 
@@ -139,19 +142,46 @@ colors:
   selected_bg: "#2f334d"
 ```
 
-There are two ways to use one:
+`background` is the one key the default leaves empty: without it, gitraffe draws on
+your terminal's own background, so a theme's colours have to suit whatever that is.
+With it, the theme paints the whole screen and looks the same in any terminal.
+`default-light` sets it, which is what lets it be light grey on a dark terminal.
+Text with no colour of its own (the repository name, diff context lines) is then
+drawn in `foreground`, which defaults to the `message` colour: the terminal's own
+text colour suits its background, not the theme's.
+### Picking a theme
 
-- **Every run:** save it as `theme.yml` in your config directory —
-  `%APPDATA%\gitraffe\theme.yml` on Windows,
-  `~/Library/Application Support/gitraffe/theme.yml` on macOS,
-  `~/.config/gitraffe/theme.yml` on Linux. If this file can't be read, gitraffe
-  starts with the defaults and records why in `gitraffe.log`.
-- **One run:** `gitraffe --theme path/to/theme.yml`, which takes precedence over the
-  config file. Because you named the file, problems stop gitraffe with an error
-  instead: a missing file, invalid YAML, or a misspelt key.
+Press `t` to list the themes and pick one. Moving through the list shows each theme
+straight away; `Enter` keeps it and `Esc` puts back the one you had. Your pick is
+saved and used every time gitraffe starts.
 
-The `themes/` folder in this repository has ready-made Tokyo Night variants to use
-either way. Themes are read at startup, so restart gitraffe after editing one.
+The list holds the default colours, the themes that ship with gitraffe
+(`default-light`, Atom One Dark and the Tokyo Night variants), and your own themes
+(marked *yours*):
+
+- any `.yml` file in a `themes` folder in your config directory, listed by file
+  name. One named like a bundled theme replaces it, so copying a bundled theme
+  there is how to tweak it.
+- your `theme.yml`, if you have one (see below).
+
+Your config directory is `%APPDATA%\gitraffe` on Windows,
+`~/Library/Application Support/gitraffe` on macOS and `~/.config/gitraffe` on
+Linux. The pick is saved there as `settings.yml`, never into `theme.yml`, so picking
+a theme can't overwrite colours you wrote by hand. Each theme is read again as you
+move onto it, so after editing one, reopen the list to see the change.
+
+### Other ways to set a theme
+
+- **`theme.yml`:** save a theme as `theme.yml` in your config directory. It is used
+  when you haven't picked a theme with `t`; once you have, the pick wins, and
+  `theme.yml` stays in the list to switch back to. If this file can't be read,
+  gitraffe starts with the defaults and records why in `gitraffe.log`.
+- **One run:** `gitraffe --theme path/to/theme.yml`, which takes precedence over
+  both. Because you named the file, problems stop gitraffe with an error instead: a
+  missing file, invalid YAML, or a misspelt key.
+
+The `themes/` folder in this repository holds the bundled themes;
+they're built into the binary, so they are in the list however you installed it.
 
 ## Ahead and behind
 

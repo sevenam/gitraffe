@@ -1,0 +1,27 @@
+# Default Light theme for Gitraffe
+# The default colours darkened to read on a light grey background. Unlike the
+# other bundled themes it paints its own background, so it looks the same
+# whatever the terminal's colours are.
+
+colors:
+  background: "#e5e7eb"
+  title: "#5b34d1"
+  hash: "#9a4d00"
+  author: "#0b6690"
+  date: "#3f6b25"
+  message: "#2e3440"
+  branch: "#1e6477"
+  merged_branch: "#6b7280"
+  tag: "#7a5600"
+  help: "#5f6368"
+  error: "#b00020"
+  section_header: "#5b34d1"
+  graph: "#9a4d00"
+  border_active: "#9a4d00"
+  border_inactive: "#7d56f4"
+  selected_fg: "#1f2330"
+  selected_bg: "#c7cbd6"
+  diff_add: "#3f6b25"
+  diff_del: "#b3261e"
+  diff_hunk: "#3558a8"
+  diff_header: "#2e3440"

@@ -1,0 +1,24 @@
+# Atom One Dark theme for Gitraffe
+# Based on Atom's One Dark syntax theme by GitHub Inc.
+# Source: https://github.com/atom/one-dark-syntax
+# License: MIT License
+
+colors:
+  title: "#c678dd"
+  hash: "#d19a66"
+  author: "#56b6c2"
+  date: "#98c379"
+  message: "#abb2bf"
+  branch: "#61afef"
+  help: "#5c6370"
+  error: "#be5046"
+  section_header: "#c678dd"
+  graph: "#d19a66"
+  border_active: "#d19a66"
+  border_inactive: "#c678dd"
+  selected_fg: "#abb2bf"
+  selected_bg: "#3e4451"
+  diff_add: "#98c379"
+  diff_del: "#e06c75"
+  diff_hunk: "#61afef"
+  diff_header: "#abb2bf"

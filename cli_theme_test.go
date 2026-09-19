@@ -98,7 +98,7 @@ func TestLoadThemeFromFlag(t *testing.T) {
 			t.Fatal("no bundled themes found")
 		}
 		for _, path := range themes {
-			if err := loadTheme(path); err != nil {
+			if err := loadTheme(path, ""); err != nil {
 				t.Errorf("%s: %v", path, err)
 				continue
 			}
@@ -109,7 +109,7 @@ func TestLoadThemeFromFlag(t *testing.T) {
 	})
 
 	t.Run("a partial file keeps the other defaults", func(t *testing.T) {
-		if err := loadTheme(write(t, "colors:\n  branch: \"#123456\"\n")); err != nil {
+		if err := loadTheme(write(t, "colors:\n  branch: \"#123456\"\n"), ""); err != nil {
 			t.Fatal(err)
 		}
 		want := defaultTheme()
@@ -120,7 +120,7 @@ func TestLoadThemeFromFlag(t *testing.T) {
 	})
 
 	t.Run("an empty file is just the defaults", func(t *testing.T) {
-		if err := loadTheme(write(t, "")); err != nil || currentTheme != defaultTheme() {
+		if err := loadTheme(write(t, ""), ""); err != nil || currentTheme != defaultTheme() {
 			t.Errorf("err = %v, defaults = %v", err, currentTheme == defaultTheme())
 		}
 	})
@@ -133,7 +133,7 @@ func TestLoadThemeFromFlag(t *testing.T) {
 		{"misspelt key", "colors:\n  brnach: \"#123456\"\n", "brnach"},
 	} {
 		t.Run("fails on "+tc.name, func(t *testing.T) {
-			err := loadTheme(write(t, tc.body))
+			err := loadTheme(write(t, tc.body), "")
 			if err == nil || !strings.Contains(err.Error(), tc.says) {
 				t.Errorf("error = %v, want one mentioning %q", err, tc.says)
 			}
@@ -142,7 +142,7 @@ func TestLoadThemeFromFlag(t *testing.T) {
 
 	t.Run("fails on a missing file", func(t *testing.T) {
 		missing := filepath.Join(t.TempDir(), "nope.yml")
-		if err := loadTheme(missing); err == nil || !strings.Contains(err.Error(), "nope.yml") {
+		if err := loadTheme(missing, ""); err == nil || !strings.Contains(err.Error(), "nope.yml") {
 			t.Errorf("error = %v, want one naming the missing file", err)
 		}
 	})

@@ -86,11 +86,28 @@ func (g *graphLanes) laneFor(params string) int {
 	return n
 }
 
-// buildLanePalette turns laneColours into styles once per render, so a row
-// with many lanes doesn't allocate a style at every colour change.
+// laneColoursOnLight are the same six hues darkened for a theme that paints a
+// light background, on which the pastels above wash out — the yellow most of
+// all. Only a painted background can be known to be light: a theme that leaves
+// the terminal's own showing keeps the pastels.
+var laneColoursOnLight = []string{
+	"#b83240", // red
+	"#1f6fb2", // blue
+	"#3f7a1e", // green
+	"#8e3fa8", // magenta
+	"#12808c", // cyan
+	"#8a6400", // yellow
+}
+
+// buildLanePalette turns the lane colours into styles once per render, so a
+// row with many lanes doesn't allocate a style at every colour change.
 func buildLanePalette() []lipgloss.Style {
-	styles := make([]lipgloss.Style, len(laneColours))
-	for i, c := range laneColours {
+	colours := laneColours
+	if isLightColour(currentTheme.Background) {
+		colours = laneColoursOnLight
+	}
+	styles := make([]lipgloss.Style, len(colours))
+	for i, c := range colours {
 		styles[i] = lipgloss.NewStyle().Foreground(lipgloss.Color(c))
 	}
 	return styles

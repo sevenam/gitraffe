@@ -17,6 +17,9 @@ func (m model) View() (result string) {
 			result = fmt.Sprintf("\n  PANIC caught: %v\n\n  Check %s for details.\n  Press q to quit.", r, logFileName)
 		}
 	}()
+	// Deferred so every screen View returns gets the background, including
+	// the loading and error ones.
+	defer func() { result = paintBackground(result, m.windowWidth) }()
 	log.Printf("View: ready=%v, err=%v, commits=%d, displayRows=%d, window=%dx%d, focused=%d",
 		m.ready, m.err, len(m.commits), len(m.displayRows), m.windowWidth, m.windowHeight, m.focusedBox)
 
@@ -143,6 +146,12 @@ func (m model) View() (result string) {
 	if m.showHelp {
 		output = overlayCentre(output, renderHelpBox(), m.windowWidth, m.windowHeight)
 	}
+	if m.picker.open {
+		// 10 rows go to the box's title, footer, spacing, padding and border, so
+		// the list scrolls rather than being clipped off the screen.
+		box := m.picker.render(m.windowHeight - 10)
+		output = overlayCentre(output, box, m.windowWidth, m.windowHeight)
+	}
 
 	return output
 }
@@ -258,6 +267,9 @@ func (m *model) renderStatusLine() string {
 	}
 	if m.updateMessage != "" {
 		return truncateLines(noticeStyle.Render(m.updateMessage), m.windowWidth)
+	}
+	if m.notice != "" {
+		return truncateLines(noticeStyle.Render(m.notice), m.windowWidth)
 	}
 
 	// Only the keys needed to get around; "?" lists the rest. The line has to

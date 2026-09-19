@@ -43,8 +43,13 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return m, nil
 		}
 
-		// Any keystroke dismisses a lingering update notice.
+		// Any keystroke dismisses a lingering notice.
 		m.updateMessage = ""
+		m.notice = ""
+
+		if m.picker.open {
+			return m.updateThemePicker(msg)
+		}
 
 		// The help overlay covers the panels, so keys acting on them would change
 		// things the user can't see. Esc and q close it rather than quit: pressed
@@ -65,6 +70,8 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		case "?":
 			m.showHelp = true
 			return m, nil
+		case "t":
+			return m.openThemePicker(), nil
 		case "U":
 			return m.startUpdate(), nil
 		case "c":

@@ -8,13 +8,23 @@ import (
 	"log"
 	"os"
 	"path/filepath"
+	"strconv"
+	"strings"
 
 	"github.com/charmbracelet/lipgloss"
+	"github.com/charmbracelet/x/ansi"
+	"github.com/muesli/termenv"
 	"gopkg.in/yaml.v3"
 )
 
 // ThemeColors holds all color values for the application.
 type ThemeColors struct {
+	// Background paints the whole screen; empty leaves the terminal's own
+	// background showing, which is what every theme did before it existed.
+	Background string `yaml:"background"`
+	// Foreground is the colour of text that has none of its own, used only with
+	// a Background; empty means the Message colour. See paintBackground.
+	Foreground     string `yaml:"foreground"`
 	Title          string `yaml:"title"`
 	Hash           string `yaml:"hash"`
 	Author         string `yaml:"author"`
@@ -76,12 +86,16 @@ func defaultTheme() ThemeColors {
 // With a path (the -theme flag) every problem is returned, and unknown keys
 // count as problems: the user named that file, so quietly showing defaults
 // instead would look as if the flag had been ignored. Without one it looks for
-// the theme in the user's config directory, where having no file is the normal
-// case and problems are only logged.
-func loadTheme(path string) error {
+// the theme in configDir, where having no file is the normal case and problems
+// are only logged: first the one picked in the app (settings.yml), then
+// theme.yml. A picked theme wins because picking is the more recent, explicit
+// choice; theme.yml stays in the picker for switching back.
+func loadTheme(path, configDir string) error {
 	currentTheme = defaultTheme()
+	currentThemeName = defaultThemeName
 
 	if path != "" {
+		currentThemeName = ""
 		data, err := os.ReadFile(path)
 		if err != nil {
 			return fmt.Errorf("theme: %w", err)
@@ -95,13 +109,25 @@ func loadTheme(path string) error {
 		return nil
 	}
 
-	configDir, err := os.UserConfigDir()
-	if err != nil {
-		log.Printf("Theme: config dir unavailable: %v", err)
+	if configDir == "" {
 		return nil
 	}
 
-	themePath := filepath.Join(configDir, "gitraffe", "theme.yml")
+	if name := loadSettings(configDir).Theme; name != "" {
+		choice, ok := findTheme(availableThemes(configDir), name)
+		if !ok {
+			log.Printf("Theme: picked theme %q no longer exists, falling back", name)
+		} else if colors, err := choice.load(); err != nil {
+			log.Printf("Theme: picked theme %q: %v, falling back", name, err)
+		} else {
+			currentTheme = colors
+			currentThemeName = name
+			log.Printf("Theme: %s (picked in the app)", name)
+			return nil
+		}
+	}
+
+	themePath := filepath.Join(configDir, "theme.yml")
 	log.Printf("Theme: looking for %s", themePath)
 
 	data, err := os.ReadFile(themePath)
@@ -117,6 +143,7 @@ func loadTheme(path string) error {
 	}
 
 	currentTheme = colors
+	currentThemeName = customThemeName
 	log.Printf("Theme: loaded from %s", themePath)
 	return nil
 }
@@ -202,4 +229,75 @@ func initStyles() {
 
 	helpStyle = lipgloss.NewStyle().
 		Foreground(lipgloss.Color(currentTheme.Help))
+}
+
+// paintBackground fills the screen with the theme's background colour, if it
+// has one.
+//
+// Setting it on each style instead would take a background on every piece of
+// text in the app, and would still miss the gaps between them: every styled
+// piece ends in a full SGR reset, which clears the background along with the
+// colour. So it is applied once, to the finished screen: set at the start of
+// each line, set again after every reset, and each line padded to the full
+// width so it reaches the right edge.
+//
+// The text colour is set alongside it. Plenty of text is drawn with no colour
+// of its own (the repository name, diff context lines, the stats), which means
+// the terminal's default, chosen to suit the terminal's background rather than
+// the theme's: near-white on a dark terminal, and unreadable on a light theme.
+func paintBackground(screen string, width int) string {
+	base := baseSequence()
+	if base == "" {
+		return screen
+	}
+	lines := strings.Split(screen, "\n")
+	for i, l := range lines {
+		l = strings.ReplaceAll(l, "\x1b[0m", "\x1b[0m"+base)
+		l = strings.ReplaceAll(l, "\x1b[m", "\x1b[m"+base)
+		if pad := width - ansi.StringWidth(l); pad > 0 {
+			l += strings.Repeat(" ", pad)
+		}
+		lines[i] = base + l + "\x1b[0m"
+	}
+	return strings.Join(lines, "\n")
+}
+
+// baseSequence is the escape code setting the theme's background and plain text
+// colour in the terminal's colour profile. Empty when the theme sets no
+// background, or the terminal shows no colour, in which case nothing is
+// painted.
+func baseSequence() string {
+	profile := lipgloss.ColorProfile()
+	bg := profile.Color(currentTheme.Background)
+	if bg == nil || bg.Sequence(true) == "" {
+		return ""
+	}
+	seq := termenv.CSI + bg.Sequence(true) + "m"
+	if fg := profile.Color(textColour()); fg != nil && fg.Sequence(false) != "" {
+		seq += termenv.CSI + fg.Sequence(false) + "m"
+	}
+	return seq
+}
+
+// textColour is the colour of text that has none of its own. It only applies
+// with a painted background; defaults to the commit message colour, which is
+// already the theme's main text colour.
+func textColour() string {
+	return firstColour(currentTheme.Foreground, currentTheme.Message)
+}
+
+// isLightColour reports whether a "#rrggbb" colour is light enough that
+// colours picked for a dark background would wash out on it. Anything else,
+// including no colour at all, counts as dark: that is what the bundled
+// palettes assume.
+func isLightColour(hex string) bool {
+	if len(hex) != 7 || hex[0] != '#' {
+		return false
+	}
+	v, err := strconv.ParseUint(hex[1:], 16, 32)
+	if err != nil {
+		return false
+	}
+	r, g, b := float64(v>>16&0xff), float64(v>>8&0xff), float64(v&0xff)
+	return (0.299*r+0.587*g+0.114*b)/255 > 0.5
 }
