@@ -143,6 +143,12 @@ type settings struct {
 	// RecentRepos lists repository roots, most recently opened first; the
 	// repository switcher offers them. See rememberRepo.
 	RecentRepos []string `yaml:"recent_repos,omitempty"`
+	// LaneColours and FocusedBox carry the state of the "c" toggle and which
+	// panel had focus into the next run. A pointer and a zero mean "never
+	// saved", which is what keeps the defaults in initialModel the defaults
+	// rather than "off" and "no panel". See applyPreferences.
+	LaneColours *bool `yaml:"lane_colours,omitempty"`
+	FocusedBox  int   `yaml:"focused_box,omitempty"`
 }
 
 func settingsPath(configDir string) string {
@@ -173,6 +179,34 @@ func saveThemeChoice(configDir, name string) error {
 	s := loadSettings(configDir)
 	s.Theme = name
 	return saveSettings(configDir, s)
+}
+
+// applyPreferences starts the model off where the last run left it. Anything
+// the file doesn't hold, or holds nonsense, keeps the built-in default: these
+// are conveniences, and a hand-edited file shouldn't be able to start gitraffe
+// focused on a panel that doesn't exist.
+func applyPreferences(m model) model {
+	s := loadSettings(m.configDir)
+	if s.LaneColours != nil {
+		m.colourLanes = *s.LaneColours
+	}
+	if s.FocusedBox == 1 || s.FocusedBox == 2 {
+		m.focusedBox = s.FocusedBox
+	}
+	return m
+}
+
+// savePreferences records them again as gitraffe exits, rather than on every
+// keystroke that changes one: "c" and tab are pressed often, and the file is
+// only ever read at startup.
+func savePreferences(m model) error {
+	if m.configDir == "" {
+		return nil
+	}
+	s := loadSettings(m.configDir)
+	s.LaneColours = &m.colourLanes
+	s.FocusedBox = m.focusedBox
+	return saveSettings(m.configDir, s)
 }
 
 // saveSettings writes settings.yml. Callers read it first and change only
