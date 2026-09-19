@@ -132,7 +132,7 @@ func switcherModel(t *testing.T, current string, others ...string) model {
 	}
 	m.repoPath = current
 	m.rememberCurrentRepo()
-	return press(m, keyPress("r"))
+	return press(m, keyPress("o"))
 }
 
 func TestSwitcherListsOtherRecentRepos(t *testing.T) {
@@ -142,7 +142,7 @@ func TestSwitcherListsOtherRecentRepos(t *testing.T) {
 	if err := os.RemoveAll(gone); err != nil {
 		t.Skipf("can't remove %s: %v", gone, err)
 	}
-	m = press(m, esc, keyPress("r"))
+	m = press(m, esc, keyPress("o"))
 
 	if !m.switcher.open {
 		t.Fatal("r did not open the switcher")
@@ -155,8 +155,8 @@ func TestSwitcherListsOtherRecentRepos(t *testing.T) {
 
 func TestSwitcherTypesEveryPrintableKey(t *testing.T) {
 	m := switcherModel(t, newRepo(t))
-	m = typeText(m, "qtr?c")
-	if !m.switcher.open || m.switcher.input.Value() != "qtr?c" {
+	m = typeText(m, "qtor?c")
+	if !m.switcher.open || m.switcher.input.Value() != "qtor?c" {
 		t.Errorf("open=%v value=%q; letters that are shortcuts elsewhere must type here",
 			m.switcher.open, m.switcher.input.Value())
 	}
@@ -230,13 +230,13 @@ func TestSwitcherSuggestsFolders(t *testing.T) {
 		{dir + sep + ".", ".hidden"},
 		{dir + sep + "zz", ""},
 	} {
-		got := typeText(press(m, esc, keyPress("r")), tc.typed)
+		got := typeText(press(m, esc, keyPress("o")), tc.typed)
 		if labels := itemLabels(got.switcher); labels != tc.want {
 			t.Errorf("typing %q suggested %q, want %q", tc.typed, labels, tc.want)
 		}
 	}
 
-	got := typeText(press(m, esc, keyPress("r")), filepath.Join(dir, "missing", "x"))
+	got := typeText(press(m, esc, keyPress("o")), filepath.Join(dir, "missing", "x"))
 	if len(got.switcher.items) != 0 || !strings.Contains(got.switcher.empty, "No folder at") {
 		t.Errorf("a missing folder gave %q / %q", itemLabels(got.switcher), got.switcher.empty)
 	}
@@ -256,7 +256,7 @@ func TestSwitcherTabCompletes(t *testing.T) {
 	}
 
 	// Highlighted: that one.
-	m = typeText(press(m, esc, keyPress("r")), dir+sep+"al")
+	m = typeText(press(m, esc, keyPress("o")), dir+sep+"al")
 	m = press(m, down, down, tea.KeyMsg{Type: tea.KeyTab})
 	if want := dir + sep + "alpine" + sep; m.switcher.input.Value() != want {
 		t.Errorf("tab on the highlighted folder gave %q, want %q", m.switcher.input.Value(), want)
@@ -362,7 +362,7 @@ func TestSwitcherOnTheOpenRepoJustCloses(t *testing.T) {
 func TestSwitcherWaitsForLoading(t *testing.T) {
 	m := testModel()
 	m.ready = false
-	if m = press(m, keyPress("r")); m.switcher.open {
+	if m = press(m, keyPress("o")); m.switcher.open {
 		t.Error("r opened the switcher while a repository was loading")
 	}
 }
