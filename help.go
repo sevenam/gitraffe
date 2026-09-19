@@ -30,7 +30,7 @@ var helpSections = []helpSection{
 		{"tab / shift+tab", "cycle focus"},
 		{"c", "toggle graph lane colours"},
 		{"t", "choose a colour theme"},
-		{"r", "open another repository"},
+		{"o", "open another repository"},
 		{"U", "update to the latest release"},
 		{"q / esc / ctrl+c", "quit"},
 	}},

@@ -75,7 +75,7 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return m, nil
 		case "t":
 			return m.openThemePicker(), nil
-		case "r":
+		case "o":
 			// Not while loading: the load under way would finish into the model
 			// the switch replaced it with.
 			if !m.ready {

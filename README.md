@@ -71,7 +71,7 @@ in `gitraffe ./update`.
 - `↑/↓` or `k/j` - Scroll up/down
 - `PgUp/PgDn` - Page up/down
 - `Home/End` - Jump to top/bottom
-- `r` - Open another repository (see [Switching repository](#switching-repository))
+- `o` - Open another repository (see [Switching repository](#switching-repository))
 - `t` - Pick a colour theme (see [Picking a theme](#picking-a-theme))
 - `c` - Toggle lane colours in the graph (see [Graph lane colours](#graph-lane-colours))
 - `U` - Update to the latest release (shown in the help line when one is available)
@@ -79,7 +79,7 @@ in `gitraffe ./update`.
 
 ### Switching repository
 
-Press `r` to open another repository without leaving gitraffe. The box starts with
+Press `o` to open another repository without leaving gitraffe. The box starts with
 the last ten repositories you opened, most recent first: pick one with `↑/↓` and
 press `Enter`. `Esc` closes the box and keeps the repository you had.
 
@@ -100,7 +100,7 @@ A few more things about paths:
 - A path that isn't a repository is refused with the reason, and the box stays
   open to correct it.
 
-`r` also works from the error screen, so starting gitraffe in a folder that isn't a
+`o` also works from the error screen, so starting gitraffe in a folder that isn't a
 repository isn't a dead end. The recent list is kept in `settings.yml` in your config
 directory (see [Picking a theme](#picking-a-theme)), next to your theme choice.
 

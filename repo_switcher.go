@@ -27,7 +27,7 @@ const (
 	maxSuggestions = 200
 )
 
-// repoSwitcher is the "open repository" box opened with "r": a path to type,
+// repoSwitcher is the "open repository" box opened with "o": a path to type,
 // and below it a list to pick from instead — the recent repositories while
 // the path is empty, then the folders matching what has been typed.
 type repoSwitcher struct {
