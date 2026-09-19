@@ -75,6 +75,7 @@ in `gitraffe ./update`.
 - Mouse wheel - Scroll the panel the pointer is over (see [Mouse](#mouse))
 - `Enter` - Fill the window with the focused panel (see [One panel at a time](#one-panel-at-a-time))
 - `r` or `F5` - Reload the repository (see [Reloading](#reloading))
+- `f` - Fetch from the remote, then reload (see [Fetching](#fetching))
 - `o` - Open another repository (see [Switching repository](#switching-repository))
 - `t` - Pick a colour theme (see [Picking a theme](#picking-a-theme))
 - `c` - Toggle lane colours in the graph (see [Graph lane colours](#graph-lane-colours))
@@ -103,6 +104,22 @@ show them beside the details panel.
 
 Whether you left gitraffe maximised is remembered (see
 [Remembered preferences](#remembered-preferences)).
+
+### Fetching
+
+Press `f` to run `git fetch --all --prune` and reload once it finishes, which is what
+makes the ahead/behind counts and the tag marks true as of now rather than as of your
+last fetch.
+
+It is the one thing gitraffe does that writes to your repository, so it only ever
+happens when you press the key — never on a timer, and never at startup. What it
+writes is limited to remote-tracking refs: your branches, your tags and your working
+tree are not touched, and `--prune` only drops `origin/...` refs whose branch the
+remote no longer has.
+
+It never prompts. A remote that wants a password, or an SSH key with a passphrase,
+fails with git's own message on the bottom line instead of a prompt fighting the
+graph for the screen, and a remote that never answers is given up on after a minute.
 
 ### Reloading
 
@@ -295,8 +312,8 @@ A branch that hasn't been pushed with `-u` (or whose remote branch was deleted) 
 upstream to compare with, but it is still ahead: `↑` then counts its commits that no
 remote has yet. It never shows `↓`, since there is nothing to be behind.
 
-The counts compare against your remote-tracking branches as of your last `git fetch` —
-gitraffe never fetches, so run `git fetch` first to see the remote's current state.
+The counts compare against your remote-tracking branches as of your last fetch, so
+press `f` (see [Fetching](#fetching)) to bring them up to date.
 Nothing is shown when the branch is in sync, on a detached HEAD, or in a repository
 with no remote.
 

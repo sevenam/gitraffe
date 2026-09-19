@@ -81,6 +81,7 @@ type model struct {
 	repoRoot            string // absolute root of the open repository; "" until it has loaded
 	reselect            string // full hash to reselect once a reload finishes; see reloadRepo
 	maximised           bool   // the focused panel has the window to itself; toggled with enter
+	fetching            bool   // a fetch is running; see startFetch
 	configDir           string // gitraffe's config directory; "" means a picked theme can't be saved
 	notice              string // one-off status line text, e.g. the theme just saved; cleared by the next key
 }

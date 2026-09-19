@@ -87,6 +87,11 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			// other one back.
 			m.maximised = !m.maximised
 			return m, nil
+		case "f":
+			if !m.ready {
+				return m, nil
+			}
+			return m.startFetch()
 		case "r", "f5":
 			if !m.ready {
 				return m, nil
@@ -253,6 +258,14 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.commits[msg.commitIdx].DiffBody = msg.diffBody
 		}
 		return m, nil
+
+	case fetchFinishedMsg:
+		// A fetch of the repository you have since left says nothing about the
+		// one on screen, and must not reload it.
+		if msg.repoPath != m.repoPath {
+			return m, nil
+		}
+		return m.finishFetch(msg)
 
 	case versionCheckMsg:
 		m.latestVersion = msg.latestVersion
