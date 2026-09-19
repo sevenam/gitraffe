@@ -76,6 +76,7 @@ in `gitraffe ./update`.
 - `Enter` - Fill the window with the focused panel (see [One panel at a time](#one-panel-at-a-time))
 - `r` or `F5` - Reload the repository (see [Reloading](#reloading))
 - `f` - Fetch from the remote, then reload (see [Fetching](#fetching))
+- `/` - Search commits, then `n` / `N` for next and previous (see [Searching](#searching))
 - `m` - Read more of a long history (see [Long histories](#long-histories))
 - `o` - Open another repository (see [Switching repository](#switching-repository))
 - `t` - Pick a colour theme (see [Picking a theme](#picking-a-theme))
@@ -105,6 +106,22 @@ show them beside the details panel.
 
 Whether you left gitraffe maximised is remembered (see
 [Remembered preferences](#remembered-preferences)).
+
+### Searching
+
+Press `/` and type. The graph moves to each match as you type, so a wrong turn shows
+immediately rather than after `Enter`. Matching ignores case and looks at the commit
+message, the author and the hash, so a hash pasted from a bug report finds its commit.
+
+- `Enter` keeps the query and closes the prompt; the bottom line then says which
+  match you are on and how many there are.
+- `Esc` puts the selection back where it was before you started.
+- `n` and `N` move to the next and previous match afterwards, wrapping round the ends
+  so no match is out of reach. `↑` and `↓` do the same while the prompt is open.
+- A query that matches nothing says so and leaves the selection alone.
+
+The search only covers the commits that are loaded; on a long history, `m` reads more
+(see [Long histories](#long-histories)).
 
 ### Long histories
 

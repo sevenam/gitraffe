@@ -29,6 +29,8 @@ var helpSections = []helpSection{
 		{"1 / 2", "focus graph / details"},
 		{"enter", "fill the window with the focused panel"},
 		{"tab / shift+tab", "cycle focus"},
+		{"/", "search messages, authors and hashes"},
+		{"n / N", "next / previous match"},
 		{"c", "toggle graph lane colours"},
 		{"t", "choose a colour theme"},
 		{"o", "open another repository"},

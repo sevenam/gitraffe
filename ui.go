@@ -309,6 +309,12 @@ func computeMaximisedLayout(windowWidth, maxGraphWidth, maxBranchWidth, dateWidt
 func (m *model) renderStatusLine() string {
 	noticeStyle := lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color(currentTheme.Tag))
 
+	// The search prompt takes the line while it is open: it is where you are
+	// typing, so nothing else on it could be read anyway.
+	if m.search.active {
+		return m.renderSearchPrompt()
+	}
+
 	if m.updateState == updateConfirming {
 		return truncateLines(noticeStyle.Render(
 			fmt.Sprintf("Update v%s → %s? This replaces the binary and quits. (y/n)", version, m.latestVersion)),

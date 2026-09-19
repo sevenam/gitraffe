@@ -87,6 +87,7 @@ type model struct {
 	fetching            bool   // a fetch is running; see startFetch
 	commitLimit         int    // how many commits to read; grows with "m", see loadMoreCommits
 	moreCommits         bool   // the log was cut off at commitLimit
+	search              commitSearch
 	configDir           string // gitraffe's config directory; "" means a picked theme can't be saved
 	notice              string // one-off status line text, e.g. the theme just saved; cleared by the next key
 }
