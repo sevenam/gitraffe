@@ -71,6 +71,7 @@ in `gitraffe ./update`.
 - `↑/↓` or `k/j` - Scroll up/down
 - `PgUp/PgDn` - Page up/down
 - `Home/End` - Jump to top/bottom
+- Mouse wheel - Scroll the panel the pointer is over (see [Mouse](#mouse))
 - `Enter` - Fill the window with the focused panel (see [One panel at a time](#one-panel-at-a-time))
 - `r` or `F5` - Reload the repository (see [Reloading](#reloading))
 - `o` - Open another repository (see [Switching repository](#switching-repository))
@@ -78,6 +79,16 @@ in `gitraffe ./update`.
 - `c` - Toggle lane colours in the graph (see [Graph lane colours](#graph-lane-colours))
 - `U` - Update to the latest release (shown in the help line when one is available)
 - `q` or `Esc` or `Ctrl+C` - Quit
+
+### Mouse
+
+The wheel scrolls whichever panel the pointer is over: the graph moves the selected
+commit, the details panel scrolls the diff. Pointing at a panel is how a mouse says
+which one you mean, so it neither needs focus nor takes it — the keyboard keeps
+driving whatever it was driving.
+
+One notch moves three lines. Maximised there is only one panel, so the wheel always
+belongs to it.
 
 ### One panel at a time
 
