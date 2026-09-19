@@ -27,6 +27,7 @@ var helpSections = []helpSection{
 	{"General", []keyBinding{
 		{"?", "toggle this help"},
 		{"1 / 2", "focus graph / details"},
+		{"enter", "fill the window with the focused panel"},
 		{"tab / shift+tab", "cycle focus"},
 		{"c", "toggle graph lane colours"},
 		{"t", "choose a colour theme"},

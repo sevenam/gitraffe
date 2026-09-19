@@ -95,7 +95,15 @@ func (m model) View() (result string) {
 	if len(m.displayRows) > 0 {
 		dateWidth = len(dateColumnFormat)
 	}
+	// Maximised, the focused panel takes the window and the other is not drawn
+	// at all; its width of 0 is what renderPanels reads to leave it out.
 	layout := computePanelLayout(m.windowWidth, m.maxGraphWidth, m.maxBranchWidth, dateWidth, m.maxAuthorWidth)
+	switch {
+	case m.maximised && m.focusedBox == 2:
+		layout = panelLayout{rightWidth: m.windowWidth}
+	case m.maximised:
+		layout = computeMaximisedLayout(m.windowWidth, m.maxGraphWidth, m.maxBranchWidth, dateWidth, m.maxAuthorWidth)
+	}
 	leftPanelWidth, rightPanelWidth := layout.leftWidth, layout.rightWidth
 
 	log.Printf("View: leftPanelWidth=%d, rightPanelWidth=%d, contentHeight=%d, branchColWidth=%d, dateColWidth=%d, authorColWidth=%d",
@@ -106,32 +114,36 @@ func (m model) View() (result string) {
 
 	// Create left panel (commit list). Content width is the panel minus its
 	// borders (2) and horizontal padding (2).
-	leftContent := m.renderCommitList(layout.branchCol, layout.dateCol, layout.authorCol, leftPanelWidth-4)
-	leftPanel := addBoxLabel(lipgloss.NewStyle().
-		Width(leftPanelWidth-2). // subtract borders (2); Width includes padding
-		Height(contentHeight).
-		BorderStyle(lipgloss.RoundedBorder()).
-		BorderForeground(box1Border).
-		Padding(0, 1).
-		Render(leftContent), "[1]-git-graph")
+	var leftPanel, rightPanel string
+	if leftPanelWidth > 0 {
+		leftContent := m.renderCommitList(layout.branchCol, layout.dateCol, layout.authorCol, leftPanelWidth-4)
+		leftPanel = addBoxLabel(lipgloss.NewStyle().
+			Width(leftPanelWidth-2). // subtract borders (2); Width includes padding
+			Height(contentHeight).
+			BorderStyle(lipgloss.RoundedBorder()).
+			BorderForeground(box1Border).
+			Padding(0, 1).
+			Render(leftContent), "[1]-git-graph")
+		// lipgloss Height() is a minimum, not a maximum — long lines that wrap
+		// inside the panel can make it taller. Trim any excess lines so both
+		// panels are exactly the same height.
+		leftPanel = trimToHeight(leftPanel, targetPanelHeight)
+	}
 
 	// Create right panel (commit details)
 	// Padding(1,2) → 2*2=4 horizontal padding + 2 borders = 6 overhead
-	m.detailsContentWidth = rightPanelWidth - 6
-	rightContent := m.renderCommitDetails()
-	rightPanel := addBoxLabel(lipgloss.NewStyle().
-		Width(rightPanelWidth-2). // subtract borders (2); Width includes padding
-		Height(contentHeight).
-		BorderStyle(lipgloss.RoundedBorder()).
-		BorderForeground(box2Border).
-		Padding(1, 2).
-		Render(rightContent), "[2]-commit-details")
-
-	// Force both panels to exactly the same height.
-	// lipgloss Height() is a minimum, not a maximum — long lines that wrap
-	// inside the panel can make it taller. Trim any excess lines from either panel.
-	leftPanel = trimToHeight(leftPanel, targetPanelHeight)
-	rightPanel = trimToHeight(rightPanel, targetPanelHeight)
+	if rightPanelWidth > 0 {
+		m.detailsContentWidth = rightPanelWidth - 6
+		rightContent := m.renderCommitDetails()
+		rightPanel = addBoxLabel(lipgloss.NewStyle().
+			Width(rightPanelWidth-2). // subtract borders (2); Width includes padding
+			Height(contentHeight).
+			BorderStyle(lipgloss.RoundedBorder()).
+			BorderForeground(box2Border).
+			Padding(1, 2).
+			Render(rightContent), "[2]-commit-details")
+		rightPanel = trimToHeight(rightPanel, targetPanelHeight)
+	}
 
 	// Join panels horizontally
 	content := lipgloss.JoinHorizontal(lipgloss.Top, leftPanel, rightPanel)
@@ -208,26 +220,7 @@ func computePanelLayout(windowWidth, maxGraphWidth, maxBranchWidth, dateWidth, m
 		// Room beside the graph must respect both the left panel's cap and the
 		// details panel's minimum.
 		room := min(windowWidth-graphBase-minRightPanelWidth, maxLeftWidth-graphBase)
-		if maxBranchWidth > 0 && room > 1 {
-			l.branchCol = min(maxBranchWidth, room-1) // -1: the space after the labels
-			room -= l.branchCol + 1
-		}
-		// A cut-off date is useless, so it fits whole (plus its leading space) or
-		// not at all.
-		if dateWidth > 0 && room > dateWidth {
-			l.dateCol = dateWidth
-			room -= dateWidth + 1
-		}
-		// Columns drop strictly in reverse priority as the window narrows. Letting
-		// a short name take room a date couldn't fit would make widening the
-		// window swap the author column for the date column.
-		dateSettled := dateWidth == 0 || l.dateCol > 0
-		if maxAuthorWidth > 0 && room > 1 && dateSettled {
-			l.authorCol = min(maxAuthorWidth, maxAuthorColWidth, room-1) // -1: the space before the name
-			if l.authorCol < minAuthorColWidth {
-				l.authorCol = 0
-			}
-		}
+		l.branchCol, l.dateCol, l.authorCol = allocateColumns(room, maxBranchWidth, dateWidth, maxAuthorWidth)
 
 		l.leftWidth = graphBase
 		if l.branchCol > 0 {
@@ -265,6 +258,41 @@ func computePanelLayout(windowWidth, maxGraphWidth, maxBranchWidth, dateWidth, m
 		}
 	}
 
+	return l
+}
+
+// allocateColumns shares the room beside the graph between the optional
+// columns, in priority order.
+func allocateColumns(room, maxBranchWidth, dateWidth, maxAuthorWidth int) (branchCol, dateCol, authorCol int) {
+	if maxBranchWidth > 0 && room > 1 {
+		branchCol = min(maxBranchWidth, room-1) // -1: the space after the labels
+		room -= branchCol + 1
+	}
+	// A cut-off date is useless, so it fits whole (plus its leading space) or
+	// not at all.
+	if dateWidth > 0 && room > dateWidth {
+		dateCol = dateWidth
+		room -= dateWidth + 1
+	}
+	// Columns drop strictly in reverse priority as the window narrows. Letting
+	// a short name take room a date couldn't fit would make widening the
+	// window swap the author column for the date column.
+	dateSettled := dateWidth == 0 || dateCol > 0
+	if maxAuthorWidth > 0 && room > 1 && dateSettled {
+		authorCol = min(maxAuthorWidth, maxAuthorColWidth, room-1) // -1: the space before the name
+		if authorCol < minAuthorColWidth {
+			authorCol = 0
+		}
+	}
+	return branchCol, dateCol, authorCol
+}
+
+// computeMaximisedLayout sizes the graph when it has the window to itself.
+// There is no details panel to leave room for, so the columns get everything
+// beside the graph and none of the usual caps apply.
+func computeMaximisedLayout(windowWidth, maxGraphWidth, maxBranchWidth, dateWidth, maxAuthorWidth int) panelLayout {
+	l := panelLayout{leftWidth: windowWidth}
+	l.branchCol, l.dateCol, l.authorCol = allocateColumns(windowWidth-(maxGraphWidth+14), maxBranchWidth, dateWidth, maxAuthorWidth)
 	return l
 }
 
