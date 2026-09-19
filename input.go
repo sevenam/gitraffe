@@ -53,6 +53,9 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		if m.switcher.open {
 			return m.updateRepoSwitcher(msg)
 		}
+		if m.search.active {
+			return m.updateSearch(msg)
+		}
 
 		// The help overlay covers the panels, so keys acting on them would change
 		// things the user can't see. Esc and q close it rather than quit: pressed
@@ -92,6 +95,15 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				return m, nil
 			}
 			return m.startFetch()
+		case "/":
+			if !m.ready {
+				return m, nil
+			}
+			return m.openSearch(), nil
+		case "n":
+			return m.searchNext(1)
+		case "N":
+			return m.searchNext(-1)
 		case "m":
 			if !m.ready {
 				return m, nil

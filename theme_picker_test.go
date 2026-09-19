@@ -134,6 +134,9 @@ func TestLoadThemeFromConfigDir(t *testing.T) {
 func pickerModel(t *testing.T) model {
 	t.Helper()
 	restoreTheme(t)
+	// From a known theme: the picker opens on whichever one is in use, so a
+	// theme left behind by another test would move the cursor.
+	setTheme(defaultThemeName, defaultTheme())
 	m := testModel()
 	m.configDir = t.TempDir()
 	res, _ := m.Update(keyPress("t"))
