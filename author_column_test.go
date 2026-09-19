@@ -140,7 +140,7 @@ func TestListColumnsRendering(t *testing.T) {
 
 	l := computePanelLayout(m.windowWidth, m.maxGraphWidth, m.maxBranchWidth, dateWidth, m.maxAuthorWidth)
 	contentWidth := l.leftWidth - 4
-	lines := strings.Split(m.renderCommitList(l.branchCol, l.dateCol, l.authorCol, contentWidth), "\n")
+	lines := strings.Split(m.renderCommitList(l, contentWidth), "\n")
 
 	// Date directly after the hash; author against the right edge.
 	hashEnd := 2 + l.branchCol + 1 + m.maxGraphWidth + 1 + 7

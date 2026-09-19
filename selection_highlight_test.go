@@ -92,7 +92,7 @@ func TestSelectedRowBandIsUnbroken(t *testing.T) {
 			m.selected = sel
 			l := computePanelLayout(m.windowWidth, m.maxGraphWidth, m.maxBranchWidth, len(dateColumnFormat), m.maxAuthorWidth)
 			content := l.leftWidth - 4
-			lines := strings.Split(m.renderCommitList(l.branchCol, l.dateCol, l.authorCol, content), "\n")
+			lines := strings.Split(m.renderCommitList(l, content), "\n")
 
 			selLine := map[int]int{0: 0, 1: 1, 2: 3}[sel] // commit index -> display row
 			for i, line := range lines[:4] {
@@ -128,7 +128,7 @@ func TestSelectedRowBandInFallbackList(t *testing.T) {
 		{Hash: "aaaaaaa", GraphLine: "● "},
 		{Hash: "bbbbbbb", GraphLine: "◆ "},
 	}
-	lines := strings.Split(m.renderCommitList(0, 0, 0, 40), "\n")
+	lines := strings.Split(m.renderCommitList(panelLayout{}, 40), "\n")
 
 	if cells := backgroundCells(lines[1]); len(cells) != 40 || strings.Contains(boolsString(cells), "0") {
 		t.Errorf("selected fallback row band = %s, want 40 cells all set", boolsString(cells))
