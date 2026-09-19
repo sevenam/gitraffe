@@ -132,7 +132,7 @@ func TestRemoteTagsMsgWidensLabelColumn(t *testing.T) {
 		t.Fatalf("width before = %d, want 4", m.maxBranchWidth)
 	}
 
-	res, _ := m.Update(remoteTagsMsg{tags: map[tagRef]bool{}})
+	res, _ := m.Update(remoteTagsMsg{repoPath: m.repoPath, tags: map[tagRef]bool{}})
 	if got := res.(model).maxBranchWidth; got != 5 {
 		t.Errorf("width after = %d, want 5 to fit the mark", got)
 	}

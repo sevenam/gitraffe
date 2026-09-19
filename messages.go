@@ -28,7 +28,8 @@ type versionCheckMsg struct {
 }
 
 type remoteTagsMsg struct {
-	tags map[tagRef]bool // nil when unknown: no remotes, or one didn't answer
+	tags     map[tagRef]bool // nil when unknown: no remotes, or one didn't answer
+	repoPath string          // the repository it answers for; see the handler
 }
 
 type updateFinishedMsg struct {
@@ -37,6 +38,7 @@ type updateFinishedMsg struct {
 }
 
 type diffLoadedMsg struct {
+	repoPath  string // the repository it was loaded for; see the handler
 	commitIdx int
 	diffStat  string
 	diffBody  string
@@ -94,6 +96,6 @@ func loadDiffCmd(repoPath string, fullHash string, idx int, statWidth int) tea.C
 			body = strings.TrimSpace(strings.Join(diffLines, "\n"))
 		}
 
-		return diffLoadedMsg{commitIdx: idx, diffStat: stat, diffBody: body}
+		return diffLoadedMsg{repoPath: repoPath, commitIdx: idx, diffStat: stat, diffBody: body}
 	}
 }

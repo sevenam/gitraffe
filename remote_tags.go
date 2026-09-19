@@ -44,9 +44,9 @@ func loadRemoteTagsCmd(repoPath string) tea.Cmd {
 		tags, err := fetchRemoteTags(repoPath)
 		if err != nil {
 			log.Printf("Remote tag check skipped: %v\n", err)
-			return remoteTagsMsg{}
+			return remoteTagsMsg{repoPath: repoPath}
 		}
-		return remoteTagsMsg{tags: tags}
+		return remoteTagsMsg{repoPath: repoPath, tags: tags}
 	}
 }
 

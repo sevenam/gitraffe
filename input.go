@@ -50,6 +50,9 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		if m.picker.open {
 			return m.updateThemePicker(msg)
 		}
+		if m.switcher.open {
+			return m.updateRepoSwitcher(msg)
+		}
 
 		// The help overlay covers the panels, so keys acting on them would change
 		// things the user can't see. Esc and q close it rather than quit: pressed
@@ -72,6 +75,13 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return m, nil
 		case "t":
 			return m.openThemePicker(), nil
+		case "r":
+			// Not while loading: the load under way would finish into the model
+			// the switch replaced it with.
+			if !m.ready {
+				return m, nil
+			}
+			return m.openRepoSwitcher(), nil
 		case "U":
 			return m.startUpdate(), nil
 		case "c":
@@ -191,6 +201,7 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 		m.ready = true
 		m.selected = 0
+		m.rememberCurrentRepo()
 		return m, m.maybeLoadDiff()
 
 	case errMsg:
@@ -210,9 +221,15 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 		m.ready = true
 		m.selected = 0
+		m.rememberCurrentRepo()
 		return m, m.maybeLoadDiff()
 
 	case diffLoadedMsg:
+		// A diff requested before switching repositories would otherwise land
+		// on whichever commit of the new one has the same index.
+		if msg.repoPath != m.repoPath {
+			return m, nil
+		}
 		if msg.commitIdx >= 0 && msg.commitIdx < len(m.commits) {
 			m.commits[msg.commitIdx].DiffLoaded = true
 			m.commits[msg.commitIdx].DiffStat = msg.diffStat
@@ -225,6 +242,11 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, nil
 
 	case remoteTagsMsg:
+		// Asking the remotes takes seconds, so the answer for a repository
+		// switched away from can still arrive; its tags would mark the new one's.
+		if msg.repoPath != m.repoPath {
+			return m, nil
+		}
 		// May arrive before or after the graph loads; loadGraphData applies it
 		// in the other order.
 		m.remoteTags = msg.tags
