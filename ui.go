@@ -565,13 +565,21 @@ func (m *model) renderCommitList(branchColWidth, dateColWidth, authorColWidth, c
 				write(plainStyle, " ")
 			}
 
+			// The working tree has no hash, date or author; its counts go where
+			// the hash would be, and the columns after it stay empty.
+			working := isCommit && m.commits[row.CommitIdx].WorkingTree
+
 			if isSel {
 				highlighted := strings.ReplaceAll(graphPadded, "●", "◉")
 				write(plainStyle, "> ")
 				renderBranchLabel()
 				write(selGraphColor, highlighted)
 				write(plainStyle, " ")
-				write(selHashStyle, m.commits[row.CommitIdx].Hash)
+				if working {
+					write(selHashStyle, m.commits[row.CommitIdx].Message)
+				} else {
+					write(selHashStyle, m.commits[row.CommitIdx].Hash)
+				}
 			} else {
 				write(plainStyle, "  ")
 				renderBranchLabel()
@@ -579,18 +587,21 @@ func (m *model) renderCommitList(branchColWidth, dateColWidth, authorColWidth, c
 				if padLen > 0 {
 					write(plainStyle, strings.Repeat(" ", padLen))
 				}
-				if isCommit {
+				if working {
+					write(plainStyle, " ")
+					write(workingTreeStyle, m.commits[row.CommitIdx].Message)
+				} else if isCommit {
 					write(plainStyle, " ")
 					write(commitHashStyle, m.commits[row.CommitIdx].Hash)
 				}
 			}
-			if isCommit && dateColWidth > 0 {
+			if isCommit && !working && dateColWidth > 0 {
 				write(plainStyle, " ")
 				write(dateStyle, m.commits[row.CommitIdx].Date.Format(dateColumnFormat))
 			}
 			// A gap under 1 means the row doesn't fit as computed; drawing the
 			// name anyway would wrap the row and break the panel's layout.
-			if isCommit && authorColWidth > 0 && authorGap >= 1 {
+			if isCommit && !working && authorColWidth > 0 && authorGap >= 1 {
 				write(plainStyle, strings.Repeat(" ", authorGap))
 				write(authorStyle, ansi.Truncate(m.commits[row.CommitIdx].Author, authorColWidth, "…"))
 			}
@@ -732,6 +743,17 @@ func (m *model) renderCommitDetails() string {
 
 	var sb strings.Builder
 
+	// The working tree has none of a commit's fields — no hash, author or
+	// parents — so it gets its own header and goes straight to the changes.
+	if c.WorkingTree {
+		sb.WriteString(workingTreeStyle.Render("Uncommitted changes"))
+		sb.WriteString("\n")
+		sb.WriteString(helpStyle.Render(c.Message + " — not committed yet"))
+		sb.WriteString("\n")
+		sb.WriteString(m.renderDiffSections(c))
+		return m.fitDetails(sb.String())
+	}
+
 	// SHA
 	sb.WriteString(lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color(currentTheme.Hash)).Render("SHA:     "))
 	sb.WriteString(commitHashStyle.Render(c.FullHash))
@@ -792,6 +814,15 @@ func (m *model) renderCommitDetails() string {
 	sb.WriteString(messageStyle.Render(c.Message))
 	sb.WriteString("\n")
 
+	sb.WriteString(m.renderDiffSections(c))
+	return m.fitDetails(sb.String())
+}
+
+// renderDiffSections renders the stats and the diff itself, the part of the
+// details panel that reads the same for a commit and for uncommitted changes.
+func (m *model) renderDiffSections(c commit) string {
+	var sb strings.Builder
+
 	// Diff stats
 	if c.DiffLoaded && c.DiffStat != "" {
 		sb.WriteString("\n")
@@ -832,10 +863,16 @@ func (m *model) renderCommitDetails() string {
 		sb.WriteString("\n")
 	}
 
-	// Apply scroll offset and truncate to fit panel height.
-	// lipgloss Height() only pads short content, it does NOT clip overflow,
-	// so we must truncate here to prevent the panel from growing unbounded.
-	content := truncateLines(sb.String(), m.detailsContentWidth)
+	return sb.String()
+}
+
+// fitDetails applies the scroll offset and clips the panel's content to the
+// room it has.
+//
+// lipgloss Height() only pads short content, it does NOT clip overflow, so
+// without this the panel grows unbounded.
+func (m *model) fitDetails(content string) string {
+	content = truncateLines(content, m.detailsContentWidth)
 	allLines := strings.Split(content, "\n")
 
 	// Clamp scroll

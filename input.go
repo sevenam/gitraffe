@@ -214,6 +214,7 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 		m.ready = true
 		m.selected = 0
+		m.addWorkingTreeRow()
 		m.applyReselect()
 		m.rememberCurrentRepo()
 		return m, m.maybeLoadDiff()
@@ -235,6 +236,7 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 		m.ready = true
 		m.selected = 0
+		m.addWorkingTreeRow()
 		m.applyReselect()
 		m.rememberCurrentRepo()
 		return m, m.maybeLoadDiff()

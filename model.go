@@ -22,10 +22,13 @@ type commit struct {
 	// Tag sync state, filled in once every remote has answered; empty until then.
 	UnpushedTags   map[string]bool // tags here that no remote has at this commit
 	RemoteOnlyTags []string        // tags a remote has at this commit, missing locally
-	GraphLine      string
-	DiffLoaded     bool
-	DiffStat       string
-	DiffBody       string
+	// WorkingTree marks the synthetic row for uncommitted changes, which sits
+	// above the newest commit and has no hash of its own. See addWorkingTreeRow.
+	WorkingTree bool
+	GraphLine   string
+	DiffLoaded  bool
+	DiffStat    string
+	DiffBody    string
 }
 
 // displayRow represents a single line in the commit graph display
