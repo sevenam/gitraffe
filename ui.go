@@ -103,7 +103,7 @@ func (m model) View() (result string) {
 	// borders (2) and horizontal padding (2).
 	var leftPanel, rightPanel string
 	if leftPanelWidth > 0 {
-		leftContent := m.renderCommitList(layout.branchCol, layout.dateCol, layout.authorCol, leftPanelWidth-4)
+		leftContent := m.renderCommitList(layout, leftPanelWidth-4)
 		leftPanel = addBoxLabel(lipgloss.NewStyle().
 			Width(leftPanelWidth-2). // subtract borders (2); Width includes padding
 			Height(contentHeight).
@@ -180,6 +180,8 @@ const (
 	maxAuthorColWidth = 24
 	// Below this a name is truncated past recognition, so the column is dropped.
 	minAuthorColWidth = 6
+	// Below this a subject is cut so short it says less than the space it took.
+	minMessageColWidth = 12
 )
 
 // panelLayout is how the window's width is shared between the commit list and
@@ -187,6 +189,10 @@ const (
 type panelLayout struct {
 	leftWidth, rightWidth         int
 	branchCol, dateCol, authorCol int
+	// messageCol is the subject line at the end of each row, and only the
+	// maximised graph has one: beside the details panel the message is already
+	// on screen, and the room is better spent on the graph.
+	messageCol int
 }
 
 // computePanelLayout sizes the panels. The graph always comes first; the room
@@ -300,7 +306,24 @@ func allocateColumns(room, maxBranchWidth, dateWidth, maxAuthorWidth int) (branc
 func computeMaximisedLayout(windowWidth, maxGraphWidth, maxBranchWidth, dateWidth, maxAuthorWidth int) panelLayout {
 	l := panelLayout{leftWidth: windowWidth}
 	l.branchCol, l.dateCol, l.authorCol = allocateColumns(windowWidth-(maxGraphWidth+14), maxBranchWidth, dateWidth, maxAuthorWidth)
+	// Whatever is left over goes to the message, but only if enough is left to
+	// read: a few characters and an ellipsis say less than the empty space did.
+	if spare := windowWidth - 4 - rowWidth(l, maxGraphWidth) - 1; spare >= minMessageColWidth {
+		l.messageCol = spare
+	}
 	return l
+}
+
+// rowWidth is how much of a row the columns before the message take:
+// "> " + labels + graph + " " + 7-char hash [+ " " + date] [+ " " + author].
+func rowWidth(l panelLayout, maxGraphWidth int) int {
+	w := 2 + maxGraphWidth + 1 + 7
+	for _, col := range []int{l.branchCol, l.dateCol, l.authorCol} {
+		if col > 0 {
+			w += col + 1
+		}
+	}
+	return w
 }
 
 // renderStatusLine renders the bottom line: the update prompt or notice when one
@@ -404,12 +427,12 @@ func (m *model) renderRepoInfo() string {
 }
 
 // renderCommitList renders the left panel with the commit list/graph
-// branchColWidth, dateColWidth and authorColWidth are the columns
-// computePanelLayout allocated for this layout pass (0 hides a column);
-// contentWidth is the width inside the panel's borders and padding.
-func (m *model) renderCommitList(branchColWidth, dateColWidth, authorColWidth, contentWidth int) string {
-	log.Printf("renderCommitList: commits=%d, displayRows=%d, selected=%d, windowHeight=%d, maxGraphWidth=%d, branchColWidth=%d",
-		len(m.commits), len(m.displayRows), m.selected, m.windowHeight, m.maxGraphWidth, branchColWidth)
+// layout holds the column widths computePanelLayout allocated for this pass
+// (0 hides a column); contentWidth is the width inside the panel's borders
+// and padding.
+func (m *model) renderCommitList(layout panelLayout, contentWidth int) string {
+	log.Printf("renderCommitList: commits=%d, displayRows=%d, selected=%d, windowHeight=%d, maxGraphWidth=%d, layout.branchCol=%d",
+		len(m.commits), len(m.displayRows), m.selected, m.windowHeight, m.maxGraphWidth, layout.branchCol)
 
 	if len(m.commits) == 0 {
 		return "No commits found"
@@ -437,18 +460,16 @@ func (m *model) renderCommitList(branchColWidth, dateColWidth, authorColWidth, c
 
 		// The author column sits against the panel's right edge, so the gap in
 		// front of it absorbs any slack width and names line up on every row.
+		// With a message after it there is no slack to absorb: the message
+		// takes it, and one space separates the two.
 		authorGap := 0
-		if authorColWidth > 0 {
-			labelWidth := 0
-			if branchColWidth > 0 {
-				labelWidth = branchColWidth + 1
+		if layout.authorCol > 0 {
+			withoutAuthor := layout
+			withoutAuthor.authorCol = 0
+			authorGap = contentWidth - layout.authorCol - rowWidth(withoutAuthor, m.maxGraphWidth)
+			if layout.messageCol > 0 {
+				authorGap = 1
 			}
-			// "> " + labels + graph + " " + 7-char hash [+ " " + date]
-			rowWidth := 2 + labelWidth + m.maxGraphWidth + 1 + 7
-			if dateColWidth > 0 {
-				rowWidth += 1 + dateColWidth
-			}
-			authorGap = contentWidth - authorColWidth - rowWidth
 		}
 
 		// Find the display row index of the selected commit
@@ -554,13 +575,13 @@ func (m *model) renderCommitList(branchColWidth, dateColWidth, authorColWidth, c
 			// Helper to render the label column, truncated to the width this
 			// layout pass allows and padded so the column stays aligned.
 			renderBranchLabel := func() {
-				if branchColWidth <= 0 {
+				if layout.branchCol <= 0 {
 					return
 				}
 				used := 0
 				for i, seg := range segments {
 					if i > 0 {
-						if used+2 > branchColWidth {
+						if used+2 > layout.branchCol {
 							break
 						}
 						write(plainStyle, ", ")
@@ -568,8 +589,8 @@ func (m *model) renderCommitList(branchColWidth, dateColWidth, authorColWidth, c
 					}
 					// Truncate to runes, not bytes
 					text := seg.text
-					if r := []rune(text); len(r) > branchColWidth-used {
-						text = string(r[:branchColWidth-used])
+					if r := []rune(text); len(r) > layout.branchCol-used {
+						text = string(r[:layout.branchCol-used])
 					}
 					if text == "" {
 						break
@@ -577,7 +598,7 @@ func (m *model) renderCommitList(branchColWidth, dateColWidth, authorColWidth, c
 					write(seg.style, text)
 					used += utf8.RuneCountInString(text)
 				}
-				if pad := branchColWidth - used; pad > 0 {
+				if pad := layout.branchCol - used; pad > 0 {
 					write(plainStyle, strings.Repeat(" ", pad))
 				}
 				write(plainStyle, " ")
@@ -613,15 +634,30 @@ func (m *model) renderCommitList(branchColWidth, dateColWidth, authorColWidth, c
 					write(commitHashStyle, m.commits[row.CommitIdx].Hash)
 				}
 			}
-			if isCommit && !working && dateColWidth > 0 {
+			if isCommit && !working && layout.dateCol > 0 {
 				write(plainStyle, " ")
 				write(dateStyle, m.commits[row.CommitIdx].Date.Format(dateColumnFormat))
 			}
 			// A gap under 1 means the row doesn't fit as computed; drawing the
 			// name anyway would wrap the row and break the panel's layout.
-			if isCommit && !working && authorColWidth > 0 && authorGap >= 1 {
+			if isCommit && !working && layout.authorCol > 0 && authorGap >= 1 {
 				write(plainStyle, strings.Repeat(" ", authorGap))
-				write(authorStyle, ansi.Truncate(m.commits[row.CommitIdx].Author, authorColWidth, "…"))
+				name := ansi.Truncate(m.commits[row.CommitIdx].Author, layout.authorCol, "…")
+				write(authorStyle, name)
+				// Padded only when a message follows: the names are then a
+				// column with an edge rather than a ragged left margin for it.
+				if pad := layout.authorCol - ansi.StringWidth(name); layout.messageCol > 0 && pad > 0 {
+					write(plainStyle, strings.Repeat(" ", pad))
+				}
+			}
+			// The subject last, taking whatever is left: it is the one column
+			// with no natural width, and cutting it costs least.
+			if isCommit && !working && layout.messageCol > 0 {
+				used := ansi.StringWidth(sb.String()[rowStart:])
+				if room := min(layout.messageCol, contentWidth-used-1); room >= 2 {
+					write(plainStyle, " ")
+					write(messageStyle, ansi.Truncate(m.commits[row.CommitIdx].Message, room, "…"))
+				}
 			}
 			// Carry the band to the panel edge, whichever columns are showing.
 			if isSel {

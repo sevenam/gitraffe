@@ -371,7 +371,7 @@ func laneModel() *model {
 func renderLaneRow(t *testing.T, m *model) string {
 	t.Helper()
 	l := computePanelLayout(m.windowWidth, m.maxGraphWidth, m.maxBranchWidth, len(dateColumnFormat), m.maxAuthorWidth)
-	out := m.renderCommitList(l.branchCol, l.dateCol, l.authorCol, l.leftWidth-4)
+	out := m.renderCommitList(l, l.leftWidth-4)
 	return strings.Split(out, "\n")[0]
 }
 

@@ -101,8 +101,11 @@ the other one back. `1`, `2` and `tab` still choose which panel that is, so you 
 swap between a full-window graph and a full-window diff without leaving fullscreen.
 
 The graph uses the extra room rather than just stretching: branch labels that were
-truncated fit, and the date and author columns come back on a terminal too narrow to
-show them beside the details panel.
+truncated fit, the date and author columns come back on a terminal too narrow to show
+them beside the details panel, and each commit's message is added at the end of its
+row, since the details panel is no longer there to show it. Whatever is left over
+after the other columns goes to the message, and it is cut with an `…` when the row
+runs out; a window too narrow for a readable message leaves it out entirely.
 
 Whether you left gitraffe maximised is remembered (see
 [Remembered preferences](#remembered-preferences)).
