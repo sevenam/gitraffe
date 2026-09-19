@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	tea "github.com/charmbracelet/bubbletea"
+	"github.com/charmbracelet/x/ansi"
 )
 
 // loadedModel opens dir the way the program does, by feeding Update the
@@ -126,5 +127,18 @@ func TestF5Reloads(t *testing.T) {
 	res, cmd := m.Update(tea.KeyMsg{Type: tea.KeyF5})
 	if got := res.(model); got.ready || cmd == nil {
 		t.Errorf("ready=%v cmd=%v; want f5 to reload like r", got.ready, cmd != nil)
+	}
+}
+
+func TestStatusLineOffersReload(t *testing.T) {
+	m := testModel()
+	m.windowWidth = 120
+	line := ansi.Strip(m.renderStatusLine())
+	if !strings.Contains(line, "r: reload") {
+		t.Errorf("status line = %q, want it to offer reload", line)
+	}
+	// It has to survive the width the line is written for.
+	if !strings.Contains(line, "q/esc: quit") {
+		t.Errorf("status line = %q, want quit still on it at 120 columns", line)
 	}
 }
