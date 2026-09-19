@@ -46,9 +46,25 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		// Any keystroke dismisses a lingering update notice.
 		m.updateMessage = ""
 
+		// The help overlay covers the panels, so keys acting on them would change
+		// things the user can't see. Esc and q close it rather than quit: pressed
+		// while reading help they mean "back", and quitting would lose the place.
+		if m.showHelp {
+			switch msg.String() {
+			case "?", "esc", "q":
+				m.showHelp = false
+			case "ctrl+c":
+				return m, tea.Quit
+			}
+			return m, nil
+		}
+
 		switch msg.String() {
 		case "q", "ctrl+c", "esc":
 			return m, tea.Quit
+		case "?":
+			m.showHelp = true
+			return m, nil
 		case "U":
 			return m.startUpdate(), nil
 		case "c":

@@ -140,6 +140,10 @@ func (m model) View() (result string) {
 		}
 	}
 
+	if m.showHelp {
+		output = overlayCentre(output, renderHelpBox(), m.windowWidth, m.windowHeight)
+	}
+
 	return output
 }
 
@@ -256,7 +260,10 @@ func (m *model) renderStatusLine() string {
 		return truncateLines(noticeStyle.Render(m.updateMessage), m.windowWidth)
 	}
 
-	help := "1/2: focus box • tab/shift+tab: cycle • ↑/↓/j/k: scroll • d/u: half page • g/G: top/bottom • c: colours • q/esc: quit"
+	// Only the keys needed to get around; "?" lists the rest. The line has to
+	// fit a typical terminal, and "?" leads so truncation never hides the way
+	// to find everything else.
+	help := "?: help • 1/2: focus box • tab/shift+tab: cycle • ↑/↓/j/k: scroll • c: colours • q/esc: quit"
 	if m.updateAvailable() {
 		// Leads rather than trails: the line is already near a typical terminal's
 		// width, so a trailing hint is the first thing truncation eats.
