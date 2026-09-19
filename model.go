@@ -72,6 +72,7 @@ type model struct {
 	updateMessage       string // prompt, progress or error text for the status line
 	updatedTo           string // tag installed this session; read by main after Run returns
 	colourLanes         bool   // tint each graph column differently; see lanes.go
+	showHelp            bool   // key reference overlay, toggled with "?"
 }
 
 // updateAvailable reports whether GitHub advertises a release newer than this build.

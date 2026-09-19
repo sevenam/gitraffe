@@ -63,6 +63,7 @@ in `gitraffe ./update`.
 
 ### Keyboard Shortcuts
 
+- `?` - Show every keyboard shortcut (`?`, `Esc` or `q` closes it)
 - `↑/↓` or `k/j` - Scroll up/down
 - `PgUp/PgDn` - Page up/down
 - `Home/End` - Jump to top/bottom
