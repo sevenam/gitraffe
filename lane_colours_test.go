@@ -441,3 +441,74 @@ func TestCKeyWorksFromEitherBox(t *testing.T) {
 		}
 	}
 }
+
+// Merging main into a feature branch draws main's line leaving the merge to
+// the right and closing back over the feature's own line into main, in a kink
+// git renders as "| |\", "| |/", "|/|". That line is main's, as git's own
+// colours say; drawn in the feature's colour it looked like the feature branch
+// starting a second time.
+func TestMainMergedIntoFeatureKeepsMainsColour(t *testing.T) {
+	dir, git, commit := gitFixture(t)
+	git("init", "-q", "-b", "main")
+	commit("base")
+	git("checkout", "-qb", "feature")
+	commit("F1")
+	git("checkout", "-q", "main")
+	git("checkout", "-qb", "side")
+	commit("S1")
+	git("checkout", "-q", "main")
+	git("merge", "-q", "--no-ff", "side", "-m", "merge side")
+	git("checkout", "-q", "feature")
+	git("merge", "-q", "--no-ff", "main", "-m", "merge main into feature")
+	commit("F2")
+	git("checkout", "-q", "main")
+	git("merge", "-q", "--no-ff", "feature", "-m", "merge feature")
+
+	m := &model{repoPath: dir}
+	if err := m.loadGraphData(); err != nil {
+		t.Fatal(err)
+	}
+	mainLane, _ := laneOf(m, "merge side")
+	featureLane, _ := laneOf(m, "F2")
+	if mainLane == featureLane {
+		t.Fatalf("main and feature share lane %d, so this shape cannot show the bug", mainLane)
+	}
+
+	// The rows between the merge into the feature and the main commit it
+	// merged hold only two lines: the feature's own bar, and main's kink.
+	var between []displayRow
+	inside := false
+	for _, row := range m.displayRows {
+		if row.CommitIdx >= 0 {
+			msg := m.commits[row.CommitIdx].Message
+			if msg == "merge main into feature" {
+				inside = true
+				continue
+			}
+			if msg == "merge side" {
+				break
+			}
+		}
+		if inside {
+			between = append(between, row)
+		}
+	}
+	if len(between) == 0 {
+		t.Fatal("no rows between the two merges; git drew a different shape")
+	}
+	kinks := 0
+	for _, row := range between {
+		for c, r := range []rune(row.GraphChars) {
+			if r == '\\' || r == '/' {
+				kinks++
+				if row.Lanes[c] != mainLane {
+					t.Errorf("%q: %c at column %d is lane %d, want main's lane %d",
+						row.GraphChars, r, c, row.Lanes[c], mainLane)
+				}
+			}
+		}
+	}
+	if kinks < 3 {
+		t.Fatalf("found %d strokes of main's kink, want 3; git drew a different shape", kinks)
+	}
+}

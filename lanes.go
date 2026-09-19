@@ -273,6 +273,16 @@ func resolveLanePaths(rows []displayRow, commits []commit) {
 					union(cell{r, c}, cell{r - 1, c + d})
 				}
 			}
+			// Git also closes a lane two columns in one step when another lane
+			// is in the way, drawing "| |/" then "|/|": the line crosses the
+			// bar between them, which is never drawn. Without this the two
+			// halves are separate runs and get coloured independently.
+			if k2, ok := colourAt(r-1, c+1); ok && k2 != k {
+				if k3, ok := colourAt(r-1, c+2); ok && k3 == k && runesOf[r-1][c+2] == '/' {
+					ensure(cell{r - 1, c + 2})
+					union(cell{r, c}, cell{r - 1, c + 2})
+				}
+			}
 		}
 	}
 
@@ -283,10 +293,20 @@ func resolveLanePaths(rows []displayRow, commits []commit) {
 	// wins, and between two diagonal neighbours the one below wins, that being
 	// the branch whose commits the lane leads down to rather than the one it
 	// forked from.
+	//
+	// Weakest of all is a merge's own diagonal leaving it for its second
+	// parent, "\" below and right of the merge. That line leads to the branch
+	// merged in, so it takes that branch's path from the commit at its other
+	// end. It usually ends at that branch's commit in the same column and wins
+	// anyway; this matters when it ends by closing into another lane, as when
+	// main is merged into a feature branch: it then ties with that commit,
+	// both being diagonal, and would otherwise draw main's line in the
+	// feature's colour.
 	const (
 		sameColumn = iota
 		below
 		above
+		leavingMerge
 	)
 	bestRank := map[cell]int{}
 	bestPath := map[cell]int{}
@@ -327,7 +347,11 @@ func resolveLanePaths(rows []displayRow, commits []commit) {
 			case 0:
 				consider(c, sameColumn, path)
 			case -1, 1:
-				consider(c, dir.rank, path)
+				rank := dir.rank
+				if dir.dr == -1 && col == c.col-1 && runesOf[c.row][c.col] == '\\' {
+					rank = leavingMerge
+				}
+				consider(c, rank, path)
 			}
 		}
 	}
