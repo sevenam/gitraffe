@@ -255,13 +255,47 @@ func isRepoRoot(dir string) bool {
 // it. Starting fresh rather than clearing the old repository's fields means a
 // field added later can't carry one repository's data into the next; only
 // what belongs to the session rather than a repository is carried over.
-func (m model) switchRepo(root string) (tea.Model, tea.Cmd) {
+func (m model) switchRepo(root string) (model, tea.Cmd) {
 	next := initialModel(root)
 	next.windowWidth, next.windowHeight = m.windowWidth, m.windowHeight
 	next.latestVersion = m.latestVersion
 	next.configDir = m.configDir
 	next.colourLanes = m.colourLanes
 	return next, tea.Batch(loadRepo(root), loadRemoteTagsCmd(root))
+}
+
+// reloadRepo reads the open repository again, picking up commits made since it
+// was opened. It goes through switchRepo so that everything derived from the
+// repository is rebuilt rather than merged with what is on screen: the graph,
+// the ahead/behind counts and the tag marks all change together.
+//
+// Unlike a switch it keeps your place: the same commit stays selected if it is
+// still there, and the same panel keeps focus.
+func (m model) reloadRepo() (model, tea.Cmd) {
+	next, cmd := m.switchRepo(m.repoPath)
+	next.repoRoot = m.repoRoot
+	next.focusedBox = m.focusedBox
+	if m.selected >= 0 && m.selected < len(m.commits) {
+		next.reselect = m.commits[m.selected].FullHash
+	}
+	next.notice = "Reloaded " + displayPath(m.repoPath)
+	return next, cmd
+}
+
+// applyReselect puts the selection back on the commit that was selected before
+// a reload. A commit can go missing — an amend or a rebase replaces it — and
+// the newest commit is then the best place to be.
+func (m *model) applyReselect() {
+	if m.reselect == "" {
+		return
+	}
+	for i, c := range m.commits {
+		if c.FullHash == m.reselect {
+			m.selected = i
+			break
+		}
+	}
+	m.reselect = ""
 }
 
 // repoBase is what a relative path in the switcher is relative to: the open

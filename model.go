@@ -76,6 +76,7 @@ type model struct {
 	picker              themePicker
 	switcher            repoSwitcher
 	repoRoot            string // absolute root of the open repository; "" until it has loaded
+	reselect            string // full hash to reselect once a reload finishes; see reloadRepo
 	configDir           string // gitraffe's config directory; "" means a picked theme can't be saved
 	notice              string // one-off status line text, e.g. the theme just saved; cleared by the next key
 }
