@@ -317,6 +317,11 @@ func (m *model) renderStatusLine() string {
 	if m.updateMessage != "" {
 		return truncateLines(noticeStyle.Render(m.updateMessage), m.windowWidth)
 	}
+	// Ahead of the notice: a fetch is the one thing that keeps running after
+	// the key that started it, so the line has to say it is still going.
+	if m.fetching {
+		return truncateLines(noticeStyle.Render("Fetching from the remote..."), m.windowWidth)
+	}
 	if m.notice != "" {
 		return truncateLines(noticeStyle.Render(m.notice), m.windowWidth)
 	}

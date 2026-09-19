@@ -33,6 +33,7 @@ var helpSections = []helpSection{
 		{"t", "choose a colour theme"},
 		{"o", "open another repository"},
 		{"r / f5", "reload this repository"},
+		{"f", "fetch from the remote, then reload"},
 		{"U", "update to the latest release"},
 		{"mouse wheel", "scroll the panel under the pointer"},
 		{"q / esc / ctrl+c", "quit"},

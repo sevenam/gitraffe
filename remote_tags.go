@@ -88,7 +88,20 @@ func lsRemoteTags(repoPath, remote string) (string, error) {
 
 	cmd := exec.CommandContext(ctx, "git", "ls-remote", "--tags", remote)
 	cmd.Dir = repoPath
-	cmd.Env = append(os.Environ(),
+	cmd.Env = noPromptEnv(repoPath)
+
+	out, err := cmd.Output()
+	if err != nil {
+		return "", err
+	}
+	return string(out), nil
+}
+
+// noPromptEnv is the environment for a git command that talks to a remote
+// while the TUI owns the terminal, where a username, password or SSH
+// passphrase prompt would either hang or scribble over the screen.
+func noPromptEnv(repoPath string) []string {
+	env := append(os.Environ(),
 		"GIT_TERMINAL_PROMPT=0", // HTTPS: fail rather than ask for credentials
 		"GCM_INTERACTIVE=never", // Git Credential Manager: no sign-in window
 	)
@@ -96,14 +109,9 @@ func lsRemoteTags(repoPath, remote string) (string, error) {
 		// BatchMode makes ssh fail instead of asking for a passphrase. Only
 		// injected for plain ssh: GIT_SSH_COMMAND would override a user's own
 		// GIT_SSH / core.sshCommand (e.g. plink), breaking their setup.
-		cmd.Env = append(cmd.Env, "GIT_SSH_COMMAND=ssh -o BatchMode=yes")
+		env = append(env, "GIT_SSH_COMMAND=ssh -o BatchMode=yes")
 	}
-
-	out, err := cmd.Output()
-	if err != nil {
-		return "", err
-	}
-	return string(out), nil
+	return env
 }
 
 func usesDefaultSSH(repoPath string) bool {
