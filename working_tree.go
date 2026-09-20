@@ -131,6 +131,7 @@ func loadWorkingDiffCmd(repoPath string, statWidth int) tea.Cmd {
 
 		stat := run("diff", "HEAD", "--stat="+fmt.Sprint(statWidth), "--no-color")
 		body := run("diff", "HEAD", "--no-color")
+		files := parseFileDiffs(body)
 		if lines := strings.Split(body, "\n"); len(lines) > 300 {
 			body = strings.Join(append(lines[:300], "... (truncated)"), "\n")
 		}
@@ -140,6 +141,14 @@ func loadWorkingDiffCmd(repoPath string, statWidth int) tea.Cmd {
 			sb.WriteString("Untracked files:\n")
 			for _, f := range strings.Split(untracked, "\n") {
 				sb.WriteString("  " + f + "\n")
+				// Listed as files of their own so the commit view can count
+				// them and say why there is nothing to read: git has never
+				// seen the file, so there is no diff to ask it for.
+				files = append(files, fileDiff{
+					Path:      f,
+					Untracked: true,
+					Body:      "Untracked — this file is not in git yet, so there is nothing to compare it with.",
+				})
 			}
 			if body != "" {
 				sb.WriteString("\n")
@@ -147,6 +156,6 @@ func loadWorkingDiffCmd(repoPath string, statWidth int) tea.Cmd {
 			body = sb.String() + body
 		}
 
-		return diffLoadedMsg{repoPath: repoPath, commitIdx: 0, diffStat: stat, diffBody: body}
+		return diffLoadedMsg{repoPath: repoPath, commitIdx: 0, diffStat: stat, diffBody: body, diffFiles: files}
 	}
 }

@@ -41,6 +41,7 @@ var (
 	esc   = tea.KeyMsg{Type: tea.KeyEsc}
 	up    = tea.KeyMsg{Type: tea.KeyUp}
 	down  = tea.KeyMsg{Type: tea.KeyDown}
+	space = tea.KeyMsg{Type: tea.KeySpace}
 )
 
 func TestResolveRepo(t *testing.T) {

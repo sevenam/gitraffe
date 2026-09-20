@@ -31,6 +31,9 @@ func (m model) handleMouse(msg tea.MouseMsg) (model, tea.Cmd) {
 	if !m.ready || m.err != nil || len(m.commits) == 0 {
 		return m, nil
 	}
+	if m.commitView.open {
+		return m.commitViewMouse(msg)
+	}
 
 	if msg.Action == tea.MouseActionPress && msg.Button == tea.MouseButtonLeft {
 		return m.selectClicked(msg.X, msg.Y)

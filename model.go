@@ -29,6 +29,10 @@ type commit struct {
 	DiffLoaded  bool
 	DiffStat    string
 	DiffBody    string
+	// DiffFiles is the same diff split per file, for the commit view. It is
+	// parsed from the untruncated output, so a commit too long for DiffBody
+	// still lists every file it touched.
+	DiffFiles []fileDiff
 }
 
 // displayRow represents a single line in the commit graph display
@@ -88,6 +92,7 @@ type model struct {
 	commitLimit         int    // how many commits to read; grows with "m", see loadMoreCommits
 	moreCommits         bool   // the log was cut off at commitLimit
 	search              commitSearch
+	commitView          commitView // the whole-screen look at one commit; see commit_view.go
 	configDir           string // gitraffe's config directory; "" means a picked theme can't be saved
 	notice              string // one-off status line text, e.g. the theme just saved; cleared by the next key
 }

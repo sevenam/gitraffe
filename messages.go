@@ -42,6 +42,10 @@ type diffLoadedMsg struct {
 	commitIdx int
 	diffStat  string
 	diffBody  string
+	// diffFiles is the same diff split per file. It is parsed before diffBody
+	// is cut to length, so the commit view can list files the panel's text no
+	// longer reaches.
+	diffFiles []fileDiff
 }
 
 // Command generators
@@ -77,6 +81,7 @@ func performUpdateCmd() tea.Cmd {
 func loadDiffCmd(repoPath string, fullHash string, idx int, statWidth int) tea.Cmd {
 	return func() tea.Msg {
 		var stat, body string
+		var files []fileDiff
 
 		cmd := exec.Command("git", "show", "--format=", fmt.Sprintf("--stat=%d", statWidth), "--no-color", fullHash)
 		cmd.Dir = repoPath
@@ -88,6 +93,10 @@ func loadDiffCmd(repoPath string, fullHash string, idx int, statWidth int) tea.C
 		cmd.Dir = repoPath
 		if out, err := cmd.Output(); err == nil {
 			diff := strings.ReplaceAll(string(out), "\r", "")
+			// Split before the cut below: the details panel shows as much as
+			// it can hold, but the commit view has a list to fill, and a file
+			// it never named could not be opened.
+			files = parseFileDiffs(diff)
 			diffLines := strings.Split(diff, "\n")
 			if len(diffLines) > 300 {
 				diffLines = diffLines[:300]
@@ -96,6 +105,6 @@ func loadDiffCmd(repoPath string, fullHash string, idx int, statWidth int) tea.C
 			body = strings.TrimSpace(strings.Join(diffLines, "\n"))
 		}
 
-		return diffLoadedMsg{repoPath: repoPath, commitIdx: idx, diffStat: stat, diffBody: body}
+		return diffLoadedMsg{repoPath: repoPath, commitIdx: idx, diffStat: stat, diffBody: body, diffFiles: files}
 	}
 }

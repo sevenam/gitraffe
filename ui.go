@@ -53,6 +53,16 @@ func (m model) View() (result string) {
 		return screen
 	}
 
+	// The commit view is a screen, not an overlay: it replaces the graph
+	// rather than covering it, so nothing below here runs while it is open.
+	if m.commitView.open {
+		screen := m.renderCommitView()
+		if m.showHelp {
+			screen = overlayCentre(screen, renderHelpSections(commitViewHelp), m.windowWidth, m.windowHeight)
+		}
+		return screen
+	}
+
 	help := m.renderStatusLine()
 
 	// Border colors: active for focused, inactive for unfocused
@@ -358,7 +368,7 @@ func (m *model) renderStatusLine() string {
 	// Only the keys needed to get around; "?" lists the rest. The line has to
 	// fit a typical terminal, and "?" leads so truncation never hides the way
 	// to find everything else.
-	help := "?: help • r: reload • 1/2: focus box • tab/shift+tab: cycle • ↑/↓/j/k: scroll • c: colours • q/esc: quit"
+	help := "?: help • enter: details • space: diff • r: reload • tab: cycle • ↑/↓/j/k: scroll • c: colours • q/esc: quit"
 	if m.updateAvailable() {
 		// Leads rather than trails: the line is already near a typical terminal's
 		// width, so a trailing hint is the first thing truncation eats.
@@ -801,7 +811,14 @@ func (m *model) renderCommitDetails() string {
 	}
 
 	c := m.commits[m.selected]
+	return m.fitDetails(commitIdentity(c) + m.renderDiffSections(c))
+}
 
+// commitIdentity is what a commit is, as against what it changed: hash, date,
+// author, parents, refs and the message. The details panel puts the diff under
+// it; the commit view gives it a box of its own. Both ask here, so a commit
+// reads the same on either screen.
+func commitIdentity(c commit) string {
 	var sb strings.Builder
 
 	// The working tree has none of a commit's fields — no hash, author or
@@ -811,8 +828,7 @@ func (m *model) renderCommitDetails() string {
 		sb.WriteString("\n")
 		sb.WriteString(helpStyle.Render(c.Message + " — not committed yet"))
 		sb.WriteString("\n")
-		sb.WriteString(m.renderDiffSections(c))
-		return m.fitDetails(sb.String())
+		return sb.String()
 	}
 
 	// SHA
@@ -875,8 +891,7 @@ func (m *model) renderCommitDetails() string {
 	sb.WriteString(messageStyle.Render(c.Message))
 	sb.WriteString("\n")
 
-	sb.WriteString(m.renderDiffSections(c))
-	return m.fitDetails(sb.String())
+	return sb.String()
 }
 
 // renderDiffSections renders the stats and the diff itself, the part of the
@@ -899,23 +914,8 @@ func (m *model) renderDiffSections(c commit) string {
 		sb.WriteString(lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color(currentTheme.SectionHeader)).Render("─── Diff ──────────────────────────"))
 		sb.WriteString("\n")
 
-		addStyle := lipgloss.NewStyle().Foreground(lipgloss.Color(currentTheme.DiffAdd))
-		delStyle := lipgloss.NewStyle().Foreground(lipgloss.Color(currentTheme.DiffDel))
-		hunkStyle := lipgloss.NewStyle().Foreground(lipgloss.Color(currentTheme.DiffHunk))
-		diffHeaderStyle := lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color(currentTheme.DiffHeader))
-
 		for _, line := range strings.Split(c.DiffBody, "\n") {
-			if strings.HasPrefix(line, "+") && !strings.HasPrefix(line, "+++") {
-				sb.WriteString(addStyle.Render(line))
-			} else if strings.HasPrefix(line, "-") && !strings.HasPrefix(line, "---") {
-				sb.WriteString(delStyle.Render(line))
-			} else if strings.HasPrefix(line, "@@") {
-				sb.WriteString(hunkStyle.Render(line))
-			} else if strings.HasPrefix(line, "diff ") {
-				sb.WriteString(diffHeaderStyle.Render(line))
-			} else {
-				sb.WriteString(line)
-			}
+			sb.WriteString(styleDiffLine(line))
 			sb.WriteString("\n")
 		}
 	} else if !c.DiffLoaded {
@@ -925,6 +925,23 @@ func (m *model) renderDiffSections(c commit) string {
 	}
 
 	return sb.String()
+}
+
+// styleDiffLine colours one line of a diff by what git meant it to be. The
+// "+++"/"---" headers start with the same characters as an added and a removed
+// line and are neither, so they are told apart before the colouring.
+func styleDiffLine(line string) string {
+	switch {
+	case strings.HasPrefix(line, "+") && !strings.HasPrefix(line, "+++"):
+		return lipgloss.NewStyle().Foreground(lipgloss.Color(currentTheme.DiffAdd)).Render(line)
+	case strings.HasPrefix(line, "-") && !strings.HasPrefix(line, "---"):
+		return lipgloss.NewStyle().Foreground(lipgloss.Color(currentTheme.DiffDel)).Render(line)
+	case strings.HasPrefix(line, "@@"):
+		return lipgloss.NewStyle().Foreground(lipgloss.Color(currentTheme.DiffHunk)).Render(line)
+	case strings.HasPrefix(line, "diff "):
+		return lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color(currentTheme.DiffHeader)).Render(line)
+	}
+	return line
 }
 
 // fitDetails applies the scroll offset and clips the panel's content to the

@@ -9,8 +9,8 @@ import (
 func TestPageKeysMatchHalfPageKeys(t *testing.T) {
 	pageDown := tea.KeyMsg{Type: tea.KeyPgDown}
 	pageUp := tea.KeyMsg{Type: tea.KeyPgUp}
-	d := keyPress("d")
-	u := keyPress("u")
+	d := tea.KeyMsg{Type: tea.KeyCtrlD}
+	u := tea.KeyMsg{Type: tea.KeyCtrlU}
 
 	// Starting points chosen to hit both a plain move and clamping at each end.
 	for _, tc := range []struct {
@@ -54,5 +54,30 @@ func TestPageKeysMatchHalfPageKeys(t *testing.T) {
 				t.Errorf("%s did nothing", tc.page.String())
 			}
 		})
+	}
+}
+
+// The bare letters used to scroll too, which is not a vim binding — in vim d
+// is the delete operator and u is undo, and only the ctrl versions move the
+// window. They are free keys now, and a key that does nothing is the point:
+// the two of them were spoken for on every screen.
+func TestBareDAndUDoNothing(t *testing.T) {
+	for _, box := range []int{1, 2} {
+		for _, key := range []string{"d", "u"} {
+			m := testModel()
+			m.commits = make([]commit, 25)
+			for i := range m.commits {
+				m.commits[i].DiffLoaded = true
+			}
+			m.focusedBox = box
+			m.selected, m.detailsScroll = 10, 10
+
+			res, cmd := m.Update(keyPress(key))
+			got := res.(model)
+			if got.selected != m.selected || got.detailsScroll != m.detailsScroll || cmd != nil {
+				t.Errorf("box %d, %q: selected %d→%d, scroll %d→%d; want the key free",
+					box, key, m.selected, got.selected, m.detailsScroll, got.detailsScroll)
+			}
+		}
 	}
 }
