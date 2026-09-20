@@ -87,7 +87,8 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return m.openRepoSwitcher(), nil
 		case "enter":
 			// Whichever panel has focus fills the window; enter again puts the
-			// other one back.
+			// other one back. Gitraffe starts maximised, so from a fresh run the
+			// first press is the one that brings the details panel out.
 			m.maximised = !m.maximised
 			return m, nil
 		case "f":

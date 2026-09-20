@@ -73,7 +73,7 @@ in `gitraffe ./update`.
 - `PgUp/PgDn` - Page up/down
 - `Home/End` - Jump to top/bottom
 - Mouse wheel - Scroll the panel the pointer is over (see [Mouse](#mouse))
-- `Enter` - Fill the window with the focused panel (see [One panel at a time](#one-panel-at-a-time))
+- `Enter` - Show one panel or both (see [One panel at a time](#one-panel-at-a-time))
 - `r` or `F5` - Reload the repository (see [Reloading](#reloading))
 - `f` - Fetch from the remote, then reload (see [Fetching](#fetching))
 - `/` - Search commits, then `n` / `N` for next and previous (see [Searching](#searching))
@@ -96,9 +96,11 @@ belongs to it.
 
 ### One panel at a time
 
-Press `Enter` to give the focused panel the whole window, and `Enter` again to bring
-the other one back. `1`, `2` and `tab` still choose which panel that is, so you can
-swap between a full-window graph and a full-window diff without leaving fullscreen.
+Gitraffe starts fullscreen: the focused panel has the whole window, which on a fresh
+run is the graph. Press `Enter` to bring the other panel back beside it, and `Enter`
+again to go back to one. `1`, `2` and `tab` still choose which panel that is, so you
+can swap between a full-window graph and a full-window diff without leaving
+fullscreen.
 
 The graph uses the extra room rather than just stretching: branch labels that were
 truncated fit, the date and author columns come back on a terminal too narrow to show
@@ -107,8 +109,8 @@ row, since the details panel is no longer there to show it. Whatever is left ove
 after the other columns goes to the message, and it is cut with an `…` when the row
 runs out; a window too narrow for a readable message leaves it out entirely.
 
-Whether you left gitraffe maximised is remembered (see
-[Remembered preferences](#remembered-preferences)).
+Whether you left gitraffe maximised is remembered, so a split view stays split the
+next time too (see [Remembered preferences](#remembered-preferences)).
 
 ### Searching
 
@@ -213,8 +215,8 @@ next run starts where the last one left off:
 
 The last three are written when gitraffe exits, not as you press the keys, since `c`
 and `tab` are pressed often and the file is only read at startup. Delete the file,
-or any single key in it, to go back to the defaults: lane colours on, the graph
-focused. A `focused_box` naming a panel that doesn't exist is ignored.
+or any single key in it, to go back to the defaults: fullscreen, lane colours on, the
+graph focused. A `focused_box` naming a panel that doesn't exist is ignored.
 
 ## Uncommitted changes
 

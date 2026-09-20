@@ -37,13 +37,13 @@ func TestMaximisedGraphShowsMessages(t *testing.T) {
 	m := loadedModel(t, messageRepo(t))
 	m.windowWidth, m.windowHeight = 140, 20
 
-	if strings.Contains(graphPanel(m), "teach the parser") {
-		t.Error("the split view shows messages, though the details panel already does")
+	if !strings.Contains(graphPanel(m), "teach the parser about nested groups") {
+		t.Errorf("the maximised graph does not show the message:\n%s", graphPanel(m))
 	}
 
 	m = press(m, enter)
-	if !strings.Contains(graphPanel(m), "teach the parser about nested groups") {
-		t.Errorf("the maximised graph does not show the message:\n%s", graphPanel(m))
+	if strings.Contains(graphPanel(m), "teach the parser") {
+		t.Error("the split view shows messages, though the details panel already does")
 	}
 }
 
@@ -53,7 +53,6 @@ func TestMessagesLineUp(t *testing.T) {
 	dir := searchRepo(t) // two authors, "ada" and "grace"
 	m := loadedModel(t, dir)
 	m.windowWidth, m.windowHeight = 140, 20
-	m = press(m, enter)
 
 	var columns []int
 	for _, line := range strings.Split(graphPanel(m), "\n") {
@@ -77,7 +76,6 @@ func TestMessagesLineUp(t *testing.T) {
 func TestLongMessagesAreCutToFit(t *testing.T) {
 	m := loadedModel(t, messageRepo(t))
 	m.windowWidth, m.windowHeight = 140, 20
-	m = press(m, enter)
 
 	for i, line := range strings.Split(m.View(), "\n") {
 		if w := ansi.StringWidth(line); w > m.windowWidth {

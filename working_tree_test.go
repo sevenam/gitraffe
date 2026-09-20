@@ -104,7 +104,7 @@ func TestWorkingTreeRowIsDrawnAndDescribed(t *testing.T) {
 	write(t, dir, "first", "changed")
 	write(t, dir, "new.txt", "hello")
 
-	m := loadedModel(t, dir)
+	m := splitView(loadedModel(t, dir))
 	m.windowWidth, m.windowHeight = 120, 30
 	screen := ansi.Strip(m.View())
 

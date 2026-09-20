@@ -20,7 +20,7 @@ func mouseModel(t *testing.T) model {
 	for i := range 10 {
 		commit(string(rune('a' + i)))
 	}
-	m := loadedModel(t, dir)
+	m := splitView(loadedModel(t, dir))
 	m.windowWidth, m.windowHeight = 120, 30
 	m.selected = 5
 	m.detailsScroll = 10

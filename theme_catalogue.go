@@ -143,15 +143,15 @@ type settings struct {
 	// RecentRepos lists repository roots, most recently opened first; the
 	// repository switcher offers them. See rememberRepo.
 	RecentRepos []string `yaml:"recent_repos,omitempty"`
-	// LaneColours and FocusedBox carry the state of the "c" toggle and which
-	// panel had focus into the next run. A pointer and a zero mean "never
-	// saved", which is what keeps the defaults in initialModel the defaults
-	// rather than "off" and "no panel". See applyPreferences.
+	// LaneColours, Maximised and FocusedBox carry the state of the "c" and
+	// enter toggles and which panel had focus into the next run. A nil pointer
+	// and a zero mean "never saved", which is what keeps the defaults in
+	// initialModel the defaults rather than "split", "off" and "no panel":
+	// both toggles are on by default, so a saved false has to be told apart
+	// from an absent key. See applyPreferences.
 	LaneColours *bool `yaml:"lane_colours,omitempty"`
 	FocusedBox  int   `yaml:"focused_box,omitempty"`
-	// Maximised needs no pointer: not maximised is both the default and the
-	// zero value, so an absent key and a saved false mean the same thing.
-	Maximised bool `yaml:"maximised,omitempty"`
+	Maximised   *bool `yaml:"maximised,omitempty"`
 }
 
 func settingsPath(configDir string) string {
@@ -193,7 +193,9 @@ func applyPreferences(m model) model {
 	if s.LaneColours != nil {
 		m.colourLanes = *s.LaneColours
 	}
-	m.maximised = s.Maximised
+	if s.Maximised != nil {
+		m.maximised = *s.Maximised
+	}
 	if s.FocusedBox == 1 || s.FocusedBox == 2 {
 		m.focusedBox = s.FocusedBox
 	}
@@ -210,7 +212,7 @@ func savePreferences(m model) error {
 	s := loadSettings(m.configDir)
 	s.LaneColours = &m.colourLanes
 	s.FocusedBox = m.focusedBox
-	s.Maximised = m.maximised
+	s.Maximised = &m.maximised
 	return saveSettings(m.configDir, s)
 }
 
