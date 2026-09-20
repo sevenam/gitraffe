@@ -39,6 +39,7 @@ var helpSections = []helpSection{
 		{"m", "read more of a long history"},
 		{"U", "update to the latest release"},
 		{"mouse wheel", "scroll the panel under the pointer"},
+		{"click", "select the commit under the pointer"},
 		{"q / esc / ctrl+c", "quit"},
 	}},
 	{"[1] git graph", []keyBinding{

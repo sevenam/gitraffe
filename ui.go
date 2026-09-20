@@ -426,6 +426,49 @@ func (m *model) renderRepoInfo() string {
 	return lipgloss.JoinHorizontal(lipgloss.Top, leftContent, strings.Repeat(" ", spacing), title)
 }
 
+// visibleGraphRows is how many rows of the graph panel hold commits. It has to
+// match the panel height View works out, or the panel would change size as the
+// list scrolls.
+func (m model) visibleGraphRows() int {
+	return max(1, m.windowHeight-8)
+}
+
+// graphWindow is the half-open range of rows the graph panel draws, indexing
+// displayRows -- or commits, in the fallback mode that has no graph rows. The
+// graph keeps no scroll offset of its own: the window follows the selection,
+// moving only when the selected row would leave it, the way a text editor
+// scrolls to its cursor.
+//
+// The renderer and the mouse both ask here rather than working it out apiece:
+// a click that disagreed with the drawing by one row would quietly select the
+// commit above the one pointed at.
+func (m model) graphWindow() (start, end int) {
+	visible := m.visibleGraphRows()
+	if len(m.displayRows) == 0 {
+		// The fallback keeps the selection on the last row instead.
+		if m.selected >= visible {
+			start = m.selected - visible + 1
+		}
+		return start, min(start+visible, len(m.commits))
+	}
+	selectedRow := 0
+	for i, row := range m.displayRows {
+		if row.CommitIdx == m.selected {
+			selectedRow = i
+			break
+		}
+	}
+	// A third of the way down, so there is history visible either side of the
+	// selection after a jump.
+	start = max(0, selectedRow-visible/3)
+	end = start + visible
+	if end > len(m.displayRows) {
+		end = len(m.displayRows)
+		start = max(0, end-visible)
+	}
+	return start, end
+}
+
 // renderCommitList renders the left panel with the commit list/graph
 // layout holds the column widths computePanelLayout allocated for this pass
 // (0 hides a column); contentWidth is the width inside the panel's borders
@@ -440,12 +483,7 @@ func (m *model) renderCommitList(layout panelLayout, contentWidth int) string {
 
 	var sb strings.Builder
 
-	// Calculate visible range based on window height
-	// Must match the contentHeight from View(): windowHeight - 8
-	visibleHeight := m.windowHeight - 8
-	if visibleHeight < 1 {
-		visibleHeight = 1
-	}
+	visibleHeight := m.visibleGraphRows()
 	log.Printf("renderCommitList: visibleHeight=%d", visibleHeight)
 
 	graphColor := lipgloss.NewStyle().Foreground(lipgloss.Color(currentTheme.Graph))
@@ -472,31 +510,7 @@ func (m *model) renderCommitList(layout panelLayout, contentWidth int) string {
 			}
 		}
 
-		// Find the display row index of the selected commit
-		selectedRowIdx := 0
-		for i, row := range m.displayRows {
-			if row.CommitIdx == m.selected {
-				selectedRowIdx = i
-				break
-			}
-		}
-		log.Printf("renderCommitList graph mode: selectedRowIdx=%d", selectedRowIdx)
-
-		// Scroll to keep selected row visible
-		// Use a stable scroll offset that only changes when the selected row
-		// would move outside the visible window (like a typical text editor).
-		startIdx := selectedRowIdx - visibleHeight/3
-		if startIdx < 0 {
-			startIdx = 0
-		}
-		endIdx := startIdx + visibleHeight
-		if endIdx > len(m.displayRows) {
-			endIdx = len(m.displayRows)
-			startIdx = endIdx - visibleHeight
-			if startIdx < 0 {
-				startIdx = 0
-			}
-		}
+		startIdx, endIdx := m.graphWindow()
 		log.Printf("renderCommitList graph mode: startIdx=%d, endIdx=%d", startIdx, endIdx)
 
 		linesWritten := 0
@@ -675,14 +689,7 @@ func (m *model) renderCommitList(layout panelLayout, contentWidth int) string {
 		}
 	} else {
 		// Simple mode: one row per commit with basic symbol (fallback)
-		startIdx := 0
-		if m.selected >= visibleHeight {
-			startIdx = m.selected - visibleHeight + 1
-		}
-		endIdx := startIdx + visibleHeight
-		if endIdx > len(m.commits) {
-			endIdx = len(m.commits)
-		}
+		startIdx, endIdx := m.graphWindow()
 
 		linesWritten := 0
 		for i := startIdx; i < endIdx; i++ {
