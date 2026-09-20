@@ -97,6 +97,11 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			// first press is the one that brings the details panel out.
 			m.maximised = !m.maximised
 			return m, nil
+		case "p":
+			if !m.ready {
+				return m, nil
+			}
+			return m.openPullRequest()
 		case " ":
 			// Space, not ctrl+enter: most terminals cannot tell ctrl+enter
 			// from enter, so only the newer keyboard protocols would report

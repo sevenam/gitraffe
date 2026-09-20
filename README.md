@@ -15,6 +15,7 @@ A text-based UI git graph command line tool built with Golang, Bubble Tea, go-gi
 - 🔀 Ahead/behind for the current branch next to its name, e.g. `main ↑3 ↓1` (see [Ahead and behind](#ahead-and-behind))
 - 📝 Uncommitted changes as a row above the newest commit, with their diff (see [Uncommitted changes](#uncommitted-changes))
 - 🔍 A commit view on `Space`: what the commit is, every file it touched, and one file's diff at a time (see [The commit view](#the-commit-view))
+- 🌐 `p` opens the commit's pull request in your browser, read from the merge subject and the remote (see [Opening a pull request](#opening-a-pull-request))
 - 🎨 Beautiful styling with Lip Gloss
 - ⌨️  Keyboard navigation (arrow keys, vim-style)
 - 🖱️  Mouse support: click a commit to select it, wheel to scroll (see [Mouse](#mouse))
@@ -77,6 +78,7 @@ in `gitraffe ./update`.
 - Click - Select the commit under the pointer (see [Mouse](#mouse))
 - `Enter` - Show one panel or both (see [One panel at a time](#one-panel-at-a-time))
 - `Space` - Open the commit view, `Esc` to come back (see [The commit view](#the-commit-view))
+- `p` - Open this commit's pull request in a browser (see [Opening a pull request](#opening-a-pull-request))
 - `r` or `F5` - Reload the repository (see [Reloading](#reloading))
 - `f` - Fetch from the remote, then reload (see [Fetching](#fetching))
 - `/` - Search commits, then `n` / `N` for next and previous (see [Searching](#searching))
@@ -165,12 +167,39 @@ It works on uncommitted changes too: the working-tree row opens like any other
 commit, and untracked files are listed — marked `untracked`, since git has never seen
 them and so has nothing to compare them with.
 
-Pressing `?` here lists this screen's keys rather than the graph's.
+Pressing `?` here lists this screen's keys rather than the graph's, and `p` opens the
+commit's pull request (see [Opening a pull request](#opening-a-pull-request)).
 
 Why a screen of its own, rather than more boxes beside the graph? The graph is what
 gitraffe is for, and splitting the details panel three ways would have taken room
 from it on every screen to answer a question you ask on some of them. Here the commit
 has the window, and `Esc` gives the graph back untouched.
+
+### Opening a pull request
+
+Press `p` on a commit that came from a pull request and its page opens in your
+browser. It works on the graph and in the commit view, on whichever commit that
+screen is about.
+
+Nothing in git records the pull request a commit came from — a PR is the forge's
+idea, not git's. What survives in the repository is the subject the forge wrote when
+it merged, and gitraffe reads both of GitHub's:
+
+```
+Merge pull request #59 from sevenam/add-graph-colors   ← a merge commit
+Teach the parser about nested groups (#59)             ← a squashed pull request
+```
+
+The rest of the address comes from the remote, so `git@github.com:sevenam/gitraffe.git`
+and `https://github.com/sevenam/gitraffe.git` both lead to the same page. `origin` is
+used when there is one, otherwise the first remote git lists; any username or password
+written into the remote is dropped rather than carried into a browser.
+
+A rebase merge leaves nothing behind to find, so there is nothing to open on those —
+gitraffe says so on the bottom line rather than appearing to ignore the key, as it
+does when the repository has no remote. The address is GitHub's `/pull/<number>`,
+because the two subjects above are GitHub's; another forge writes its merges
+differently and would need its own reading of the subject along with its own address.
 
 ### Searching
 

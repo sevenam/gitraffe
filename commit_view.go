@@ -67,6 +67,19 @@ func (m model) viewedCommit() (commit, bool) {
 	return m.commits[m.commitView.commit], true
 }
 
+// commitOnScreen is the commit the screen is about: the one the commit view is
+// open on, or else the one selected in the graph. A key that acts on "this
+// commit" works on either screen, and means the same thing on both.
+func (m model) commitOnScreen() (commit, bool) {
+	if m.commitView.open {
+		return m.viewedCommit()
+	}
+	if m.selected < 0 || m.selected >= len(m.commits) {
+		return commit{}, false
+	}
+	return m.commits[m.selected], true
+}
+
 // viewedFiles are the files of the commit on screen.
 func (m model) viewedFiles() []fileDiff {
 	c, ok := m.viewedCommit()
@@ -92,6 +105,8 @@ func (m model) updateCommitView(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	case "?":
 		m.showHelp = true
 		return m, nil
+	case "p":
+		return m.openPullRequest()
 	case "1":
 		m.commitView.focus = commitBoxDetails
 		return m, nil
@@ -426,6 +441,12 @@ func (m model) renderFileDiff(c commit, width, rows int) string {
 // commitViewStatusLine is the view's own bottom line: the keys this screen
 // answers to, with the way out first.
 func (m model) commitViewStatusLine() string {
+	// A notice takes the line while there is one, as it does on the graph
+	// screen: it answers the key just pressed, and the hints can wait.
+	if m.notice != "" {
+		return truncateLines(lipgloss.NewStyle().Bold(true).
+			Foreground(lipgloss.Color(currentTheme.Tag)).Render(m.notice), m.windowWidth)
+	}
 	return truncateLines(helpStyle.Render(
 		"esc: back • 1/2/3: focus box • tab: cycle • ↑/↓/j/k: move • ?: help"), m.windowWidth)
 }
