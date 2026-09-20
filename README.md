@@ -16,7 +16,7 @@ A text-based UI git graph command line tool built with Golang, Bubble Tea, go-gi
 - 📝 Uncommitted changes as a row above the newest commit, with their diff (see [Uncommitted changes](#uncommitted-changes))
 - 🎨 Beautiful styling with Lip Gloss
 - ⌨️  Keyboard navigation (arrow keys, vim-style)
-- 🖱️  Mouse wheel scrolling support
+- 🖱️  Mouse support: click a commit to select it, wheel to scroll (see [Mouse](#mouse))
 - 📱 Cross-platform (Linux, macOS, Windows)
 - 🚀 Fast and lightweight
 
@@ -73,6 +73,7 @@ in `gitraffe ./update`.
 - `PgUp/PgDn` - Page up/down
 - `Home/End` - Jump to top/bottom
 - Mouse wheel - Scroll the panel the pointer is over (see [Mouse](#mouse))
+- Click - Select the commit under the pointer (see [Mouse](#mouse))
 - `Enter` - Show one panel or both (see [One panel at a time](#one-panel-at-a-time))
 - `r` or `F5` - Reload the repository (see [Reloading](#reloading))
 - `f` - Fetch from the remote, then reload (see [Fetching](#fetching))
@@ -93,6 +94,13 @@ driving whatever it was driving.
 
 One notch moves three lines. Maximised there is only one panel, so the wheel always
 belongs to it.
+
+Clicking a commit selects it, the same as walking to it with the arrow keys: the
+details panel follows and the diff is read afresh. Like the wheel it leaves focus
+alone — a click names a commit, not a panel. Clicking where there is no commit does
+nothing: the blank rows under a short history, a line of graph between two commits,
+the note saying the history was cut short, and the details panel itself all leave the
+selection where it is.
 
 ### One panel at a time
 
