@@ -14,6 +14,7 @@ A text-based UI git graph command line tool built with Golang, Bubble Tea, go-gi
 - 👤 Each commit's date and author in columns beside the hash (on a narrow terminal the author goes first, then the date, before branch labels are cut)
 - 🔀 Ahead/behind for the current branch next to its name, e.g. `main ↑3 ↓1` (see [Ahead and behind](#ahead-and-behind))
 - 📝 Uncommitted changes as a row above the newest commit, with their diff (see [Uncommitted changes](#uncommitted-changes))
+- 🔍 A commit view on `Space`: what the commit is, every file it touched, and one file's diff at a time (see [The commit view](#the-commit-view))
 - 🎨 Beautiful styling with Lip Gloss
 - ⌨️  Keyboard navigation (arrow keys, vim-style)
 - 🖱️  Mouse support: click a commit to select it, wheel to scroll (see [Mouse](#mouse))
@@ -70,11 +71,12 @@ in `gitraffe ./update`.
 
 - `?` - Show every keyboard shortcut (`?`, `Esc` or `q` closes it)
 - `↑/↓` or `k/j` - Scroll up/down
-- `PgUp/PgDn` - Page up/down
+- `PgUp/PgDn` or `Ctrl+U/Ctrl+D` - Move ten rows, as vim's half-page keys do
 - `Home/End` - Jump to top/bottom
 - Mouse wheel - Scroll the panel the pointer is over (see [Mouse](#mouse))
 - Click - Select the commit under the pointer (see [Mouse](#mouse))
 - `Enter` - Show one panel or both (see [One panel at a time](#one-panel-at-a-time))
+- `Space` - Open the commit view, `Esc` to come back (see [The commit view](#the-commit-view))
 - `r` or `F5` - Reload the repository (see [Reloading](#reloading))
 - `f` - Fetch from the remote, then reload (see [Fetching](#fetching))
 - `/` - Search commits, then `n` / `N` for next and previous (see [Searching](#searching))
@@ -94,6 +96,9 @@ driving whatever it was driving.
 
 One notch moves three lines. Maximised there is only one panel, so the wheel always
 belongs to it.
+
+In the commit view the wheel scrolls whichever box the pointer is over, and clicking
+a file selects it there too.
 
 Clicking a commit selects it, the same as walking to it with the arrow keys: the
 details panel follows and the diff is read afresh. Like the wheel it leaves focus
@@ -119,6 +124,53 @@ runs out; a window too narrow for a readable message leaves it out entirely.
 
 Whether you left gitraffe maximised is remembered, so a split view stays split the
 next time too (see [Remembered preferences](#remembered-preferences)).
+
+### The commit view
+
+Press `Space` to step into one commit. The graph goes away and the window is given over
+to three boxes: what the commit is, every file it touched, and the diff of whichever
+file is chosen. `Esc` or `q` comes back to the graph, exactly as it was.
+
+```
+╭──────────────────────────────────────────────────────────────────────╮
+│ Commit: 4a938a6  fix the sign flip on refunds                        │
+╰──────────────────────────────────────────────────────────────────────╯
+╭[1]-commit───────────╮╭[3]-diff─────────────────────────────────────╮
+│ SHA:     4a938a6... ││ parser.go                                   │
+│ Author:  sevenam    ││                                             │
+│ ─── Message ─────── ││ @@ -18,6 +18,9 @@                           │
+│ fix the sign flip   ││ +  if amount < 0 {                          │
+╰─────────────────────╯│ -  amount = -amount                         │
+╭[2]-files-(3)────────╮│                                             │
+│ > parser.go   +2 -2 ││                                             │
+│   …/helper.go +1 -0 ││                                             │
+│   README.md   +2 -0 ││                                             │
+╰─────────────────────╯╰─────────────────────────────────────────────╯
+esc: back • 1/2/3: focus box • tab: cycle • ↑/↓/j/k: move • ?: help
+```
+
+`1`, `2` and `3` choose a box and `tab` cycles them; `↑/↓` or `j/k` then move in the
+one that has focus — down the file list, or through the details and the diff. Moving
+to another file puts its diff at the top, since a line count from the file before it
+would mean nothing. Clicking a file selects it, and the wheel scrolls whichever box
+the pointer is over.
+
+The file list is git's own account of the commit rather than a second reading of it:
+both the list and the diffs are split out of the same `git show`, so a file cannot be
+listed with a diff that belongs to somewhere else. A rename is named at both ends
+(`old.go → new.go`), a binary file says `binary` where its counts would be, and a
+path too long for the column is cut from the front, keeping the file's own name.
+
+It works on uncommitted changes too: the working-tree row opens like any other
+commit, and untracked files are listed — marked `untracked`, since git has never seen
+them and so has nothing to compare them with.
+
+Pressing `?` here lists this screen's keys rather than the graph's.
+
+Why a screen of its own, rather than more boxes beside the graph? The graph is what
+gitraffe is for, and splitting the details panel three ways would have taken room
+from it on every screen to answer a question you ask on some of them. Here the commit
+has the window, and `Esc` gives the graph back untouched.
 
 ### Searching
 

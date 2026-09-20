@@ -28,6 +28,7 @@ var helpSections = []helpSection{
 		{"?", "toggle this help"},
 		{"1 / 2", "focus graph / details"},
 		{"enter", "one panel or both"},
+		{"space", "open the commit view"},
 		{"tab / shift+tab", "cycle focus"},
 		{"/", "search messages, authors and hashes"},
 		{"n / N", "next / previous match"},
@@ -44,23 +45,48 @@ var helpSections = []helpSection{
 	}},
 	{"[1] git graph", []keyBinding{
 		{"↑ / ↓  k / j", "previous / next commit"},
-		{"u / d  pgup / pgdn", "move 10 commits"},
-		{"ctrl+u / ctrl+d", "move 10 commits"},
+		{"ctrl+u / ctrl+d  pgup / pgdn", "move 10 commits"},
 		{"g / home", "first commit"},
 		{"G / end", "last commit"},
 	}},
 	{"[2] commit details", []keyBinding{
 		{"↑ / ↓  k / j", "scroll one line"},
-		{"u / d  pgup / pgdn", "scroll 10 lines"},
-		{"ctrl+u / ctrl+d", "scroll 10 lines"},
+		{"ctrl+u / ctrl+d  pgup / pgdn", "scroll 10 lines"},
 		{"g / home", "back to the top"},
 	}},
 }
 
-// renderHelpBox renders the key reference as a bordered box.
+// commitViewHelp is what "?" shows while the commit view is open: that
+// screen's own keys rather than the graph's.
+//
+// The full reference is long enough to be clipped on a short terminal, and a
+// section below the fold is no help to someone reading the screen it belongs
+// to. The graph's list says what space does; the rest is here.
+var commitViewHelp = []helpSection{
+	{"Commit view", []keyBinding{
+		{"1 / 2 / 3", "focus commit / files / diff"},
+		{"tab / shift+tab", "cycle focus"},
+		{"↑ / ↓  k / j", "move in the focused box"},
+		{"pgup/pgdn  ctrl+u / ctrl+d", "move by ten"},
+		{"g / G", "first / last"},
+		{"mouse wheel", "scroll the box under the pointer"},
+		{"click", "select the file under the pointer"},
+		{"?", "toggle this help"},
+		{"space / esc / q", "back to the graph"},
+		{"ctrl+c", "quit"},
+	}},
+}
+
+// renderHelpBox renders the whole key reference as a bordered box.
 func renderHelpBox() string {
+	return renderHelpSections(helpSections)
+}
+
+// renderHelpSections renders one or more sections of the reference, so a
+// screen can show only the keys it answers to.
+func renderHelpSections(sections []helpSection) string {
 	keyWidth := 0
-	for _, s := range helpSections {
+	for _, s := range sections {
 		for _, b := range s.bindings {
 			keyWidth = max(keyWidth, ansi.StringWidth(b.keys))
 		}
@@ -71,7 +97,7 @@ func renderHelpBox() string {
 
 	var sb strings.Builder
 	sb.WriteString(titleStyle.Padding(0).Render("Keyboard shortcuts"))
-	for _, s := range helpSections {
+	for _, s := range sections {
 		sb.WriteString("\n\n")
 		sb.WriteString(sectionStyle.Render(s.title))
 		for _, b := range s.bindings {

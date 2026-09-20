@@ -70,6 +70,12 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return m, nil
 		}
 
+		// The commit view has the screen to itself, so it answers every key:
+		// the graph it replaced is not there to be steered.
+		if m.commitView.open {
+			return m.updateCommitView(msg)
+		}
+
 		switch msg.String() {
 		case "q", "ctrl+c", "esc":
 			return m, tea.Quit
@@ -91,6 +97,13 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			// first press is the one that brings the details panel out.
 			m.maximised = !m.maximised
 			return m, nil
+		case " ":
+			// Space, not ctrl+enter: most terminals cannot tell ctrl+enter
+			// from enter, so only the newer keyboard protocols would report
+			// the difference and the binding would do nothing for everyone
+			// else. Bubble Tea reports a space as its own key type, which
+			// String reports as " ".
+			return m.openCommitView()
 		case "f":
 			if !m.ready {
 				return m, nil
@@ -161,14 +174,14 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 						m.detailsScroll = 0
 					}
 					return m, m.maybeLoadDiff()
-				case "d", "ctrl+d", "pgdown":
+				case "ctrl+d", "pgdown":
 					m.selected += 10
 					if m.selected >= len(m.commits) {
 						m.selected = len(m.commits) - 1
 					}
 					m.detailsScroll = 0
 					return m, m.maybeLoadDiff()
-				case "u", "ctrl+u", "pgup":
+				case "ctrl+u", "pgup":
 					m.selected -= 10
 					if m.selected < 0 {
 						m.selected = 0
@@ -194,10 +207,10 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 						m.detailsScroll--
 					}
 					return m, nil
-				case "d", "ctrl+d", "pgdown":
+				case "ctrl+d", "pgdown":
 					m.detailsScroll += 10
 					return m, nil
-				case "u", "ctrl+u", "pgup":
+				case "ctrl+u", "pgup":
 					m.detailsScroll -= 10
 					if m.detailsScroll < 0 {
 						m.detailsScroll = 0
@@ -241,6 +254,7 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.addMoreCommitsRow()
 		m.applyReselect()
 		m.rememberCurrentRepo()
+		m.followSelectionInCommitView()
 		return m, m.maybeLoadDiff()
 
 	case errMsg:
@@ -264,6 +278,7 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.addMoreCommitsRow()
 		m.applyReselect()
 		m.rememberCurrentRepo()
+		m.followSelectionInCommitView()
 		return m, m.maybeLoadDiff()
 
 	case diffLoadedMsg:
@@ -276,6 +291,7 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.commits[msg.commitIdx].DiffLoaded = true
 			m.commits[msg.commitIdx].DiffStat = msg.diffStat
 			m.commits[msg.commitIdx].DiffBody = msg.diffBody
+			m.commits[msg.commitIdx].DiffFiles = msg.diffFiles
 		}
 		return m, nil
 

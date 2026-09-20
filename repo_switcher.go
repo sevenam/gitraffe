@@ -281,6 +281,12 @@ func (m model) reloadRepo() (model, tea.Cmd) {
 	if m.selected >= 0 && m.selected < len(m.commits) {
 		next.reselect = m.commits[m.selected].FullHash
 	}
+	// An open commit view is a place too: "r" and a finished fetch mean "show
+	// me this again", not "put me back on the graph". A switch drops it
+	// instead, since the commit being read is not in the repository being
+	// opened. See followSelectionInCommitView for how it finds its commit
+	// again once the new graph has loaded.
+	next.commitView = m.commitView
 	next.notice = "Reloaded " + displayPath(m.repoPath)
 	return next, cmd
 }
