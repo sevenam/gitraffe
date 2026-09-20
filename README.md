@@ -16,6 +16,7 @@ A text-based UI git graph command line tool built with Golang, Bubble Tea, go-gi
 - 📝 Uncommitted changes as a row above the newest commit, with their diff (see [Uncommitted changes](#uncommitted-changes))
 - 🔍 A commit view on `Space`: what the commit is, every file it touched, and one file's diff at a time (see [The commit view](#the-commit-view))
 - 🌐 `p` opens the commit's pull request in your browser, read from the merge subject and the remote (see [Opening a pull request](#opening-a-pull-request))
+- 🔖 `b` jumps to any branch or tag, typing to narrow the list (see [Jumping to a branch or tag](#jumping-to-a-branch-or-tag))
 - 🎨 Beautiful styling with Lip Gloss
 - ⌨️  Keyboard navigation (arrow keys, vim-style)
 - 🖱️  Mouse support: click a commit to select it, wheel to scroll (see [Mouse](#mouse))
@@ -83,6 +84,7 @@ in `gitraffe ./update`.
 - `f` - Fetch from the remote, then reload (see [Fetching](#fetching))
 - `/` - Search commits, then `n` / `N` for next and previous (see [Searching](#searching))
 - `m` - Read more of a long history (see [Long histories](#long-histories))
+- `b` - Jump to a branch or tag (see [Jumping to a branch or tag](#jumping-to-a-branch-or-tag))
 - `o` - Open another repository (see [Switching repository](#switching-repository))
 - `t` - Pick a colour theme (see [Picking a theme](#picking-a-theme))
 - `c` - Toggle lane colours in the graph (see [Graph lane colours](#graph-lane-colours))
@@ -174,6 +176,43 @@ Why a screen of its own, rather than more boxes beside the graph? The graph is w
 gitraffe is for, and splitting the details panel three ways would have taken room
 from it on every screen to answer a question you ask on some of them. Here the commit
 has the window, and `Esc` gives the graph back untouched.
+
+### Jumping to a branch or tag
+
+Press `b` for a list of every branch and tag in the repository, and `Enter` to put the
+selection on the one you pick. Typing narrows the list — the match is anywhere in the
+name and ignores case, so `fix` finds `bugfix` as well as `fix-the-parser` — and the
+arrow keys move through what is left. `Esc` closes it and keeps the commit you had.
+
+```
+╭───────────────────────────────────────────────────────────╮
+│  Branches and tags                                        │
+│  43 refs — type to narrow                                 │
+│                                                           │
+│  > main          1ff4317  branch                          │
+│    add-file-view 5333ac6  branch                          │
+│    v0.29.0       1ff4317  tag                             │
+│    v0.28.0       5333ac6  tag                             │
+│    origin/main   1ff4317  remote                          │
+│                                                           │
+│  type to filter • ↑/↓: choose • enter: jump • esc: cancel │
+╰───────────────────────────────────────────────────────────╯
+```
+
+The branch you are on comes first, so the list opens where you are. Then the rest of
+the local branches, then tags newest first — a release you are looking for is far
+likelier to be a recent one, and tag names sort in no useful order anyway, with `v1.10`
+landing before `v1.9`. The remote-tracking copies come last, being the ones you least
+often mean.
+
+An annotated tag is resolved to the commit it points at rather than to the tag object,
+since the tag object is in no row of the graph.
+
+The list is read from git, not from the commits on screen, so it holds refs whose
+commits have not been loaded yet — which are exactly the ones worth jumping to, being
+too old to scroll to. Picking one reads enough history to reach it first: gitraffe
+works out how deep the commit is and reads that far, then lands on it. The bottom line
+says so while it happens, since reading a long history takes a moment.
 
 ### Opening a pull request
 

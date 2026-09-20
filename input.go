@@ -53,6 +53,9 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		if m.switcher.open {
 			return m.updateRepoSwitcher(msg)
 		}
+		if m.refs.open {
+			return m.updateRefPicker(msg)
+		}
 		if m.search.active {
 			return m.updateSearch(msg)
 		}
@@ -97,6 +100,11 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			// first press is the one that brings the details panel out.
 			m.maximised = !m.maximised
 			return m, nil
+		case "b":
+			if !m.ready {
+				return m, nil
+			}
+			return m.openRefPicker(), nil
 		case "p":
 			if !m.ready {
 				return m, nil

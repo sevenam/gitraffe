@@ -84,6 +84,7 @@ type model struct {
 	colourLanes         bool   // tint each graph column differently; see lanes.go
 	showHelp            bool   // key reference overlay, toggled with "?"
 	picker              themePicker
+	refs                refPicker // the branch and tag list opened with "b"
 	switcher            repoSwitcher
 	repoRoot            string // absolute root of the open repository; "" until it has loaded
 	reselect            string // full hash to reselect once a reload finishes; see reloadRepo
