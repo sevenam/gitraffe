@@ -172,6 +172,10 @@ func (m model) View() (result string) {
 		box := m.picker.render(m.windowHeight - 10)
 		output = overlayCentre(output, box, m.windowWidth, m.windowHeight)
 	}
+	if m.refs.open {
+		// The same room the theme list leaves for its title, footer and border.
+		output = overlayCentre(output, m.refs.render(m.windowHeight-10), m.windowWidth, m.windowHeight)
+	}
 	if m.switcher.open {
 		output = overlayCentre(output, m.switcher.render(m.windowWidth, m.windowHeight), m.windowWidth, m.windowHeight)
 	}

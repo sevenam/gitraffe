@@ -30,6 +30,7 @@ var helpSections = []helpSection{
 		{"enter", "one panel or both"},
 		{"space", "open the commit view"},
 		{"p", "open this commit's pull request in a browser"},
+		{"b", "jump to a branch or tag"},
 		{"tab / shift+tab", "cycle focus"},
 		{"/", "search messages, authors and hashes"},
 		{"n / N", "next / previous match"},
