@@ -27,7 +27,7 @@ var helpSections = []helpSection{
 	{"General", []keyBinding{
 		{"?", "toggle this help"},
 		{"1 / 2", "focus graph / details"},
-		{"enter", "fill the window with the focused panel"},
+		{"enter", "one panel or both"},
 		{"tab / shift+tab", "cycle focus"},
 		{"/", "search messages, authors and hashes"},
 		{"n / N", "next / previous match"},

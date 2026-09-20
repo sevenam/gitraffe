@@ -27,26 +27,33 @@ func panelsIn(screen string) (graph, details bool) {
 	return strings.Contains(plain, "[1]-git-graph"), strings.Contains(plain, "[2]-commit-details")
 }
 
+// splitView puts a model back in the two-panel view. Gitraffe starts
+// maximised, so a test that wants both panels has to ask for them.
+func splitView(m model) model {
+	m.maximised = false
+	return m
+}
+
 func TestEnterTogglesMaximised(t *testing.T) {
 	m := loadedModel(t, busyRepo(t))
-	if m.maximised {
-		t.Fatal("a fresh model starts maximised")
+	if !m.maximised {
+		t.Fatal("a fresh model does not start maximised")
 	}
 	m = press(m, enter)
-	if !m.maximised {
-		t.Fatal("enter did not maximise the focused panel")
+	if m.maximised {
+		t.Fatal("enter did not go back to both panels")
 	}
-	if m = press(m, enter); m.maximised {
-		t.Error("enter again did not go back to both panels")
+	if m = press(m, enter); !m.maximised {
+		t.Error("enter again did not maximise the focused panel")
 	}
 }
 
 func TestMaximisedDrawsOnlyTheFocusedPanel(t *testing.T) {
-	base := loadedModel(t, busyRepo(t))
+	base := splitView(loadedModel(t, busyRepo(t)))
 	base.windowWidth, base.windowHeight = 120, 30
 
 	if graph, details := panelsIn(base.View()); !graph || !details {
-		t.Fatalf("normally both panels show; graph=%v details=%v", graph, details)
+		t.Fatalf("split, both panels show; graph=%v details=%v", graph, details)
 	}
 
 	for _, tc := range []struct {
@@ -113,9 +120,37 @@ func TestMaximisedIsRemembered(t *testing.T) {
 	}
 }
 
-// Enter belongs to whatever box is open before it reaches the panels.
+// The interesting direction now that maximised is the default: leaving
+// gitraffe split has to survive, which an absent key cannot say.
+func TestSplitViewIsRemembered(t *testing.T) {
+	dir := t.TempDir()
+	m := initialModel(".")
+	m.configDir = dir
+	m.maximised = false
+	if err := savePreferences(m); err != nil {
+		t.Fatal(err)
+	}
+
+	fresh := initialModel(".")
+	fresh.configDir = dir
+	if applyPreferences(fresh).maximised {
+		t.Error("a saved split view came back maximised")
+	}
+}
+
+// An empty or absent settings.yml keeps the built-in default.
+func TestNoSettingsStartsMaximised(t *testing.T) {
+	fresh := initialModel(".")
+	fresh.configDir = t.TempDir()
+	if !applyPreferences(fresh).maximised {
+		t.Error("with nothing saved, gitraffe did not start maximised")
+	}
+}
+
+// Enter belongs to whatever box is open before it reaches the panels. Split
+// to start with, so a stray toggle shows up as a maximised panel.
 func TestEnterInABoxDoesNotMaximise(t *testing.T) {
-	m := loadedModel(t, busyRepo(t))
+	m := splitView(loadedModel(t, busyRepo(t)))
 	m.configDir = t.TempDir()
 
 	picker := press(m, keyPress("t"), tea.KeyMsg{Type: tea.KeyDown}, enter)

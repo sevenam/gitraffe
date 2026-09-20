@@ -102,6 +102,7 @@ func initialModel(repoPath string) model {
 		repoPath:    repoPath,
 		focusedBox:  1,    // default focus on commit list
 		colourLanes: true, // lane colouring is the default; "c" turns it off
+		maximised:   true, // one panel fills the window; enter brings the other back
 		commitLimit: commitBatch,
 	}
 }
