@@ -15,7 +15,25 @@ func (m model) Init() tea.Cmd {
 	)
 }
 
+// Update handles a message, then records where the graph's and the file list's
+// windows ended up. The selection is moved from a dozen places — keys, the
+// mouse, search, the branch jumper, a reload finding its commit again — and
+// recording the window here, once, is what keeps it from drifting after any
+// of them.
 func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
+	next, cmd := m.update(msg)
+	nm, ok := next.(model)
+	if !ok {
+		return next, cmd
+	}
+	nm.graphTop, _ = nm.graphWindow()
+	if nm.commitView.open {
+		nm.commitView.filesTop = nm.fileTop(nm.fileRows())
+	}
+	return nm, cmd
+}
+
+func (m model) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
 	case tea.KeyMsg:
 		// The confirmation prompt owns the keyboard until it is answered, so a
@@ -203,12 +221,23 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 					}
 					m.detailsScroll = 0
 					return m, m.maybeLoadDiff()
-				case "g", "home":
+				case "g", "ctrl+home":
 					m.selected = 0
 					m.detailsScroll = 0
 					return m, m.maybeLoadDiff()
-				case "G", "end":
+				case "G", "ctrl+end":
 					m.selected = len(m.commits) - 1
+					m.detailsScroll = 0
+					return m, m.maybeLoadDiff()
+				// Home and end stay on the screen you are reading, as they do
+				// in a text editor; the ctrl forms above leave it for the ends.
+				case "home", "end":
+					first, last := m.graphTopAndBottom()
+					if msg.String() == "home" {
+						m.selected = first
+					} else {
+						m.selected = last
+					}
 					m.detailsScroll = 0
 					return m, m.maybeLoadDiff()
 				}
@@ -231,7 +260,7 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 						m.detailsScroll = 0
 					}
 					return m, nil
-				case "g", "home":
+				case "g", "home", "ctrl+home":
 					m.detailsScroll = 0
 					return m, nil
 				}

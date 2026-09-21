@@ -482,39 +482,75 @@ func (m model) visibleGraphRows() int {
 }
 
 // graphWindow is the half-open range of rows the graph panel draws, indexing
-// displayRows -- or commits, in the fallback mode that has no graph rows. The
-// graph keeps no scroll offset of its own: the window follows the selection,
-// moving only when the selected row would leave it, the way a text editor
-// scrolls to its cursor.
+// displayRows -- or commits, in the fallback mode that has no graph rows. It
+// starts from where the window was left (graphTop) and moves only when the
+// selected row would leave it, the way a text editor scrolls to its cursor.
+// That stillness is what gives home and end a "top and bottom of the screen"
+// to go to: a window re-centred on every move would slide away from under them.
 //
 // The renderer and the mouse both ask here rather than working it out apiece:
 // a click that disagreed with the drawing by one row would quietly select the
 // commit above the one pointed at.
 func (m model) graphWindow() (start, end int) {
 	visible := m.visibleGraphRows()
+	selectedRow, total := m.selected, len(m.commits)
+	if len(m.displayRows) > 0 {
+		selectedRow, total = 0, len(m.displayRows)
+		for i, row := range m.displayRows {
+			if row.CommitIdx == m.selected {
+				selectedRow = i
+				break
+			}
+		}
+	}
+	start = followWindow(m.graphTop, selectedRow, total, visible)
+	return start, min(start+visible, total)
+}
+
+// followWindow is the first row of a window of rows rows over count, kept at
+// top while selected is inside it. A selection that stepped just past an edge
+// scrolls the window by as little as brings it back; one that landed further
+// away — a search, a jump to a branch — is put a third of the way down, so
+// there is context on both sides of where it arrived.
+func followWindow(top, selected, count, rows int) int {
+	if rows < 1 {
+		return 0
+	}
+	switch {
+	case selected >= top && selected < top+rows:
+	case selected < top && top-selected <= rows:
+		top = selected
+	case selected >= top+rows && selected-(top+rows) < rows:
+		top = selected - rows + 1
+	default:
+		top = selected - rows/3
+	}
+	// Never scrolled past the end: a short tail would leave the bottom of the
+	// box empty while there is history above that could fill it.
+	return max(0, min(top, count-rows))
+}
+
+// graphTopAndBottom are the first and last commits on screen in the graph,
+// which home and end go to. Rows without a commit — the lines joining lanes,
+// the note that the history was cut short — are passed over.
+func (m model) graphTopAndBottom() (first, last int) {
+	start, end := m.graphWindow()
 	if len(m.displayRows) == 0 {
-		// The fallback keeps the selection on the last row instead.
-		if m.selected >= visible {
-			start = m.selected - visible + 1
-		}
-		return start, min(start+visible, len(m.commits))
+		return start, end - 1
 	}
-	selectedRow := 0
-	for i, row := range m.displayRows {
-		if row.CommitIdx == m.selected {
-			selectedRow = i
-			break
+	first, last = -1, -1
+	for i := start; i < end; i++ {
+		if idx := m.displayRows[i].CommitIdx; idx >= 0 && idx < len(m.commits) {
+			if first < 0 {
+				first = idx
+			}
+			last = idx
 		}
 	}
-	// A third of the way down, so there is history visible either side of the
-	// selection after a jump.
-	start = max(0, selectedRow-visible/3)
-	end = start + visible
-	if end > len(m.displayRows) {
-		end = len(m.displayRows)
-		start = max(0, end-visible)
+	if first < 0 {
+		return m.selected, m.selected
 	}
-	return start, end
+	return first, last
 }
 
 // renderCommitList renders the left panel with the commit list/graph

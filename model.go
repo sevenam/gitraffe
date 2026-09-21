@@ -63,6 +63,7 @@ type model struct {
 	repoPath            string
 	err                 error
 	selected            int
+	graphTop            int // first graph row on screen; see graphWindow
 	windowHeight        int
 	windowWidth         int
 	repoName            string

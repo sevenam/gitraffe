@@ -48,8 +48,9 @@ var helpSections = []helpSection{
 	{"[1] git graph", []keyBinding{
 		{"↑ / ↓  k / j", "previous / next commit"},
 		{"ctrl+u / ctrl+d  pgup / pgdn", "move 10 commits"},
-		{"g / home", "first commit"},
-		{"G / end", "last commit"},
+		{"home / end", "top / bottom of the screen"},
+		{"g / ctrl+home", "first commit"},
+		{"G / ctrl+end", "last commit"},
 	}},
 	{"[2] commit details", []keyBinding{
 		{"↑ / ↓  k / j", "scroll one line"},
@@ -70,7 +71,8 @@ var commitViewHelp = []helpSection{
 		{"tab / shift+tab", "cycle focus"},
 		{"↑ / ↓  k / j", "move in the focused box"},
 		{"pgup/pgdn  ctrl+u / ctrl+d", "move by ten"},
-		{"g / G", "first / last"},
+		{"home / end", "files: top / bottom of the screen; text: start / end"},
+		{"g / G  ctrl+home / ctrl+end", "first / last"},
 		{"mouse wheel", "scroll the box under the pointer"},
 		{"click", "select the file under the pointer"},
 		{"?", "toggle this help"},
