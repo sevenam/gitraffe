@@ -29,6 +29,7 @@ type commitView struct {
 	// focus is which box the keyboard drives: see the box constants.
 	focus         int
 	file          int // selected file, an index into the commit's DiffFiles
+	filesTop      int // first file on screen; see fileTop
 	detailsScroll int
 	diffScroll    int
 }
@@ -149,9 +150,11 @@ func scrollBy(offset int, msg tea.KeyMsg, most int) int {
 		offset += 10
 	case "ctrl+u", "pgup":
 		offset -= 10
-	case "g", "home":
+	// A box of text has no cursor to put at the top of the screen, so home and
+	// end mean the start and end of the text, as the ctrl forms do.
+	case "g", "home", "ctrl+home":
 		offset = 0
-	case "G", "end":
+	case "G", "end", "ctrl+end":
 		offset = most
 	}
 	return max(0, min(offset, most))
@@ -203,10 +206,15 @@ func (m model) moveFileSelection(msg tea.KeyMsg) model {
 		m.commitView.file += 10
 	case "ctrl+u", "pgup":
 		m.commitView.file -= 10
-	case "g", "home":
+	case "g", "ctrl+home":
 		m.commitView.file = 0
-	case "G", "end":
+	case "G", "ctrl+end":
 		m.commitView.file = len(files) - 1
+	case "home":
+		m.commitView.file = m.fileTop(m.fileRows())
+	case "end":
+		rows := m.fileRows()
+		m.commitView.file = m.fileTop(rows) + rows - 1
 	default:
 		return m
 	}
@@ -451,24 +459,19 @@ func (m model) commitViewStatusLine() string {
 		"esc: back • 1/2/3: focus box • tab: cycle • ↑/↓/j/k: move • ?: help"), m.windowWidth)
 }
 
-// fileTop is the first file drawn in a list of this many rows. Like the
-// graph's window it is worked out from the selection rather than kept as an
-// offset, so the renderer and the mouse cannot disagree about which file a row
-// holds — and there is no offset to go stale when the commit changes.
-//
-// The list scrolls only when the selection would fall off the bottom, which
-// leaves it still while you walk down the first screenful.
+// fileTop is the first file drawn in a list of this many rows. It follows the
+// selection the way the graph's window does, staying where it was left until
+// the selection leaves it, so home and end have a screenful to be the top and
+// bottom of. The renderer and the mouse both ask here, so they cannot disagree
+// about which file a row holds; and since the selection is always brought back
+// on screen, a top left over from another commit can't hide it.
 func (m model) fileTop(rows int) int {
-	return topShowing(m.commitView.file, len(m.viewedFiles()), rows)
+	return followWindow(m.commitView.filesTop, m.commitView.file, len(m.viewedFiles()), rows)
 }
 
-// topShowing is the first row to draw so that selected is among the rows on
-// screen, moving no further than it has to.
-func topShowing(selected, count, rows int) int {
-	if rows < 1 || selected < rows {
-		return 0
-	}
-	return max(0, min(selected-rows+1, max(count-rows, 0)))
+// fileRows is how many files the list has room for on screen now.
+func (m model) fileRows() int {
+	return m.currentCommitViewLayout().fileRows - 2
 }
 
 // scrollLines applies a scroll offset and cuts content to the box it is drawn

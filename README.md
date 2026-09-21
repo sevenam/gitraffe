@@ -74,7 +74,8 @@ in `gitraffe ./update`.
 - `?` - Show every keyboard shortcut (`?`, `Esc` or `q` closes it)
 - `↑/↓` or `k/j` - Scroll up/down
 - `PgUp/PgDn` or `Ctrl+U/Ctrl+D` - Move ten rows, as vim's half-page keys do
-- `Home/End` - Jump to top/bottom
+- `Home/End` - Go to the top/bottom of what is on screen; in a box of text, its start/end
+- `Ctrl+Home/Ctrl+End` or `g/G` - Go to the first/last commit, or the first/last file in the commit view
 - Mouse wheel - Scroll the panel the pointer is over (see [Mouse](#mouse))
 - Click - Select the commit under the pointer (see [Mouse](#mouse))
 - `Enter` - Show one panel or both (see [One panel at a time](#one-panel-at-a-time))
