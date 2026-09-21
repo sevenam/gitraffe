@@ -291,14 +291,14 @@ func (m model) renderCommitView() string {
 		Padding(0, 1).
 		Render(m.commitViewHeader(c)), "")
 
-	details := commitBox(
-		scrollLines(commitIdentity(c), m.commitView.detailsScroll, l.detailsRows-2, l.leftWidth-4),
+	identity, identityMarks := scrollLines(commitIdentity(c), m.commitView.detailsScroll, l.detailsRows-2, l.leftWidth-4)
+	details := commitBox(identity, identityMarks,
 		l.leftWidth, l.detailsRows, "[1]-commit", m.commitView.focus == commitBoxDetails)
-	files := commitBox(
-		m.renderFileList(c, l.leftWidth-4, l.fileRows-2),
+	fileList, fileMarks := m.renderFileList(c, l.leftWidth-4, l.fileRows-2)
+	files := commitBox(fileList, fileMarks,
 		l.leftWidth, l.fileRows, fileBoxLabel(c), m.commitView.focus == commitBoxFiles)
-	diff := commitBox(
-		m.renderFileDiff(c, l.rightWidth-4, l.rows-2),
+	fileDiff, diffMarks := m.renderFileDiff(c, l.rightWidth-4, l.rows-2)
+	diff := commitBox(fileDiff, diffMarks,
 		l.rightWidth, l.rows, "[3]-diff", m.commitView.focus == commitBoxDiff)
 
 	body := lipgloss.JoinHorizontal(lipgloss.Top,
@@ -336,7 +336,7 @@ func fileBoxLabel(c commit) string {
 // commitBox draws one bordered box at exactly the size asked for. lipgloss
 // Height is a minimum rather than a maximum, so the result is trimmed the way
 // the main screen's panels are.
-func commitBox(content string, width, height int, label string, focused bool) string {
+func commitBox(content string, marks scrollMarks, width, height int, label string, focused bool) string {
 	border := lipgloss.Color(currentTheme.BorderInactive)
 	if focused {
 		border = lipgloss.Color(currentTheme.BorderActive)
@@ -348,17 +348,17 @@ func commitBox(content string, width, height int, label string, focused bool) st
 		BorderForeground(border).
 		Padding(0, 1).
 		Render(content)
-	return trimToHeight(addBoxLabel(box, label), height)
+	return markScroll(trimToHeight(addBoxLabel(box, label), height), marks, border)
 }
 
 // renderFileList is one row per file: what it is called, and how much of it
 // changed.
-func (m model) renderFileList(c commit, width, rows int) string {
+func (m model) renderFileList(c commit, width, rows int) (string, scrollMarks) {
 	if !c.DiffLoaded {
-		return helpStyle.Render("Loading...")
+		return helpStyle.Render("Loading..."), scrollMarks{}
 	}
 	if len(c.DiffFiles) == 0 {
-		return helpStyle.Render("No files changed")
+		return helpStyle.Render("No files changed"), scrollMarks{}
 	}
 
 	top := m.fileTop(rows)
@@ -367,7 +367,7 @@ func (m model) renderFileList(c commit, width, rows int) string {
 	for i := top; i < min(top+rows, len(c.DiffFiles)); i++ {
 		lines = append(lines, fileRow(c.DiffFiles[i], width, i == m.commitView.file))
 	}
-	return strings.Join(lines, "\n")
+	return strings.Join(lines, "\n"), marksFor(len(c.DiffFiles), top, rows)
 }
 
 // fileRow is "> path        +12 -3", the counts against the right edge so they
@@ -414,13 +414,13 @@ func fileCounts(f fileDiff) string {
 
 // renderFileDiff is the selected file's hunks, coloured as the details panel
 // colours them.
-func (m model) renderFileDiff(c commit, width, rows int) string {
+func (m model) renderFileDiff(c commit, width, rows int) (string, scrollMarks) {
 	if !c.DiffLoaded {
-		return helpStyle.Render("Loading...")
+		return helpStyle.Render("Loading..."), scrollMarks{}
 	}
 	files := c.DiffFiles
 	if len(files) == 0 {
-		return helpStyle.Render("Nothing to show")
+		return helpStyle.Render("Nothing to show"), scrollMarks{}
 	}
 	f := files[max(0, min(m.commitView.file, len(files)-1))]
 
@@ -474,14 +474,15 @@ func topShowing(selected, count, rows int) int {
 // scrollLines applies a scroll offset and cuts content to the box it is drawn
 // in, clamping the offset so scrolling past the end stops at the last line
 // rather than emptying the box.
-func scrollLines(content string, offset, rows, width int) string {
+func scrollLines(content string, offset, rows, width int) (string, scrollMarks) {
 	lines := strings.Split(truncateLines(content, width), "\n")
 	offset = max(0, min(offset, len(lines)-1))
+	marks := marksFor(textLines(lines), offset, rows)
 	lines = lines[offset:]
 	if len(lines) > rows && rows > 0 {
 		lines = lines[:rows]
 	}
-	return strings.Join(lines, "\n")
+	return strings.Join(lines, "\n"), marks
 }
 
 // truncateLeft cuts a path from the front, since its last part identifies it

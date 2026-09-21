@@ -131,7 +131,7 @@ func (m model) View() (result string) {
 	// Padding(1,2) → 2*2=4 horizontal padding + 2 borders = 6 overhead
 	if rightPanelWidth > 0 {
 		m.detailsContentWidth = rightPanelWidth - 6
-		rightContent := m.renderCommitDetails()
+		rightContent, rightMarks := m.renderCommitDetails()
 		rightPanel = addBoxLabel(lipgloss.NewStyle().
 			Width(rightPanelWidth-2). // subtract borders (2); Width includes padding
 			Height(contentHeight).
@@ -139,7 +139,7 @@ func (m model) View() (result string) {
 			BorderForeground(box2Border).
 			Padding(1, 2).
 			Render(rightContent), "[2]-commit-details")
-		rightPanel = trimToHeight(rightPanel, targetPanelHeight)
+		rightPanel = markScroll(trimToHeight(rightPanel, targetPanelHeight), rightMarks, box2Border)
 	}
 
 	// Join panels horizontally
@@ -841,11 +841,11 @@ func truncateLines(s string, maxWidth int) string {
 }
 
 // renderCommitDetails renders the right panel with commit details and diff
-func (m *model) renderCommitDetails() string {
+func (m *model) renderCommitDetails() (string, scrollMarks) {
 	log.Printf("renderCommitDetails: selected=%d, len(commits)=%d", m.selected, len(m.commits))
 	if len(m.commits) == 0 || m.selected < 0 || m.selected >= len(m.commits) {
 		log.Printf("renderCommitDetails: skipping (empty or out of bounds)")
-		return ""
+		return "", scrollMarks{}
 	}
 
 	c := m.commits[m.selected]
@@ -987,9 +987,10 @@ func styleDiffLine(line string) string {
 //
 // lipgloss Height() only pads short content, it does NOT clip overflow, so
 // without this the panel grows unbounded.
-func (m *model) fitDetails(content string) string {
+func (m *model) fitDetails(content string) (string, scrollMarks) {
 	content = truncateLines(content, m.detailsContentWidth)
 	allLines := strings.Split(content, "\n")
+	total := textLines(allLines)
 
 	// Clamp scroll
 	if m.detailsScroll >= len(allLines) {
@@ -1012,7 +1013,7 @@ func (m *model) fitDetails(content string) string {
 		allLines = allLines[:maxLines]
 	}
 
-	return strings.Join(allLines, "\n")
+	return strings.Join(allLines, "\n"), marksFor(total, m.detailsScroll, maxLines)
 }
 
 // trimToHeight ensures a rendered string is exactly targetHeight lines.

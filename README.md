@@ -97,6 +97,10 @@ While the history is cut short (see [Long histories](#long-histories)) it reads
 `1,234/5,000+` instead, without a percentage, since the bottom of what has been read
 isn't the bottom of the history.
 
+A box with more to read than fits in it says so in its border: `⇣` in the middle of the
+bottom edge when there is more below, `⇡` along the top when you have scrolled past the
+start. A box whose content fits has neither, so a plain border means you have seen it all.
+
 ### Mouse
 
 The wheel scrolls whichever panel the pointer is over: the graph moves the selected
