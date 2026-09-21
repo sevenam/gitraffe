@@ -378,7 +378,41 @@ func (m *model) renderStatusLine() string {
 		// width, so a trailing hint is the first thing truncation eats.
 		help = "U: update to " + m.latestVersion + " • " + help
 	}
-	return truncateLines(helpStyle.Render(help), m.windowWidth)
+
+	// The position is pinned to the right edge and the key help gives way to
+	// it: help is there once, while the position changes with every keypress.
+	pos := m.graphPosition()
+	if pos == "" || m.windowWidth <= 0 || ansi.StringWidth(pos)+2 > m.windowWidth {
+		return truncateLines(helpStyle.Render(help), m.windowWidth)
+	}
+	room := m.windowWidth - ansi.StringWidth(pos) - 2
+	help = ansi.Truncate(help, room, "")
+	gap := m.windowWidth - ansi.StringWidth(help) - ansi.StringWidth(pos)
+	return helpStyle.Render(help + strings.Repeat(" ", gap) + pos)
+}
+
+// graphPosition says where the selection is in the history, e.g.
+// "1,234/5,000 · 24%". Only real commits are counted: the uncommitted-changes
+// row sits above them as position 0, so the newest commit is always 1.
+//
+// A history cut short at commitLimit shows "5,000+" and no percentage, because
+// the percentage would be of what happens to be loaded — 100% at a bottom that
+// isn't one.
+func (m *model) graphPosition() string {
+	if !m.ready || m.err != nil || m.selected < 0 || m.selected >= len(m.commits) {
+		return ""
+	}
+	pos, total := m.selected+1, len(m.commits)
+	if m.commits[0].WorkingTree {
+		pos, total = pos-1, total-1
+	}
+	if total <= 0 {
+		return ""
+	}
+	if m.moreCommits {
+		return thousands(pos) + "/" + thousands(total) + "+"
+	}
+	return fmt.Sprintf("%s/%s · %d%%", thousands(pos), thousands(total), pos*100/total)
 }
 
 // syncLabel renders how the current branch differs from its upstream, e.g.

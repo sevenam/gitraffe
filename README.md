@@ -91,6 +91,12 @@ in `gitraffe ./update`.
 - `U` - Update to the latest release (shown in the help line when one is available)
 - `q` or `Ctrl+C` - Quit
 
+The right end of the bottom line shows where you are in the history, as in
+`1,234/5,000 · 24%` — counted from the newest commit, with uncommitted changes as 0.
+While the history is cut short (see [Long histories](#long-histories)) it reads
+`1,234/5,000+` instead, without a percentage, since the bottom of what has been read
+isn't the bottom of the history.
+
 ### Mouse
 
 The wheel scrolls whichever panel the pointer is over: the graph moves the selected
