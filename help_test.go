@@ -46,6 +46,21 @@ func TestHelpClosesWithoutQuitting(t *testing.T) {
 	}
 }
 
+// Esc backs out of every view, so a spare press on the graph must not quit.
+func TestEscDoesNotQuitFromGraph(t *testing.T) {
+	m := testModel()
+	m.commits = make([]commit, 25)
+	for i := range m.commits {
+		m.commits[i].DiffLoaded = true
+	}
+	if _, cmd := m.Update(tea.KeyMsg{Type: tea.KeyEsc}); isQuit(cmd) {
+		t.Error("esc quit from the graph")
+	}
+	if _, cmd := m.Update(keyPress("q")); !isQuit(cmd) {
+		t.Error("q no longer quits from the graph")
+	}
+}
+
 func TestCtrlCStillQuitsFromHelp(t *testing.T) {
 	_, cmd := helpOpen().Update(tea.KeyMsg{Type: tea.KeyCtrlC})
 	if !isQuit(cmd) {

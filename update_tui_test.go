@@ -165,7 +165,7 @@ func TestStatusLineFitsAndKeepsLayout(t *testing.T) {
 		set  func(m *model)
 		want string
 	}{
-		{"no update available", func(m *model) { m.latestVersion = "v" + version }, "q/esc: quit"},
+		{"no update available", func(m *model) { m.latestVersion = "v" + version }, "q: quit"},
 		{"update available", func(m *model) { m.latestVersion = "v9.9.9" }, "U: update to v9.9.9"},
 		{"confirming", func(m *model) {
 			m.latestVersion = "v9.9.9"
