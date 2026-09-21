@@ -37,7 +37,7 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		// is meaningful, and it stays available in case the download hangs.
 		if m.updateState == updateDownloading {
 			switch msg.String() {
-			case "q", "ctrl+c", "esc":
+			case "q", "ctrl+c":
 				return m, tea.Quit
 			}
 			return m, nil
@@ -80,7 +80,9 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 
 		switch msg.String() {
-		case "q", "ctrl+c", "esc":
+		// Not esc: everywhere else it means "back", so it gets pressed once too
+		// often on the way out of a view and would throw away the whole session.
+		case "q", "ctrl+c":
 			return m, tea.Quit
 		case "?":
 			m.showHelp = true

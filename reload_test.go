@@ -138,7 +138,7 @@ func TestStatusLineOffersReload(t *testing.T) {
 		t.Errorf("status line = %q, want it to offer reload", line)
 	}
 	// It has to survive the width the line is written for.
-	if !strings.Contains(line, "q/esc: quit") {
+	if !strings.Contains(line, "q: quit") {
 		t.Errorf("status line = %q, want quit still on it at 120 columns", line)
 	}
 }

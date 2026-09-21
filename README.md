@@ -89,7 +89,7 @@ in `gitraffe ./update`.
 - `t` - Pick a colour theme (see [Picking a theme](#picking-a-theme))
 - `c` - Toggle lane colours in the graph (see [Graph lane colours](#graph-lane-colours))
 - `U` - Update to the latest release (shown in the help line when one is available)
-- `q` or `Esc` or `Ctrl+C` - Quit
+- `q` or `Ctrl+C` - Quit
 
 ### Mouse
 
