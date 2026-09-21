@@ -372,7 +372,7 @@ func (m *model) renderStatusLine() string {
 	// Only the keys needed to get around; "?" lists the rest. The line has to
 	// fit a typical terminal, and "?" leads so truncation never hides the way
 	// to find everything else.
-	help := "?: help • enter: details • space: diff • r: reload • tab: cycle • ↑/↓/j/k: scroll • c: colours • q/esc: quit"
+	help := "?: help • enter: details • space: diff • r: reload • tab: cycle • ↑/↓/j/k: scroll • q/esc: quit"
 	if m.updateAvailable() {
 		// Leads rather than trails: the line is already near a typical terminal's
 		// width, so a trailing hint is the first thing truncation eats.
