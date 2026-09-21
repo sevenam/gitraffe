@@ -9,7 +9,33 @@ permissions:
   contents: write
 
 jobs:
+  # A tag pushed from a stale checkout builds a release of old code under a
+  # new version's name, and nothing downstream notices. Both checks have to
+  # pass before anything is built.
+  check-tag:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+
+      - name: Tag matches the version in main.go
+        run: |
+          want="v$(sed -n 's/^[[:space:]]*version[[:space:]]*=[[:space:]]*"\([^"]*\)".*/\1/p' main.go | head -n 1)"
+          if [ "$GITHUB_REF_NAME" != "$want" ]; then
+            echo "::error::Tag $GITHUB_REF_NAME is on a commit whose main.go says $want. Pull main and tag its latest commit."
+            exit 1
+          fi
+
+      - name: Tagged commit is on main
+        run: |
+          if ! git merge-base --is-ancestor "$GITHUB_SHA" origin/main; then
+            echo "::error::Tag $GITHUB_REF_NAME is on $GITHUB_SHA, which is not on main. Merge first, then tag main."
+            exit 1
+          fi
+
   test:
+    needs: check-tag
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
