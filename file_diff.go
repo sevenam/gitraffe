@@ -19,7 +19,7 @@ type fileDiff struct {
 	// line git wrote instead.
 	Binary bool
 	// Untracked marks a working-tree file git has never seen. It has no diff,
-	// so it is listed to be counted, not to be read.
+	// so Body is the file's contents, every line written as an addition.
 	Untracked bool
 	Body      string // the file's hunks, without the "diff --git" header
 }
