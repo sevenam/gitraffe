@@ -435,9 +435,12 @@ func (m model) renderFileDiff(c commit, width, rows int) (string, scrollMarks) {
 	var sb strings.Builder
 	sb.WriteString(lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color(currentTheme.DiffHeader)).Render(f.Path))
 	sb.WriteString("\n\n")
-	if strings.TrimSpace(f.Body) == "" {
+	switch {
+	case f.Untracked && f.Body == "":
+		sb.WriteString(helpStyle.Render("Empty file"))
+	case strings.TrimSpace(f.Body) == "":
 		sb.WriteString(helpStyle.Render("No textual change"))
-	} else {
+	default:
 		for _, line := range strings.Split(f.Body, "\n") {
 			sb.WriteString(styleDiffLine(line))
 			sb.WriteString("\n")

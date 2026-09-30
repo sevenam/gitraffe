@@ -329,7 +329,7 @@ func TestFileSelectionStopsAtTheEnds(t *testing.T) {
 }
 
 // Uncommitted changes are a commit as far as this screen is concerned, and an
-// untracked file is listed even though there is no diff to read.
+// untracked file is listed, and readable, even though git has no diff of it.
 func TestViewOnUncommittedChanges(t *testing.T) {
 	dir, _, _ := dirtyRepo(t)
 	write(t, dir, "first", "changed")
@@ -357,8 +357,37 @@ func TestViewOnUncommittedChanges(t *testing.T) {
 	if !strings.Contains(screen, "untracked") {
 		t.Errorf("the list does not mark the untracked file:\n%s", screen)
 	}
-	if body := diffBoxOf(t, m); !strings.Contains(body, "not in git yet") {
-		t.Errorf("the diff box does not say why there is nothing to read:\n%s", body)
+	if body := diffBoxOf(t, m); !strings.Contains(body, "hello") {
+		t.Errorf("the diff box does not show the untracked file's contents:\n%s", body)
+	}
+}
+
+// An untracked file reads as new lines do in a tracked one: every line an
+// addition, in the addition colour — including a line that happens to start
+// with "-", which is the file's content and not a deletion.
+func TestUntrackedFileReadsAsAdditions(t *testing.T) {
+	withTrueColor(t)
+	saved := currentTheme
+	t.Cleanup(func() { currentTheme = saved; initStyles() })
+	currentTheme = defaultTheme()
+	currentTheme.DiffAdd = "#123456"
+	initStyles()
+
+	dir := t.TempDir()
+	write(t, dir, "notes.md", "# Notes\n- a list item\n")
+	c := commit{WorkingTree: true, DiffLoaded: true, DiffFiles: []fileDiff{untrackedFile(dir, "notes.md")}}
+	out, _ := model{}.renderFileDiff(c, 80, 20)
+
+	for _, want := range []string{"+# Notes", "+- a list item"} {
+		var line string
+		for _, l := range strings.Split(out, "\n") {
+			if strings.Contains(ansi.Strip(l), want) {
+				line = l
+			}
+		}
+		if !strings.Contains(line, "38;2;18;52;86") {
+			t.Errorf("%q is not drawn as an addition: %q", want, line)
+		}
 	}
 }
 

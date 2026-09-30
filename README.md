@@ -178,7 +178,9 @@ path too long for the column is cut from the front, keeping the file's own name.
 
 It works on uncommitted changes too: the working-tree row opens like any other
 commit, and untracked files are listed — marked `untracked`, since git has never seen
-them and so has nothing to compare them with.
+them and so has nothing to compare them with. Selecting one shows the whole file as
+added lines, `+` and green, the way new lines in a tracked file look; a binary file
+is only named.
 
 Pressing `?` here lists this screen's keys rather than the graph's, and `p` opens the
 commit's pull request (see [Opening a pull request](#opening-a-pull-request)).
@@ -366,7 +368,7 @@ got in progress" as well as "where am I". A clean tree adds no row.
 Staged and unstaged changes are one number: both are work in progress, and which is
 which is a detail for the details panel. Select the row and it shows the stats and
 the diff of everything against `HEAD`, staged changes included. Untracked files have
-no diff, so they are listed by name instead.
+no diff, so they are listed by name instead; open the row (`Space`) to read them.
 
 Nothing here is refreshed on a timer; press `r` after editing files (see
 [Reloading](#reloading)).

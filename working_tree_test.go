@@ -147,6 +147,34 @@ func TestWorkingTreeDiffCoversStagedAndUntracked(t *testing.T) {
 	}
 }
 
+// An untracked file's body is the file itself as additions: line endings
+// evened out, long files cut, binaries and empty files described rather than
+// dumped.
+func TestUntrackedFileBody(t *testing.T) {
+	dir := t.TempDir()
+	write(t, dir, "crlf.txt", "one\r\ntwo\r\n")
+	write(t, dir, "empty.txt", "")
+	write(t, dir, "blob.bin", "PK\x00\x03binary")
+	write(t, dir, "long.txt", strings.Repeat("line\n", maxFileDiffLines+50))
+
+	if got := untrackedFile(dir, "crlf.txt"); got.Body != "+one\n+two" || got.Added != 2 || !got.Untracked {
+		t.Errorf("crlf.txt = %+v, want its two lines as additions", got)
+	}
+	if got := untrackedFile(dir, "empty.txt"); got.Body != "" || got.Binary {
+		t.Errorf("empty.txt = %+v, want an empty text file", got)
+	}
+	if got := untrackedFile(dir, "blob.bin"); !got.Binary || strings.Contains(got.Body, "PK") {
+		t.Errorf("blob.bin = %+v, want it marked binary and not shown", got)
+	}
+	long := untrackedFile(dir, "long.txt")
+	if n := strings.Count(long.Body, "\n") + 1; n != maxFileDiffLines+1 || !strings.HasSuffix(long.Body, "(truncated)") {
+		t.Errorf("long.txt has %d lines, want it cut at %d with a note", n, maxFileDiffLines)
+	}
+	if got := untrackedFile(dir, "gone.txt"); !strings.Contains(got.Body, "could not be read") {
+		t.Errorf("a missing file = %+v, want it to say it could not be read", got)
+	}
+}
+
 func TestReloadPicksUpNewChanges(t *testing.T) {
 	dir, _, _ := dirtyRepo(t)
 	m := loadedModel(t, dir)

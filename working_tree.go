@@ -1,9 +1,12 @@
 package main
 
 import (
+	"bytes"
 	"fmt"
 	"log"
+	"os"
 	"os/exec"
+	"path/filepath"
 	"strings"
 	"time"
 
@@ -141,14 +144,7 @@ func loadWorkingDiffCmd(repoPath string, statWidth int) tea.Cmd {
 			sb.WriteString("Untracked files:\n")
 			for _, f := range strings.Split(untracked, "\n") {
 				sb.WriteString("  " + f + "\n")
-				// Listed as files of their own so the commit view can count
-				// them and say why there is nothing to read: git has never
-				// seen the file, so there is no diff to ask it for.
-				files = append(files, fileDiff{
-					Path:      f,
-					Untracked: true,
-					Body:      "Untracked — this file is not in git yet, so there is nothing to compare it with.",
-				})
+				files = append(files, untrackedFile(repoPath, f))
 			}
 			if body != "" {
 				sb.WriteString("\n")
@@ -158,4 +154,39 @@ func loadWorkingDiffCmd(repoPath string, statWidth int) tea.Cmd {
 
 		return diffLoadedMsg{repoPath: repoPath, commitIdx: 0, diffStat: stat, diffBody: body, diffFiles: files}
 	}
+}
+
+// untrackedFile lists a file git has never seen, with its contents as the
+// body. There is no diff to ask git for, but the file itself is what you want
+// to read before adding it, so it is shown whole rather than only named.
+//
+// Every line is written as an addition, which is what adding the file will
+// make it, so it reads the same as new lines in a tracked file. It is read
+// from disk rather than through "git diff --no-index", which exits 1 whenever
+// there is a difference and so cannot tell a new file from a failed call.
+func untrackedFile(repoPath, path string) fileDiff {
+	f := fileDiff{Path: path, Untracked: true}
+	data, err := os.ReadFile(filepath.Join(repoPath, filepath.FromSlash(path)))
+	switch {
+	case err != nil:
+		f.Body = "Untracked — this file is not in git yet, and could not be read."
+	// git's own test for binary: a NUL byte in the first 8000.
+	case bytes.IndexByte(data[:min(len(data), 8000)], 0) >= 0:
+		f.Binary = true
+		f.Body = "Untracked binary file, not shown."
+	case len(data) == 0:
+		// Left empty: the commit view says so in its own words.
+	default:
+		text := strings.TrimSuffix(strings.ReplaceAll(string(data), "\r", ""), "\n")
+		lines := strings.Split(text, "\n")
+		f.Added = len(lines)
+		for i, line := range lines {
+			lines[i] = "+" + line
+		}
+		if len(lines) > maxFileDiffLines {
+			lines = append(lines[:maxFileDiffLines], "... (truncated)")
+		}
+		f.Body = strings.Join(lines, "\n")
+	}
+	return f
 }
