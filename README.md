@@ -2,9 +2,7 @@
 
 A text-based UI git graph command line tool built with Golang, Bubble Tea, go-git, and Lip Gloss.
 
-<img width="925" height="750" alt="image" src="https://github.com/user-attachments/assets/d1e2a064-d542-4cbc-b578-15f15114058d" />
-
-
+<img width="951" height="738" alt="image" src="https://github.com/user-attachments/assets/ec1c1a22-0047-46ea-a4d5-bc95e5a2b893" />
 
 ## Features
 
