@@ -1,6 +1,8 @@
 package tui
 
 import (
+	"time"
+
 	"github.com/sevenam/gitraffe/internal/git"
 )
 
@@ -56,6 +58,12 @@ type model struct {
 	configDir           string     // gitraffe's config directory; "" means a picked theme can't be saved
 	notice              string     // one-off status line text, e.g. the theme just saved; cleared by the next key
 	loadedNotice        string     // takes over from notice once the repository has loaded; see refresh
+	// Unasked refreshing and fetching; see auto_refresh.go. Zero intervals mean off.
+	autoRefresh      time.Duration
+	autoFetch        time.Duration
+	fingerprint      string // the repository as it was when last read; "" when unknown
+	autoFetching     bool   // an unasked fetch is running
+	autoFetchStopped bool   // one failed, so no more are tried until a fetch you ask for works
 	// stale is the model a reload replaced, drawn in place of the loading page
 	// until this one is ready, so reading the repository again doesn't blank
 	// the screen. Nil on a first load and after a switch, which have nothing

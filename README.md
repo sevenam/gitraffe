@@ -17,6 +17,7 @@ A text-based UI git graph command line tool built with Golang, Bubble Tea, go-gi
 - 🔍 A commit view on `Space`: what the commit is, every file it touched, and one file's diff at a time (see [The commit view](#the-commit-view))
 - 🌐 `p` opens the commit's pull request in your browser, read from the merge subject and the remote (see [Opening a pull request](#opening-a-pull-request))
 - 🔖 `b` jumps to any branch or tag, typing to narrow the list (see [Jumping to a branch or tag](#jumping-to-a-branch-or-tag))
+- 🔄 Keeps itself up to date: changes on your machine appear without a keypress, and it can fetch on a timer too (see [Auto-refresh](#auto-refresh))
 - 🎨 Beautiful styling with Lip Gloss
 - ⌨️  Keyboard navigation (arrow keys, vim-style)
 - 🖱️  Mouse support: click a commit to select it, wheel to scroll (see [Mouse](#mouse))
@@ -293,9 +294,9 @@ Press `f` to run `git fetch --all --prune` and reload once it finishes, which is
 makes the ahead/behind counts and the tag marks true as of now rather than as of your
 last fetch.
 
-It is the one thing gitraffe does that writes to your repository, so it only ever
-happens when you press the key — never on a timer, and never at startup. What it
-writes is limited to remote-tracking refs: your branches, your tags and your working
+It is the one thing gitraffe does that writes to your repository, so unless you turn
+on [auto-fetch](#auto-refresh) it only ever happens when you press the key — never on
+a timer, and never at startup. What it writes is limited to remote-tracking refs: your branches, your tags and your working
 tree are not touched, and `--prune` only drops `origin/...` refs whose branch the
 remote no longer has.
 
@@ -305,10 +306,10 @@ graph for the screen, and a remote that never answers is given up on after a min
 
 ### Reloading
 
-Gitraffe reads the repository when it opens it and doesn't watch for changes, so
-commits you make in another terminal aren't there until you ask for them. Press `r`
-or `F5` to read it again: the graph, the ahead/behind counts and the tag marks are
-all rebuilt together.
+Press `r` or `F5` to read the repository again: the graph, the ahead/behind counts
+and the tag marks are all rebuilt together. Changes made on this machine are picked
+up without asking (see [Auto-refresh](#auto-refresh)), so the key is for when you
+don't want to wait, or have turned that off.
 
 The screen stays as it is while that happens: only the bottom line changes, to
 `Refreshing…` and then `Refreshed`, so a refresh that found nothing new leaves
@@ -316,8 +317,41 @@ everything else exactly where it was.
 
 Your place is kept. The commit you had selected stays selected, even though new
 commits have pushed it down the list, and the same panel keeps focus, with the same
-layout and scroll position. If that commit
-is gone — amended or rebased away — the selection falls back to the newest commit.
+layout and scroll position. If that commit is gone — amended or rebased away — the
+selection falls back to the newest commit.
+
+### Auto-refresh
+
+A commit made in another terminal, a checkout, an edit: gitraffe notices these on its
+own. Every 30 seconds, and whenever its terminal window gets the focus back, it
+checks whether anything changed — where `HEAD` is, the branches and tags, the
+uncommitted files — and reads the repository again only if something did. A check
+that finds nothing draws nothing, and one that finds something changes only what
+changed: nothing is said on the bottom line, and your place is kept as it is for `r`.
+
+The check is a couple of quick git commands run in the background, and it never
+takes git's index lock, so it won't make a git command you are typing elsewhere fail.
+It waits while a box is open over the graph — the help, a picker, the search prompt —
+and catches up once it is closed.
+
+Auto-refresh only looks at your machine. Seeing what is new on the remote still
+takes a fetch, which you can also have done for you. Both are set in `settings.yml`
+in your config directory, in seconds:
+
+```yaml
+auto_refresh: 30   # the default; 0 turns it off
+auto_fetch: 300    # off unless you add it; fetch every five minutes
+```
+
+Auto-fetch is off by default because fetching reaches the network and writes to
+the repository, and that is yours to opt into. When on, it runs the same fetch as
+`f`, silently: what it brings shows up in the graph, and nothing is said if there
+was nothing new. If a fetch fails — no network, a key that needs unlocking — the
+bottom line says so once and auto-fetch stops, rather than failing again every
+interval; pressing `f` tries again, and a fetch that works starts it off again.
+
+Intervals shorter than 2 seconds for refreshing and 30 seconds for fetching are
+raised to those.
 
 ### Switching repository
 
@@ -359,7 +393,10 @@ next run starts where the last one left off:
 | `focused_box` | the panel that had focus, `1` or `2` |
 | `maximised` | whether that panel filled the window (`Enter`) |
 
-The last three are written when gitraffe exits, not as you press the keys, since `c`
+`auto_refresh` and `auto_fetch` live in the same file but are yours to write: see
+[Auto-refresh](#auto-refresh).
+
+`lane_colours`, `focused_box` and `maximised` are written when gitraffe exits, not as you press the keys, since `c`
 and `tab` are pressed often and the file is only read at startup. Delete the file,
 or any single key in it, to go back to the defaults: fullscreen, lane colours on, the
 graph focused. A `focused_box` naming a panel that doesn't exist is ignored.

@@ -39,6 +39,9 @@ func Run(repoPath, configDir string) (updatedTo string, err error) {
 		m,
 		tea.WithAltScreen(),
 		tea.WithMouseCellMotion(),
+		// Coming back to the terminal is the moment the graph is most likely to
+		// be out of date; see onFocus.
+		tea.WithReportFocus(),
 	)
 
 	finalModel, err := p.Run()

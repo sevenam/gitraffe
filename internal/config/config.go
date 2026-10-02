@@ -55,6 +55,13 @@ type Settings struct {
 	LaneColours *bool `yaml:"lane_colours,omitempty"`
 	FocusedBox  int   `yaml:"focused_box,omitempty"`
 	Maximised   *bool `yaml:"maximised,omitempty"`
+	// AutoRefresh is how often, in seconds, the open repository is checked for
+	// changes. It is a pointer for the same reason as the toggles above: absent
+	// means the default interval, and 0 means never.
+	AutoRefresh *int `yaml:"auto_refresh,omitempty"`
+	// AutoFetch is how often, in seconds, to fetch unasked. Absent and 0 both
+	// mean never: reaching the network is something to opt into.
+	AutoFetch int `yaml:"auto_fetch,omitempty"`
 }
 
 // Path is where settings.yml lives in configDir.
