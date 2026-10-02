@@ -131,7 +131,7 @@ func (m model) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		if !m.ready {
 			return m, nil
 		}
-		return m.reloadRepo()
+		return m.refresh()
 	case "U":
 		return m.startUpdate(), nil
 	case "c":

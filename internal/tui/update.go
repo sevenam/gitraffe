@@ -25,6 +25,12 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	if !ok {
 		return next, cmd
 	}
+	// Not while loading: there are no rows yet, so both windows would be
+	// recorded as back at the top, and a reload would lose the scroll position
+	// it carried over to come back to.
+	if !nm.ready {
+		return nm, cmd
+	}
 	nm.graphTop, _ = nm.graphWindow()
 	if nm.commitView.open {
 		nm.commitView.filesTop = nm.fileTop(nm.fileRows())

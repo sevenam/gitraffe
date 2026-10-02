@@ -136,6 +136,7 @@ func (m model) jumpToRef(c git.Ref) (model, tea.Cmd) {
 	next, cmd := m.reloadRepo()
 	// reloadRepo keeps your place; here the point is to go somewhere else.
 	next.reselect = c.Commit
+	next.detailsScroll = 0
 	next.notice = "Reading " + thousands(m.commitLimit) + " commits to reach " + c.Name + "..."
 	return next, cmd
 }
