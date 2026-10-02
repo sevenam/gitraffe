@@ -227,7 +227,7 @@ func ListRefs(dir string) ([]Ref, error) {
 // CommitDepth is how many commits git lists before this one, or -1 when it
 // lists it not at all.
 //
-// The order has to be the graph's own: git log --graph implies --topo-order,
+// The order has to be the graph's own: LoadGraph reads in --topo-order,
 // which puts commits in a different place than the date order git otherwise
 // uses, and a depth counted in the wrong order would read too little history.
 func CommitDepth(dir, hash string) int {

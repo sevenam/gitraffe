@@ -116,7 +116,7 @@ func (m *model) renderCommitList(layout panelLayout, contentWidth int) string {
 	plainStyle := lipgloss.NewStyle()
 
 	if len(m.displayRows) > 0 {
-		// Graph mode: use displayRows from git log --graph
+		// Graph mode: the rows the layout drew
 
 		// The author column sits against the panel's right edge, so the gap in
 		// front of it absorbs any slack width and names line up on every row.

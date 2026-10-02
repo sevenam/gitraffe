@@ -20,9 +20,9 @@ const workingTreeMarker = "○"
 // answers "where am I". Nothing is added when the working tree is clean.
 //
 // It runs after the graph has been read, and shifts the rows' commit indexes
-// along, rather than being woven into the log output: git log has nothing to
-// say about uncommitted work, and the lane colouring reads git's own output,
-// which a made-up row would corrupt.
+// along, rather than being woven into the layout: git log has nothing to say
+// about uncommitted work, and the layout is of commits and their parents,
+// which a made-up row has none of.
 func (m *model) addWorkingTreeRow() {
 	summary, ok := m.workingTreeSummary()
 	if !ok {
@@ -42,9 +42,8 @@ func (m *model) addWorkingTreeRow() {
 	m.displayRows = append([]displayRow{m.workingTreeRow()}, m.displayRows...)
 }
 
-// workingTreeRow draws the marker in the column the topmost commit sits in,
-// with every other lane of that row continued as a bar, so the row reads as
-// sitting on top of the graph rather than floating beside it.
+// workingTreeRow draws the marker in the column the topmost commit sits in, so
+// the row reads as sitting on top of the graph rather than floating beside it.
 func (m *model) workingTreeRow() displayRow {
 	row := displayRow{GraphChars: workingTreeMarker, CommitIdx: 0, GraphWidth: 1, Lanes: []int{0}}
 	if len(m.displayRows) == 0 {
@@ -63,22 +62,13 @@ func (m *model) workingTreeRow() displayRow {
 	if marker < 0 {
 		return row
 	}
-	out := make([]rune, len(runes))
-	for i, r := range runes {
-		switch {
-		case i == marker:
-			out[i] = []rune(workingTreeMarker)[0]
-		case r == ' ':
-			out[i] = ' '
-		default:
-			// Diagonals belong to the row below; above it those lanes are
-			// simply carrying on.
-			out[i] = '│'
-		}
-	}
-	row.GraphChars = string(out)
-	row.GraphWidth = len(out)
-	row.Lanes = append([]int(nil), first.Lanes...)
+	// Nothing is listed above the topmost commit, so no lane runs past this
+	// row: whatever else is on the commit's row is a connection to commits
+	// below it.
+	row.GraphChars = strings.Repeat(" ", marker) + workingTreeMarker
+	row.GraphWidth = marker + 1
+	row.Lanes = make([]int, marker+1)
+	row.Lanes[marker] = first.Lanes[marker]
 	return row
 }
 

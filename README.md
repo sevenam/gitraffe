@@ -10,7 +10,7 @@ A text-based UI git graph command line tool built with Golang, Bubble Tea, go-gi
 
 - 📊 Visual git commit graph in your terminal (branches **and tags** are shown; the graph expands to use available space and long branch names are truncated as needed)
 - 🌈 A colour per branch in the graph, held across the columns git shifts it through (press `c` to toggle; see [Graph lane colours](#graph-lane-colours))
-- ◆ Merge commits drawn as a diamond, so a merged branch visibly ends somewhere (see [Merge commits](#merge-commits))
+- 🧭 Every branch line runs to the commit it started from and the commit it was merged into, and merges are drawn as a diamond (see [Reading the graph](#reading-the-graph))
 - 🌿 Names merged-and-deleted branches at their tip commit, recovered from merge commit messages (see [Merged branches](#merged-branches))
 - 👤 Each commit's date and author in columns beside the hash (on a narrow terminal the author goes first, then the date, before branch labels are cut)
 - 🔀 Ahead/behind for the current branch next to its name, e.g. `main ↑3 ↓1` (see [Ahead and behind](#ahead-and-behind))
@@ -459,29 +459,39 @@ no diff, so they are listed by name instead; open the row (`Space`) to read them
 The row follows your edits on its own (see [Auto-refresh](#auto-refresh)); press `r`
 if you don't want to wait for the next check.
 
-## Merge commits
+## Reading the graph
 
-A commit with more than one parent is drawn as a diamond, `◆`, where every other
-commit is a dot, `●`:
+Every commit has one row, and every line is drawn to the commit it belongs to:
 
 ```
-◆          ← a merge: the branch on the right ends here
-│╲
-│ ●        ← the commits made on that branch
+◆─╮        ← a merge: the branch on the right was merged into this commit
+│ ●        ← a commit on that branch
 │ ●
-│╱          ← where it was branched off
-●
+│ │ ●      ← a commit on another branch, not merged yet
+●─┴─╯      ← both branches were started from this commit
 ```
 
-It is there because of how the lines are drawn. The line of a merged branch stops on
-the row *below* the commit it was merged into, in the branch's own colour, so without
-a mark on that commit the line seems to end at nothing in particular. The diamond
-says where it went. A selected merge keeps the shape, ringed: `◈`, as a selected
-commit is `◉`.
+A branch's line runs from the commit it was branched from to the commit it was merged
+into, in one column and one colour, however many other commits are listed in between.
+So where a line meets a commit is where it really starts or ends.
 
-The other end works the same way round: a branch's line joins the line it was
-branched from as soon as it has no more commits of its own, which can be a few rows
-above the commit it actually started at — that commit is the next one down that line.
+| Drawn | Meaning |
+| --- | --- |
+| `●` | a commit; `◉` when selected |
+| `◆` | a merge commit, with more than one parent; `◈` when selected |
+| `○` | uncommitted changes (see [Uncommitted changes](#uncommitted-changes)) |
+| `─╮` | a line leaving a merge for a branch that was merged in |
+| `─╯` | a branch's line arriving at the commit it was started from |
+| `─┴─` | another branch arriving at the same commit, with one beyond it |
+| `─┤` | a branch ends at this commit and another one, merged here, begins — both in one column, which is what a run of pull requests looks like |
+| `├─◆` | a merge whose other parent is on a line that was already there, as when main is merged into a branch |
+| `─│─` | a line crossing one it has nothing to do with |
+
+Gitraffe draws this itself instead of showing `git log --graph`. Git puts each
+connection on a row of its own between the commits, and folds a branch's line into
+its neighbour as soon as the branch has no more commits — rows above the commit it
+was branched from, so the branch looks as if it starts out of the side of a line.
+The commits are listed in the same order git's graph lists them.
 
 ## Merged branches
 
@@ -505,12 +515,11 @@ the branches fanning out to its right take a colour each from a fixed palette th
 repeats once a repository has more than six branches open at once.
 
 The colour follows the *branch*, not the column it is drawn in. Those are not the same
-thing: git slides lanes sideways to make room, so one branch can be drawn in three
-different columns on its way down the screen, and a column that one branch has merged
-away from is reused by an unrelated one later. Colouring by column therefore recolours
-a branch halfway down and gives two unrelated branches the same colour, which is why
-gitraffe reads the lane identity out of git's own coloured graph output and then maps
-each lane back to the branch it belongs to.
+thing: a column one branch has finished with is used again by an unrelated one further
+down, so colouring by column would give two unrelated branches the same colour. A
+branch here means a commit and the first parents it leads back through; a line takes
+the colour of the branch at its upper end, and the stroke from a merge to the branch
+it merged in takes that branch's.
 
 Press `c` to turn it off and render the whole graph in the theme's `graph` colour, the
 way it looked before. The key works whichever panel has focus, and the setting is
