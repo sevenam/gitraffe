@@ -100,6 +100,11 @@ func (m model) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		if !m.ready {
 			return m, nil
 		}
+		return m.startPull()
+	case "P":
+		if !m.ready {
+			return m, nil
+		}
 		return m.openPullRequest()
 	case " ":
 		// Space, not ctrl+enter: most terminals cannot tell ctrl+enter

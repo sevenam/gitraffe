@@ -108,7 +108,7 @@ func (m model) updateCommitView(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	case "?":
 		m.showHelp = true
 		return m, nil
-	case "p":
+	case "P":
 		return m.openPullRequest()
 	case "1":
 		m.commitView.focus = commitBoxDetails

@@ -30,8 +30,11 @@ func (m *model) renderStatusLine() string {
 	if m.updateMessage != "" {
 		return truncateLines(noticeStyle.Render(m.updateMessage), m.windowWidth)
 	}
-	// Ahead of the notice: a fetch is the one thing that keeps running after
+	// Ahead of the notice: a fetch or a pull keeps running after
 	// the key that started it, so the line has to say it is still going.
+	if m.pulling {
+		return truncateLines(noticeStyle.Render("Pulling from the remote..."), m.windowWidth)
+	}
 	if m.fetching {
 		return truncateLines(noticeStyle.Render("Fetching from the remote..."), m.windowWidth)
 	}
