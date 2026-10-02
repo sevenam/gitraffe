@@ -16,7 +16,7 @@ A text-based UI git graph command line tool built with Golang, Bubble Tea, go-gi
 - 📝 Uncommitted changes as a row above the newest commit, with their diff (see [Uncommitted changes](#uncommitted-changes))
 - 🔍 A commit view on `Space`: what the commit is, every file it touched, and one file's diff at a time (see [The commit view](#the-commit-view))
 - ⬇️ `p` pulls: fetch, then fast-forward your branch — and nothing riskier than that (see [Pulling](#pulling))
-- 🌐 `P` opens the commit's pull request in your browser, read from the merge subject and the remote (see [Opening a pull request](#opening-a-pull-request))
+- 🌐 `P` opens the commit's pull request in your browser, on GitHub or Azure DevOps, read from the merge subject and the remote (see [Opening a pull request](#opening-a-pull-request))
 - 🔖 `b` jumps to any branch or tag, typing to narrow the list (see [Jumping to a branch or tag](#jumping-to-a-branch-or-tag))
 - 🔄 Keeps itself up to date: changes on your machine appear without a keypress, and it can fetch on a timer too (see [Auto-refresh](#auto-refresh))
 - 🎨 Beautiful styling with Lip Gloss
@@ -238,11 +238,12 @@ screen is about.
 
 Nothing in git records the pull request a commit came from — a PR is the forge's
 idea, not git's. What survives in the repository is the subject the forge wrote when
-it merged, and gitraffe reads both of GitHub's:
+it merged. Gitraffe reads GitHub's and Azure DevOps's:
 
 ```
-Merge pull request #59 from sevenam/add-graph-colors   ← a merge commit
-Teach the parser about nested groups (#59)             ← a squashed pull request
+Merge pull request #59 from sevenam/add-graph-colors   ← GitHub, a merge commit
+Teach the parser about nested groups (#59)             ← GitHub, a squashed pull request
+Merged PR 59: Teach the parser about nested groups     ← Azure DevOps, however it was completed
 ```
 
 The rest of the address comes from the remote, so `git@github.com:sevenam/gitraffe.git`
@@ -250,11 +251,26 @@ and `https://github.com/sevenam/gitraffe.git` both lead to the same page. `origi
 used when there is one, otherwise the first remote git lists; any username or password
 written into the remote is dropped rather than carried into a browser.
 
-A rebase merge leaves nothing behind to find, so there is nothing to open on those —
-gitraffe says so on the bottom line rather than appearing to ignore the key, as it
-does when the repository has no remote. The address is GitHub's `/pull/<number>`,
-because the two subjects above are GitHub's; another forge writes its merges
-differently and would need its own reading of the subject along with its own address.
+The remote also says which of the two it is, so there is nothing to configure. An
+Azure DevOps remote is recognised however it is written, and each of these opens
+`…/_git/gitraffe/pullrequest/59`:
+
+```
+https://sevenam@dev.azure.com/sevenam/tools/_git/gitraffe
+git@ssh.dev.azure.com:v3/sevenam/tools/gitraffe
+https://sevenam.visualstudio.com/tools/_git/gitraffe
+https://tfs.example.com/tfs/Collection/tools/_git/gitraffe   ← a server of your own
+```
+
+Any other host is read the GitHub way, with the address `/pull/<number>`. Each host's
+subjects are only read on that host's remotes: a repository moved from GitHub to
+Azure DevOps keeps its old merge commits, and their numbers would be someone else's
+pull request there.
+
+Some commits leave nothing behind to find, and gitraffe says so on the bottom line
+rather than appearing to ignore the key, as it does when the repository has no
+remote: a rebase merge on either host, or an Azure DevOps pull request whose commit
+message was rewritten without the `Merged PR 59:` at the front.
 
 ### Searching
 

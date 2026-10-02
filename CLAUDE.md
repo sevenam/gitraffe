@@ -56,7 +56,7 @@ release build and the release version check all depend on it being there.
 | `pull.go` | `Pull`: fetch, then fast-forward or nothing |
 | `remote_tags.go` | which tags the remotes hold |
 | `fingerprint.go` | one string for "would a reload draw anything different", for auto-refresh |
-| `remote.go` | pull request numbers and web addresses from commit subjects and remotes |
+| `remote.go` | pull request numbers and web addresses from commit subjects and remotes, for GitHub and Azure DevOps |
 
 ### internal/tui
 
