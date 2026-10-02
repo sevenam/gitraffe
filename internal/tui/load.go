@@ -13,13 +13,26 @@ import (
 // loadRepo opens the repository. Whether that works decides which of repoMsg
 // and errMsg comes back, and both go on to read the history: go-git failing to
 // open a repository does not mean the git command line can't read it.
+//
+// The fingerprint is taken here, before the history is read, so a change made
+// while it is being read makes the next check differ rather than being missed.
 func loadRepo(path string) tea.Cmd {
+	return loadRepoKnowing(path, "")
+}
+
+// loadRepoKnowing is loadRepo for a caller that has just taken the fingerprint
+// itself, and so need not pay for it twice.
+func loadRepoKnowing(path, fingerprint string) tea.Cmd {
 	return func() tea.Msg {
+		if fingerprint == "" {
+			// Unreadable leaves it empty, which the checks take to mean "unknown".
+			fingerprint, _ = git.Fingerprint(path)
+		}
 		repo, err := git.Open(path)
 		if err != nil {
-			return errMsg{err}
+			return errMsg{err, fingerprint}
 		}
-		return repoMsg{repo}
+		return repoMsg{repo, fingerprint}
 	}
 }
 
@@ -80,7 +93,8 @@ func (m *model) loadCommitsFromGitCLI() ([]commit, error) {
 // finishLoad reads the open repository into the model once loadRepo has
 // answered. openErr is why go-git could not open it, or nil; the history is
 // read from the command line either way.
-func (m model) finishLoad(openErr error) (model, tea.Cmd) {
+func (m model) finishLoad(openErr error, fingerprint string) (model, tea.Cmd) {
+	m.fingerprint = fingerprint
 	// The screen a reload kept up has done its job, whichever way this goes.
 	prev := m.stale
 	m.stale = nil

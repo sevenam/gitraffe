@@ -6,12 +6,16 @@ import (
 
 // Message types for the Bubble Tea event system
 
+// repoMsg and errMsg both carry the repository's fingerprint as it was just
+// before the history is read; see auto_refresh.go.
 type repoMsg struct {
-	repo *git.Repository
+	repo        *git.Repository
+	fingerprint string
 }
 
 type errMsg struct {
-	err error
+	err         error
+	fingerprint string
 }
 
 func (e errMsg) Error() string {

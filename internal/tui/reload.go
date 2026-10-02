@@ -27,6 +27,7 @@ func (m model) reloadRepo() (model, tea.Cmd) {
 	// The remotes are asked again, but that takes seconds; until they answer,
 	// the last answer is a better guess than no marks at all.
 	next.remoteTags = m.remoteTags
+	next.autoFetchStopped = m.autoFetchStopped
 	prev := m
 	prev.stale = nil
 	next.stale = &prev

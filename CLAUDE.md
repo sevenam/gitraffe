@@ -54,6 +54,7 @@ release build and the release version check all depend on it being there.
 | `diff.go` | `ShowCommit`, `WorkingTree`, `Status`, splitting a patch per file |
 | `sync.go` | ahead/behind counts, `Fetch` |
 | `remote_tags.go` | which tags the remotes hold |
+| `fingerprint.go` | one string for "would a reload draw anything different", for auto-refresh |
 | `remote.go` | pull request numbers and web addresses from commit subjects and remotes |
 
 ### internal/tui
@@ -62,7 +63,7 @@ release build and the release version check all depend on it being there.
 | --- | --- |
 | Entry and state | `run.go` (`Run`, `Version`, `LogPath`), `model.go` (all state), `types.go` (aliases for the git types), `messages.go` |
 | Event loop | `update.go` (`Init`, `Update`, message handling), `keys.go` (who owns the keyboard), `mouse.go` |
-| Loading | `load.go` (repository into model), `diff_load.go`, `reload.go`, `more_commits.go`, `fetch.go`, `remote_tags.go`, `working_tree.go` |
+| Loading | `load.go` (repository into model), `diff_load.go`, `reload.go`, `auto_refresh.go` (the refresh and fetch timers), `more_commits.go`, `fetch.go`, `remote_tags.go`, `working_tree.go` |
 | Screen assembly | `view.go` (`View`), `layout.go` (how the width is shared), `boxes.go` (clipping, labels, overlays), `scroll_marks.go`, `background.go` |
 | Main screen | `repo_info.go` (top box), `graph_panel.go` (commit list and its scroll window), `branch_label.go`, `details_panel.go`, `status_line.go` |
 | Other screens and overlays | `commit_view.go`, `ref_picker.go`, `repo_switcher.go`, `theme_picker.go`, `search.go`, `help.go`, `pull_request.go` |
@@ -89,6 +90,10 @@ depends on the machine it runs on.
   places; the wrapper in `update.go` is what stops the window drifting after any of them.
 - **Late answers are dropped.** Every asynchronous message carries the `repoPath` it was started
   for and is ignored if the repository has since been switched.
+- **A reload nobody asked for must go unnoticed.** Auto-refresh compares fingerprints and
+  reloads only on a difference, skips while anything is open over the graph, says nothing, and
+  never asks the remotes for tags. Each timer is one self-renewing tick for the whole session;
+  a handler that returns without asking for the next tick stops it for good.
 - **Lipgloss `Height` pads but never clips.** Content is cut to size by hand (`trimToHeight`,
   `fitDetails`), and `View` must return exactly `windowHeight` lines.
 - **Every styled piece ends in a reset.** That is why the selected row sets its background on each

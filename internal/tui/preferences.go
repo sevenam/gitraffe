@@ -16,6 +16,11 @@ func applyPreferences(m model) model {
 	if s.Maximised != nil {
 		m.maximised = *s.Maximised
 	}
+	m.autoRefresh = defaultAutoRefresh
+	if s.AutoRefresh != nil {
+		m.autoRefresh = interval(*s.AutoRefresh, minAutoRefresh)
+	}
+	m.autoFetch = interval(s.AutoFetch, minAutoFetch)
 	if s.FocusedBox == 1 || s.FocusedBox == 2 {
 		m.focusedBox = s.FocusedBox
 	}

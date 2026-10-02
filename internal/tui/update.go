@@ -11,6 +11,8 @@ func (m model) Init() tea.Cmd {
 		loadRepo(m.repoPath),
 		checkVersionCmd(),
 		loadRemoteTagsCmd(m.repoPath),
+		m.autoRefreshTick(),
+		m.autoFetchTick(),
 	)
 }
 
@@ -55,11 +57,11 @@ func (m model) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		if m.repo != nil {
 			log.Println("Repository opened successfully with go-git")
 		}
-		return m.finishLoad(nil)
+		return m.finishLoad(nil, msg.fingerprint)
 
 	case errMsg:
 		log.Printf("Error from go-git: %v\n", msg.err)
-		return m.finishLoad(msg.err)
+		return m.finishLoad(msg.err, msg.fingerprint)
 
 	case diffLoadedMsg:
 		// A diff requested before switching repositories would otherwise land
@@ -78,10 +80,28 @@ func (m model) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case fetchFinishedMsg:
 		// A fetch of the repository you have since left says nothing about the
 		// one on screen, and must not reload it.
-		if msg.repoPath != m.repoPath {
-			return m, nil
+		// The timer's next tick is asked for either way; see auto_refresh.go.
+		var tick tea.Cmd
+		if msg.auto {
+			tick = m.autoFetchTick()
 		}
-		return m.finishFetch(msg)
+		if msg.repoPath != m.repoPath {
+			return m, tick
+		}
+		next, cmd := m.finishFetch(msg)
+		return next, tea.Batch(cmd, tick)
+
+	case autoRefreshTickMsg:
+		return m.onAutoRefreshTick()
+
+	case autoFetchTickMsg:
+		return m.onAutoFetchTick()
+
+	case tea.FocusMsg:
+		return m.onFocus()
+
+	case repoStateMsg:
+		return m.onRepoState(msg)
 
 	case versionCheckMsg:
 		m.latestVersion = msg.latestVersion
