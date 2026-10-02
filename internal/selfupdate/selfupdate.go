@@ -1,0 +1,343 @@
+// Package selfupdate checks GitHub for a newer release of gitraffe and
+// replaces the running binary with it.
+package selfupdate
+
+import (
+	"encoding/json"
+	"fmt"
+	"io"
+	"net/http"
+	"os"
+	"os/exec"
+	"path/filepath"
+	"runtime"
+	"strconv"
+	"strings"
+	"time"
+)
+
+const (
+	owner = "sevenam"
+	repo  = "gitraffe"
+)
+
+// Release is a GitHub release, as much of it as an update needs.
+type Release struct {
+	TagName string  `json:"tag_name"`
+	Assets  []Asset `json:"assets"`
+}
+
+// Asset is one downloadable file of a release.
+type Asset struct {
+	Name        string `json:"name"`
+	DownloadURL string `json:"browser_download_url"`
+}
+
+// Check installs the latest release if it is newer than version, the build
+// that is running, and reports what it did on stdout.
+func Check(version string) error {
+	fmt.Println("Checking for updates...")
+
+	release, err := LatestRelease()
+	if err != nil {
+		return fmt.Errorf("failed to fetch latest release: %w", err)
+	}
+
+	currentTag := "v" + version
+	if release.TagName == currentTag {
+		fmt.Println("You are already on the latest version:", currentTag)
+		return nil
+	}
+	// The latest release can be older than this build — a release being
+	// re-cut, or a locally built binary — and installing it would downgrade.
+	if !IsNewer(release.TagName, version) {
+		fmt.Printf("No newer release available (latest published: %s, current: %s)\n", release.TagName, currentTag)
+		return nil
+	}
+
+	fmt.Printf("New version available: %s (current: %s)\n", release.TagName, currentTag)
+	fmt.Println("Downloading...")
+
+	if err := Install(release); err != nil {
+		return fmt.Errorf("failed to update: %w", err)
+	}
+
+	if runtime.GOOS == "windows" {
+		// The helper can only swap the file once this process releases its lock.
+		fmt.Printf("Update to %s will be applied as gitraffe exits.\n", release.TagName)
+		return nil
+	}
+
+	fmt.Printf("Successfully updated to %s\n", release.TagName)
+	return nil
+}
+
+// IsNewer reports whether tag names a strictly later release than
+// current. Versions are compared as numbers, not strings — as text "0.10.0"
+// sorts below "0.9.0". Anything unparseable counts as not newer, because
+// offering an unrecognised tag risks installing a downgrade.
+func IsNewer(tag, current string) bool {
+	a, ok := parseVersion(tag)
+	if !ok {
+		return false
+	}
+	b, ok := parseVersion(current)
+	if !ok {
+		return false
+	}
+	for i := range a {
+		if a[i] != b[i] {
+			return a[i] > b[i]
+		}
+	}
+	return false
+}
+
+// parseVersion reads "v1.2.3" or "1.2.3". Pre-release and build suffixes
+// ("-rc1", "+meta") are rejected rather than ordered: releases here are plain
+// numbers, and guessing at suffix order could offer a release candidate as an
+// upgrade.
+func parseVersion(s string) ([3]int, bool) {
+	var v [3]int
+	parts := strings.Split(strings.TrimPrefix(s, "v"), ".")
+	if len(parts) != len(v) {
+		return v, false
+	}
+	for i, p := range parts {
+		n, err := strconv.Atoi(p)
+		if err != nil || n < 0 || strings.HasPrefix(p, "+") {
+			return v, false
+		}
+		v[i] = n
+	}
+	return v, true
+}
+
+// LatestRelease asks GitHub for the latest published release.
+func LatestRelease() (*Release, error) {
+	url := fmt.Sprintf("https://api.github.com/repos/%s/%s/releases/latest", owner, repo)
+
+	req, err := http.NewRequest("GET", url, nil)
+	if err != nil {
+		return nil, err
+	}
+	req.Header.Set("Accept", "application/vnd.github.v3+json")
+
+	client := &http.Client{Timeout: 10 * time.Second}
+	resp, err := client.Do(req)
+	if err != nil {
+		return nil, err
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("GitHub API returned status %d", resp.StatusCode)
+	}
+
+	var release Release
+	if err := json.NewDecoder(resp.Body).Decode(&release); err != nil {
+		return nil, err
+	}
+
+	return &release, nil
+}
+
+// LatestVersion checks for the latest version without downloading
+// Returns the tag name (e.g., "v0.2.0") or empty string on error
+func LatestVersion() string {
+	url := fmt.Sprintf("https://api.github.com/repos/%s/%s/releases/latest", owner, repo)
+
+	req, err := http.NewRequest("GET", url, nil)
+	if err != nil {
+		return ""
+	}
+	req.Header.Set("Accept", "application/vnd.github.v3+json")
+
+	client := &http.Client{Timeout: 5 * time.Second}
+	resp, err := client.Do(req)
+	if err != nil {
+		return ""
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		return ""
+	}
+
+	var release Release
+	if err := json.NewDecoder(resp.Body).Decode(&release); err != nil {
+		return ""
+	}
+
+	return release.TagName
+}
+
+// Install downloads the release's binary for this platform and puts it in
+// place of the running one.
+func Install(release *Release) error {
+	assetName := getBinaryName()
+	var downloadURL string
+
+	for _, asset := range release.Assets {
+		if asset.Name == assetName {
+			downloadURL = asset.DownloadURL
+			break
+		}
+	}
+
+	if downloadURL == "" {
+		return fmt.Errorf("no binary found for %s/%s", runtime.GOOS, runtime.GOARCH)
+	}
+
+	// Download to temporary file
+	resp, err := http.Get(downloadURL)
+	if err != nil {
+		return err
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		return fmt.Errorf("failed to download binary: HTTP %d", resp.StatusCode)
+	}
+
+	tmpFile, err := os.CreateTemp("", "gitraffe-update-*")
+	if err != nil {
+		return err
+	}
+	defer tmpFile.Close()
+
+	if _, err := io.Copy(tmpFile, resp.Body); err != nil {
+		os.Remove(tmpFile.Name())
+		return err
+	}
+
+	// Get the path to the current executable
+	exePath, err := os.Executable()
+	if err != nil {
+		os.Remove(tmpFile.Name())
+		return fmt.Errorf("could not determine executable path: %w", err)
+	}
+
+	// Make the temp file executable
+	if err := os.Chmod(tmpFile.Name(), 0755); err != nil {
+		os.Remove(tmpFile.Name())
+		return err
+	}
+
+	// Replace the old executable with the new one
+	if runtime.GOOS == "windows" {
+		// On Windows, spawn a helper process to do the replacement after we exit
+		// This is necessary because the running executable is locked
+		return replaceWithHelper(exePath, tmpFile.Name())
+	} else {
+		// On Unix-like systems, we can use atomic rename
+		if err := os.Rename(tmpFile.Name(), exePath); err != nil {
+			os.Remove(tmpFile.Name())
+			return fmt.Errorf("failed to install new executable: %w", err)
+		}
+	}
+
+	return nil
+}
+
+func getBinaryName() string {
+	ext := ""
+	if runtime.GOOS == "windows" {
+		ext = ".exe"
+	}
+
+	return fmt.Sprintf("gitraffe-%s-%s%s", runtime.GOOS, runtime.GOARCH, ext)
+}
+
+// replaceWithHelper spawns a cross-platform helper process to replace the executable
+// since on Windows the running binary is locked and can't be renamed.
+//
+// It deliberately does not exit the process: the TUI has to unwind Bubble Tea
+// first or it leaves the terminal in the alt screen with raw mode still on. The
+// caller must quit promptly instead — the helper only retries for a few seconds
+// before giving up.
+func replaceWithHelper(exePath, newBinaryPath string) error {
+	tmpDir := filepath.Dir(newBinaryPath)
+
+	if runtime.GOOS == "windows" {
+		scriptPath := filepath.Join(tmpDir, "gitraffe-update.bat")
+
+		// Batch script with retry loop (max 10 attempts = 5 seconds)
+		script := fmt.Sprintf(`@echo off
+setlocal enabledelayedexpansion
+set "maxRetries=10"
+set "retryCount=0"
+set "oldPath=%s"
+set "newPath=%s"
+
+:retry
+if !retryCount! geq !maxRetries! (
+    echo Failed to apply update after !maxRetries! attempts
+    del "%%~0" 2>nul
+    exit /b 1
+)
+
+move /Y "!newPath!" "!oldPath!" >nul 2>&1
+if errorlevel 1 (
+    set /a retryCount+=1
+    timeout /t 1 /nobreak >nul
+    goto retry
+)
+
+del "%s" 2>nul
+exit /b 0
+`, exePath, newBinaryPath, scriptPath)
+
+		if err := os.WriteFile(scriptPath, []byte(script), 0644); err != nil {
+			os.Remove(newBinaryPath)
+			return fmt.Errorf("failed to create update script: %w", err)
+		}
+
+		// Spawn batch in the background
+		cmd := exec.Command("cmd", "/C", "start", "/B", scriptPath)
+		if err := cmd.Start(); err != nil {
+			os.Remove(scriptPath)
+			os.Remove(newBinaryPath)
+			return fmt.Errorf("failed to start update process: %w", err)
+		}
+	} else {
+		scriptPath := filepath.Join(tmpDir, "gitraffe-update.sh")
+
+		// Shell script with retry loop (max 10 attempts = 5 seconds)
+		script := fmt.Sprintf(`#!/bin/sh
+maxRetries=10
+retryCount=0
+oldPath="%s"
+newPath="%s"
+scriptPath="%s"
+
+while [ $retryCount -lt $maxRetries ]; do
+    if mv "$newPath" "$oldPath" 2>/dev/null; then
+        rm -f "$scriptPath" 2>/dev/null
+        exit 0
+    fi
+    retryCount=$((retryCount + 1))
+    sleep 0.5
+done
+
+echo "Failed to apply update after $maxRetries attempts"
+rm -f "$scriptPath" 2>/dev/null
+exit 1
+`, exePath, newBinaryPath, scriptPath)
+
+		if err := os.WriteFile(scriptPath, []byte(script), 0755); err != nil {
+			os.Remove(newBinaryPath)
+			return fmt.Errorf("failed to create update script: %w", err)
+		}
+
+		// Spawn shell script in the background
+		cmd := exec.Command("/bin/sh", "-c", scriptPath+" &")
+		if err := cmd.Start(); err != nil {
+			os.Remove(scriptPath)
+			os.Remove(newBinaryPath)
+			return fmt.Errorf("failed to start update process: %w", err)
+		}
+	}
+
+	return nil
+}

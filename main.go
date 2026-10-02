@@ -7,55 +7,19 @@ import (
 	"io"
 	"log"
 	"os"
-	"path/filepath"
 
-	tea "github.com/charmbracelet/bubbletea"
-	"github.com/charmbracelet/lipgloss"
+	"github.com/sevenam/gitraffe/internal/config"
+	"github.com/sevenam/gitraffe/internal/selfupdate"
+	"github.com/sevenam/gitraffe/internal/theme"
+	"github.com/sevenam/gitraffe/internal/tui"
 )
 
+// The release workflow reads version out of this file and refuses a tag that
+// doesn't match it, so the constant has to stay here.
 const (
 	appName = "Gitraffe"
 	version = "0.34.0"
-
-// logFileName is initialized at runtime in main so we can compute
-// a platform-appropriate location (cache/log dir) instead of using the
-// current working directory.
 )
-
-var logFileName string
-
-var (
-	// Styles — initialized by initStyles() after theme is loaded.
-	titleStyle        lipgloss.Style
-	commitHashStyle   lipgloss.Style
-	authorStyle       lipgloss.Style
-	dateStyle         lipgloss.Style
-	messageStyle      lipgloss.Style
-	localBranchStyle  lipgloss.Style
-	aheadStyle        lipgloss.Style
-	behindStyle       lipgloss.Style
-	remoteBranchStyle lipgloss.Style
-	mergedBranchStyle lipgloss.Style
-	tagStyle          lipgloss.Style
-	workingTreeStyle  lipgloss.Style
-	helpStyle         lipgloss.Style
-)
-
-// getLogFilePath returns a suitable path for the application's log file.
-// It uses the OS-specific cache directory (as returned by os.UserCacheDir)
-// and creates a "gitraffe" subdirectory. Falling back to the current
-// directory on error keeps behaviour safe.
-func getLogFilePath() string {
-	dir, err := os.UserCacheDir()
-	if err != nil || dir == "" {
-		// last-resort fallback
-		return "gitraffe.log"
-	}
-	// create subdirectory for our logs
-	dir = filepath.Join(dir, "gitraffe")
-	_ = os.MkdirAll(dir, 0o755)
-	return filepath.Join(dir, "gitraffe.log")
-}
 
 type cliOptions struct {
 	repoPath    string
@@ -126,10 +90,10 @@ func parseArgs(args []string, output io.Writer) (cliOptions, error) {
 
 func main() {
 	// Determine where the log file should live based on OS conventions
-	logFileName = getLogFilePath()
+	logPath := config.LogPath()
 
 	// Set up logging to file for debugging
-	logFile, err := os.OpenFile(logFileName, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0666)
+	logFile, err := os.OpenFile(logPath, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0666)
 	if err == nil {
 		log.SetOutput(logFile)
 		defer logFile.Close()
@@ -153,7 +117,7 @@ func main() {
 	}
 
 	if opts.update {
-		if err := checkUpdate(); err != nil {
+		if err := selfupdate.Check(version); err != nil {
 			fmt.Printf("Error: %v\n", err)
 			os.Exit(1)
 		}
@@ -161,48 +125,28 @@ func main() {
 	}
 
 	// Before the TUI starts, so a bad -theme is reported on the normal screen.
-	configDir := themeConfigDir()
-	if err := loadTheme(opts.themePath, configDir); err != nil {
+	configDir := config.Dir()
+	if err := theme.Load(opts.themePath, configDir); err != nil {
 		fmt.Fprintf(os.Stderr, "Error: %v\n", err)
 		os.Exit(1)
 	}
-	initStyles()
 
-	repoPath := opts.repoPath
+	log.Printf("Opening repository: %s\n", opts.repoPath)
 
-	log.Printf("Opening repository: %s\n", repoPath)
-
-	// Set terminal title (works on Windows 10+, macOS, Linux)
-	setTerminalTitle(appName)
-	defer resetTerminalTitle()
-
-	m := initialModel(repoPath)
-	m.configDir = configDir
-	m = applyPreferences(m)
-
-	p := tea.NewProgram(
-		m,
-		tea.WithAltScreen(),
-		tea.WithMouseCellMotion(),
-	)
-
-	finalModel, err := p.Run()
+	tui.Version = version
+	tui.LogPath = logPath
+	updatedTo, err := tui.Run(opts.repoPath, configDir)
 	if err != nil {
 		log.Printf("Program error: %v\n", err)
 		fmt.Printf("Error: %v\n", err)
 		os.Exit(1)
 	}
 
-	if final, ok := finalModel.(model); ok {
-		if err := savePreferences(final); err != nil {
-			log.Printf("Preferences: could not save: %v", err)
-		}
-		// Reported here rather than from the TUI so it lands on the normal
-		// screen that Bubble Tea has just restored, instead of the alt screen
-		// it tore down.
-		if final.updatedTo != "" {
-			fmt.Printf("Updated to %s — restart gitraffe to use the new version.\n", final.updatedTo)
-		}
+	// Reported here rather than from the TUI so it lands on the normal
+	// screen that Bubble Tea has just restored, instead of the alt screen
+	// it tore down.
+	if updatedTo != "" {
+		fmt.Printf("Updated to %s — restart gitraffe to use the new version.\n", updatedTo)
 	}
 
 	log.Println(appName + " exited normally")
