@@ -10,6 +10,7 @@ A text-based UI git graph command line tool built with Golang, Bubble Tea, go-gi
 
 - 📊 Visual git commit graph in your terminal (branches **and tags** are shown; the graph expands to use available space and long branch names are truncated as needed)
 - 🌈 A colour per branch in the graph, held across the columns git shifts it through (press `c` to toggle; see [Graph lane colours](#graph-lane-colours))
+- ◆ Merge commits drawn as a diamond, so a merged branch visibly ends somewhere (see [Merge commits](#merge-commits))
 - 🌿 Names merged-and-deleted branches at their tip commit, recovered from merge commit messages (see [Merged branches](#merged-branches))
 - 👤 Each commit's date and author in columns beside the hash (on a narrow terminal the author goes first, then the date, before branch labels are cut)
 - 🔀 Ahead/behind for the current branch next to its name, e.g. `main ↑3 ↓1` (see [Ahead and behind](#ahead-and-behind))
@@ -455,8 +456,32 @@ which is a detail for the details panel. Select the row and it shows the stats a
 the diff of everything against `HEAD`, staged changes included. Untracked files have
 no diff, so they are listed by name instead; open the row (`Space`) to read them.
 
-Nothing here is refreshed on a timer; press `r` after editing files (see
-[Reloading](#reloading)).
+The row follows your edits on its own (see [Auto-refresh](#auto-refresh)); press `r`
+if you don't want to wait for the next check.
+
+## Merge commits
+
+A commit with more than one parent is drawn as a diamond, `◆`, where every other
+commit is a dot, `●`:
+
+```
+◆          ← a merge: the branch on the right ends here
+│╲
+│ ●        ← the commits made on that branch
+│ ●
+│╱          ← where it was branched off
+●
+```
+
+It is there because of how the lines are drawn. The line of a merged branch stops on
+the row *below* the commit it was merged into, in the branch's own colour, so without
+a mark on that commit the line seems to end at nothing in particular. The diamond
+says where it went. A selected merge keeps the shape, ringed: `◈`, as a selected
+commit is `◉`.
+
+The other end works the same way round: a branch's line joins the line it was
+branched from as soon as it has no more commits of its own, which can be a few rows
+above the commit it actually started at — that commit is the next one down that line.
 
 ## Merged branches
 

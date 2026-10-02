@@ -102,6 +102,9 @@ depends on the machine it runs on.
 - **A lane is identified by the colour git gave it, not its column.** Git moves lanes sideways and
   reuses columns; see `graphLanes` in `internal/git/lanes.go`.
 - **Refs are read with `--decorate=full`.** Short names cannot tell a local branch from a remote one.
+- **A commit has more than one marker.** `●` for a commit and `◆` for a merge, each with a
+  ringed form when selected. Code looking for "the commit on this row" asks
+  `git.IsCommitMarker`, not for a particular character.
 - **The theme and the styles are package-level state.** `theme.Current` holds the colours and
   `internal/tui/styles.go` the styles built from them; anything changing the theme goes through
   `setTheme` so the styles are rebuilt.

@@ -54,7 +54,7 @@ func laneOf(m Graph, message string) (int, bool) {
 			continue
 		}
 		for c, r := range []rune(row.GraphChars) {
-			if r == '●' && c < len(row.Lanes) {
+			if IsCommitMarker(r) && c < len(row.Lanes) {
 				return row.Lanes[c], true
 			}
 		}
@@ -191,7 +191,7 @@ func TestBranchKeepsOneLaneAcrossColumnShifts(t *testing.T) {
 		}
 		runes := []rune(row.GraphChars)
 		for c, r := range runes {
-			if r == '●' && c < len(row.Lanes) {
+			if IsCommitMarker(r) && c < len(row.Lanes) {
 				spots[m.Commits[row.CommitIdx].Message] = spot{c, row.Lanes[c]}
 				break
 			}
@@ -252,7 +252,7 @@ func TestTrunkStaysOneLaneThroughMerges(t *testing.T) {
 		}
 		runes := []rune(row.GraphChars)
 		for c, r := range runes {
-			if r == '●' && c < len(row.Lanes) {
+			if IsCommitMarker(r) && c < len(row.Lanes) {
 				lanes[row.Lanes[c]] = msg
 				break
 			}

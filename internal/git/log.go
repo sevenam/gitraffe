@@ -167,10 +167,25 @@ func generateGraph(commits []Commit) {
 	}
 }
 
+// The markers a commit is drawn with. A merge gets its own: git draws the line
+// of the branch that was merged in on the row below the commit, in that
+// branch's colour, so without one the line seems to end at nothing in
+// particular rather than at the commit that absorbed it.
+const (
+	CommitMarker = '●'
+	MergeMarker  = '◆' // a commit with more than one parent
+)
+
+// IsCommitMarker reports whether r is one of the characters a commit is drawn
+// with, as against the lines that join them.
+func IsCommitMarker(r rune) bool {
+	return r == CommitMarker || r == MergeMarker
+}
+
 // transliterateGraph swaps git's ASCII graph characters for box-drawing ones.
 func transliterateGraph(s string) string {
 	r := strings.NewReplacer(
-		"*", "●",
+		"*", string(CommitMarker),
 		"|", "│",
 	)
 	return r.Replace(s)
@@ -272,6 +287,10 @@ func LoadGraph(dir string, limit int) (Graph, error) {
 
 			graphText, graphLanes := lanes.parse(graphPart)
 			graphStr := transliterateGraph(graphText)
+			if len(parents) > 1 {
+				// A commit row holds exactly one marker: its own.
+				graphStr = strings.Replace(graphStr, string(CommitMarker), string(MergeMarker), 1)
+			}
 			gw := len(graphLanes) // one lane entry per visible character
 			if gw > g.MaxGraphWidth {
 				g.MaxGraphWidth = gw

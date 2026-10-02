@@ -55,7 +55,7 @@ func (m *model) workingTreeRow() displayRow {
 	runes := []rune(first.GraphChars)
 	marker := -1
 	for i, r := range runes {
-		if r == '●' || r == '◉' {
+		if git.IsCommitMarker(r) {
 			marker = i
 			break
 		}

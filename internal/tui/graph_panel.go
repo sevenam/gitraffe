@@ -8,6 +8,7 @@ import (
 	"github.com/charmbracelet/lipgloss"
 	"github.com/charmbracelet/x/ansi"
 
+	"github.com/sevenam/gitraffe/internal/git"
 	"github.com/sevenam/gitraffe/internal/theme"
 )
 
@@ -244,7 +245,7 @@ func (m *model) renderCommitList(layout panelLayout, contentWidth int) string {
 			working := isCommit && m.commits[row.CommitIdx].WorkingTree
 
 			if isSel {
-				highlighted := strings.ReplaceAll(graphPadded, "●", "◉")
+				highlighted := selectedMarkers.Replace(graphPadded)
 				write(plainStyle, "> ")
 				renderBranchLabel()
 				write(selGraphColor, highlighted)
@@ -357,3 +358,11 @@ func (m *model) renderCommitList(layout panelLayout, contentWidth int) string {
 	}
 	return strings.Join(resultLines, "\n")
 }
+
+// selectedMarkers turns each commit marker into its ringed form, which is how
+// the selected row's commit is told from the others. A merge keeps its shape
+// when selected, so selecting one doesn't make it look like a plain commit.
+var selectedMarkers = strings.NewReplacer(
+	string(git.CommitMarker), "◉",
+	string(git.MergeMarker), "◈",
+)
