@@ -19,12 +19,14 @@ func (m model) openPullRequest() (model, tea.Cmd) {
 	if !ok {
 		return m, nil
 	}
-	number := git.PullRequestNumber(c.Message)
+	// The remote comes first because it says how to read the subject: GitHub
+	// and Azure DevOps each write a merge their own way.
+	remote := git.BrowserRemote(m.repoPath)
+	number := git.PullRequestNumber(c.Message, remote)
 	if number == 0 {
 		m.notice = "No pull request on this commit — its message doesn't name one"
 		return m, nil
 	}
-	remote := git.BrowserRemote(m.repoPath)
 	if remote == "" {
 		m.notice = "No remote to build a pull request address from"
 		return m, nil

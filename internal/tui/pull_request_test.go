@@ -82,7 +82,7 @@ func TestPullRequestFollowsTheCommitView(t *testing.T) {
 	}
 
 	c, ok := m.commitOnScreen()
-	if !ok || git.PullRequestNumber(c.Message) != 59 {
+	if !ok || git.PullRequestNumber(c.Message, "") != 59 {
 		t.Fatalf("the view is on %q, want the merge commit", c.Message)
 	}
 
