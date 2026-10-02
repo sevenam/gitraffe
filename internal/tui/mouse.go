@@ -88,7 +88,7 @@ func (m model) selectClicked(x, y int) (model, tea.Cmd) {
 
 // commitAt is the commit drawn on screen row y, or -1 where the graph panel
 // shows no commit. It reads the rows the graph is actually drawn from, so a
-// history that scrolled, or one with graph-only lines between commits, lands
+// history that scrolled, or a row that is not a commit, lands
 // on the commit the row shows rather than on the nth commit.
 func (m model) commitAt(y int) int {
 	start, end := m.graphWindow()
@@ -99,7 +99,7 @@ func (m model) commitAt(y int) int {
 	if len(m.displayRows) == 0 {
 		return row
 	}
-	// -1 on a graph-only line and on the "more history" note.
+	// -1 on a row that is not a commit, such as the "more history" note.
 	if idx := m.displayRows[row].CommitIdx; idx >= 0 && idx < len(m.commits) {
 		return idx
 	}

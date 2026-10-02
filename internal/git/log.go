@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"log"
 	"os/exec"
-	"regexp"
 	"strconv"
 	"strings"
 	"time"
@@ -42,17 +41,17 @@ type Commit struct {
 
 // DisplayRow represents a single line in the commit graph display
 type DisplayRow struct {
-	GraphChars string // transliterated Unicode graph characters
-	CommitIdx  int    // index into commits slice, -1 for graph-only lines
+	GraphChars string // the row of the graph, in box-drawing characters; see layoutGraph
+	CommitIdx  int    // index into commits slice, -1 for a row that is not a commit
 	GraphWidth int    // visual width of the graph portion
-	Lanes      []int  // lane number per character of GraphChars; see graphLanes
+	Lanes      []int  // lane number per character of GraphChars; see layoutGraph
 	// Note is plain text drawn instead of a graph row, for the line saying the
 	// history was cut short. Empty on every row git produced.
 	Note string
 }
 
-// Graph is a repository's history as "git log --graph" drew it: the commits,
-// and the rows of the drawing that carry them.
+// Graph is a repository's history laid out as a graph: the commits, and the
+// rows of the drawing that carry them.
 type Graph struct {
 	Commits       []Commit
 	Rows          []DisplayRow
@@ -61,7 +60,7 @@ type Graph struct {
 	More bool
 }
 
-// LoadCommits reads the history without its graph, for when "git log --graph"
+// LoadCommits reads the history without its graph, for when LoadGraph
 // fails. Each commit gets a marker in place of the drawing, and the second
 // result reports whether the history was cut off at limit.
 func LoadCommits(dir string, limit int) ([]Commit, bool, error) {
@@ -154,7 +153,7 @@ func LoadCommits(dir string, limit int) ([]Commit, bool, error) {
 }
 
 // generateGraph gives each commit a marker by how many parents it has, in place
-// of the drawing "git log --graph" would have supplied.
+// of the drawing LoadGraph would have supplied.
 func generateGraph(commits []Commit) {
 	for i := range commits {
 		if len(commits[i].Parents) == 0 {
@@ -167,10 +166,8 @@ func generateGraph(commits []Commit) {
 	}
 }
 
-// The markers a commit is drawn with. A merge gets its own: git draws the line
-// of the branch that was merged in on the row below the commit, in that
-// branch's colour, so without one the line seems to end at nothing in
-// particular rather than at the commit that absorbed it.
+// The markers a commit is drawn with. A merge gets its own, so that the commit
+// a branch was merged into stands out from the commits around it.
 const (
 	CommitMarker = '●'
 	MergeMarker  = '◆' // a commit with more than one parent
@@ -182,26 +179,15 @@ func IsCommitMarker(r rune) bool {
 	return r == CommitMarker || r == MergeMarker
 }
 
-// transliterateGraph swaps git's ASCII graph characters for box-drawing ones.
-func transliterateGraph(s string) string {
-	r := strings.NewReplacer(
-		"*", string(CommitMarker),
-		"|", "│",
-	)
-	return r.Replace(s)
-}
-
-// LoadGraph reads up to limit commits across every ref, with the graph git
-// draws for them and the lane each character of it belongs to.
+// LoadGraph reads up to limit commits across every ref and lays them out as a
+// graph; see layoutGraph for the drawing.
 func LoadGraph(dir string, limit int) (Graph, error) {
 	log.Println("Loading graph data from git CLI...")
 
 	cmd := exec.Command("git", "log",
-		"--graph",
-		// Coloured so the lanes can be read back: git tracks which lane is
-		// which across the rows where they shift columns, and its colours are
-		// the only record of that in the output. See graphLanes.
-		"--color=always",
+		// Every commit before its parents, which the layout depends on: a
+		// lane is opened by a child and closed by the parent it leads to.
+		"--topo-order",
 		"--all",
 		fmt.Sprintf("-n%d", limit),
 		// Full ref paths, so refs/heads/ can be told from refs/remotes/ without
@@ -217,110 +203,45 @@ func LoadGraph(dir string, limit int) (Graph, error) {
 	cmd.Stderr = &errOut
 
 	if err := cmd.Run(); err != nil {
-		return Graph{}, fmt.Errorf("git log --graph failed: %v (%s)", err, errOut.String())
+		return Graph{}, fmt.Errorf("git log failed: %v (%s)", err, errOut.String())
 	}
 
-	raw := strings.ReplaceAll(out.String(), "\r", "")
-	lines := strings.Split(raw, "\n")
-	hashPattern := regexp.MustCompile(`[0-9a-f]{40}`)
-
 	var g Graph
-	lanes := newGraphLanes()
-
-	for _, line := range lines {
-		if line == "" {
+	raw := strings.ReplaceAll(out.String(), "\r", "")
+	for _, line := range strings.Split(raw, "\n") {
+		// hash\x00author\x00timestamp\x00subject\x00parents\x00refs
+		parts := strings.SplitN(line, "\x00", 6)
+		if len(parts) < 4 {
 			continue
 		}
 
-		loc := hashPattern.FindStringIndex(line)
-		if loc != nil {
-			// This is a commit line
-			graphPart := line[:loc[0]]
-			dataPart := line[loc[0]:]
-
-			// Parse commit data: hash\x00author\x00timestamp\x00subject\x00parents\x00refs
-			parts := strings.SplitN(dataPart, "\x00", 6)
-			if len(parts) < 4 {
-				continue
-			}
-
-			fullHash := parts[0]
-			shortHash := fullHash
-			if len(shortHash) > 7 {
-				shortHash = shortHash[:7]
-			}
-
-			author := parts[1]
-			var date time.Time
-			if ts, err := strconv.ParseInt(parts[2], 10, 64); err == nil {
-				date = time.Unix(ts, 0)
-			}
-
-			message := parts[3]
-
-			var parents []string
-			if len(parts) > 4 && parts[4] != "" {
-				for _, p := range strings.Fields(parts[4]) {
-					if len(p) > 7 {
-						parents = append(parents, p[:7])
-					} else {
-						parents = append(parents, p)
-					}
-				}
-			}
-
-			refs := ""
-			if len(parts) > 5 {
-				refs = strings.TrimSpace(parts[5])
-			}
-
-			commitIdx := len(g.Commits)
-			g.Commits = append(g.Commits, Commit{
-				Hash:     shortHash,
-				FullHash: fullHash,
-				Author:   author,
-				Date:     date,
-				Message:  message,
-				Parents:  parents,
-				Refs:     refs,
-			})
-
-			graphText, graphLanes := lanes.parse(graphPart)
-			graphStr := transliterateGraph(graphText)
-			if len(parents) > 1 {
-				// A commit row holds exactly one marker: its own.
-				graphStr = strings.Replace(graphStr, string(CommitMarker), string(MergeMarker), 1)
-			}
-			gw := len(graphLanes) // one lane entry per visible character
-			if gw > g.MaxGraphWidth {
-				g.MaxGraphWidth = gw
-			}
-
-			g.Rows = append(g.Rows, DisplayRow{
-				GraphChars: graphStr,
-				Lanes:      graphLanes,
-				CommitIdx:  commitIdx,
-				GraphWidth: gw,
-			})
-		} else {
-			// Graph-only line (branch/merge connectors)
-			graphText, graphLanes := lanes.parse(line)
-			graphStr := transliterateGraph(graphText)
-			gw := len(graphLanes)
-			if gw > g.MaxGraphWidth {
-				g.MaxGraphWidth = gw
-			}
-
-			g.Rows = append(g.Rows, DisplayRow{
-				GraphChars: graphStr,
-				Lanes:      graphLanes,
-				CommitIdx:  -1,
-				GraphWidth: gw,
-			})
+		var date time.Time
+		if ts, err := strconv.ParseInt(parts[2], 10, 64); err == nil {
+			date = time.Unix(ts, 0)
 		}
+		var parents []string
+		if len(parts) > 4 {
+			for _, p := range strings.Fields(parts[4]) {
+				parents = append(parents, shortHash(p))
+			}
+		}
+		refs := ""
+		if len(parts) > 5 {
+			refs = strings.TrimSpace(parts[5])
+		}
+
+		g.Commits = append(g.Commits, Commit{
+			Hash:     shortHash(parts[0]),
+			FullHash: parts[0],
+			Author:   parts[1],
+			Date:     date,
+			Message:  parts[3],
+			Parents:  parents,
+			Refs:     refs,
+		})
 	}
 
-	resolveLanePaths(g.Rows, g.Commits)
+	g.Rows, g.MaxGraphWidth = layoutGraph(g.Commits)
 	labelMergedBranches(g.Commits)
 
 	// Exactly the limit means git stopped counting rather than ran out. A
@@ -331,4 +252,12 @@ func LoadGraph(dir string, limit int) (Graph, error) {
 	log.Printf("Loaded %d commits, %d display rows, max graph width: %d\n",
 		len(g.Commits), len(g.Rows), g.MaxGraphWidth)
 	return g, nil
+}
+
+// shortHash is the seven characters commits are known by in the graph.
+func shortHash(hash string) string {
+	if len(hash) > 7 {
+		return hash[:7]
+	}
+	return hash
 }

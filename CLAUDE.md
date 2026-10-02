@@ -48,8 +48,8 @@ release build and the release version check all depend on it being there.
 | --- | --- |
 | `run.go` | `Run`, the one way to run a git command; the no-prompt environment for remote calls |
 | `repo.go` | opening a repository, branch and HEAD info, `Toplevel`, `Remotes` |
-| `log.go` | `Commit`, `DisplayRow`, `LoadGraph` (history with its graph), `LoadCommits` (fallback) |
-| `lanes.go` | which lane each graph character belongs to, read from git's own colours |
+| `log.go` | `Commit`, `DisplayRow`, `LoadGraph` (reads the history, then lays it out), `LoadCommits` (fallback) |
+| `layout.go` | the graph drawing: one row per commit, each connection on the row of the commit it belongs to |
 | `refs.go` | `ParseRefs`, merged-branch names, `ListRefs`, `CommitDepth` |
 | `diff.go` | `ShowCommit`, `WorkingTree`, `Status`, splitting a patch per file |
 | `sync.go` | ahead/behind counts, `Fetch` |
@@ -99,8 +99,12 @@ depends on the machine it runs on.
   `fitDetails`), and `View` must return exactly `windowHeight` lines.
 - **Every styled piece ends in a reset.** That is why the selected row sets its background on each
   piece and why `paintBackground` re-applies the theme background after every reset.
-- **A lane is identified by the colour git gave it, not its column.** Git moves lanes sideways and
-  reuses columns; see `graphLanes` in `internal/git/lanes.go`.
+- **Gitraffe draws the graph itself; it does not show `git log --graph`.** A lane stays open, in
+  one column, from a commit down to the row of its parent, and every connection is drawn on the row
+  of the commit it belongs to. Closing a lane early to save a column is what makes a branch look
+  like it starts out of the side of a line; see `internal/git/layout.go`.
+- **A line's colour is a branch path, not a column.** Columns are reused; `commitPaths` says which
+  branch a commit is on, and a line takes the path of the commit at its upper end.
 - **Refs are read with `--decorate=full`.** Short names cannot tell a local branch from a remote one.
 - **A commit has more than one marker.** `●` for a commit and `◆` for a merge, each with a
   ringed form when selected. Code looking for "the commit on this row" asks
