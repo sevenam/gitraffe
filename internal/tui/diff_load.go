@@ -6,12 +6,17 @@ import (
 	"github.com/sevenam/gitraffe/internal/git"
 )
 
+// diffStatWidth is the width a diff's --stat summary is drawn to.
+func (m *model) diffStatWidth() int {
+	if m.detailsContentWidth <= 0 {
+		return 80
+	}
+	return m.detailsContentWidth
+}
+
 func (m *model) maybeLoadDiff() tea.Cmd {
 	if m.selected >= 0 && m.selected < len(m.commits) && !m.commits[m.selected].DiffLoaded {
-		statWidth := m.detailsContentWidth
-		if statWidth <= 0 {
-			statWidth = 80
-		}
+		statWidth := m.diffStatWidth()
 		if m.commits[m.selected].WorkingTree {
 			return loadWorkingDiffCmd(m.repoPath, statWidth)
 		}

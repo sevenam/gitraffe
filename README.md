@@ -310,8 +310,13 @@ commits you make in another terminal aren't there until you ask for them. Press 
 or `F5` to read it again: the graph, the ahead/behind counts and the tag marks are
 all rebuilt together.
 
+The screen stays as it is while that happens: only the bottom line changes, to
+`Refreshing…` and then `Refreshed`, so a refresh that found nothing new leaves
+everything else exactly where it was.
+
 Your place is kept. The commit you had selected stays selected, even though new
-commits have pushed it down the list, and the same panel keeps focus. If that commit
+commits have pushed it down the list, and the same panel keeps focus, with the same
+layout and scroll position. If that commit
 is gone — amended or rebased away — the selection falls back to the newest commit.
 
 ### Switching repository

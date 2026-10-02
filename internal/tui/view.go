@@ -11,6 +11,16 @@ import (
 )
 
 func (m model) View() (result string) {
+	// A reload keeps the old screen up until the new one can be drawn. The
+	// window size and the bottom line are the live ones: the terminal may have
+	// been resized since, and the notice is where the reload says it is running.
+	if !m.ready && m.stale != nil {
+		s := *m.stale
+		s.windowWidth, s.windowHeight = m.windowWidth, m.windowHeight
+		s.notice = m.notice
+		return s.View()
+	}
+
 	defer func() {
 		if r := recover(); r != nil {
 			log.Printf("PANIC in View: %v", r)

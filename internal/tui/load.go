@@ -81,6 +81,13 @@ func (m *model) loadCommitsFromGitCLI() ([]commit, error) {
 // answered. openErr is why go-git could not open it, or nil; the history is
 // read from the command line either way.
 func (m model) finishLoad(openErr error) (model, tea.Cmd) {
+	// The screen a reload kept up has done its job, whichever way this goes.
+	prev := m.stale
+	m.stale = nil
+	if m.loadedNotice != "" {
+		m.notice, m.loadedNotice = m.loadedNotice, ""
+	}
+
 	if openErr == nil {
 		m.loadRepoInfo()
 	} else {
@@ -109,5 +116,8 @@ func (m model) finishLoad(openErr error) (model, tea.Cmd) {
 	m.applyReselect()
 	m.rememberCurrentRepo()
 	m.followSelectionInCommitView()
+	if cmd := m.keepLoadedDiffs(prev); cmd != nil {
+		return m, cmd
+	}
 	return m, m.maybeLoadDiff()
 }
