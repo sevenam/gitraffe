@@ -17,11 +17,12 @@ type fetchFinishedMsg struct {
 }
 
 // startFetch begins a fetch, or explains why there is nothing to do. Unless
-// settings.yml asks for auto-fetch, this is the only way one starts: fetching
-// is the one thing gitraffe does that reaches the network and writes to the
-// repository, so it happens when you ask and not before.
+// settings.yml asks for auto-fetch, a fetch only ever starts from a key — this
+// one, or a pull: it reaches the network and writes to the repository, so it
+// happens when you ask and not before.
 func (m model) startFetch() (model, tea.Cmd) {
-	if m.fetching {
+	// A pull is fetching already, and reloads when it is done.
+	if m.fetching || m.pulling {
 		return m, nil
 	}
 	// One the timer started is already on its way. Adopting it, rather than

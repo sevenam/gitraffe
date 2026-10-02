@@ -91,6 +91,14 @@ func (m model) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		next, cmd := m.finishFetch(msg)
 		return next, tea.Batch(cmd, tick)
 
+	case pullFinishedMsg:
+		// As for a fetch: a pull of the repository you have since left says
+		// nothing about the one on screen.
+		if msg.repoPath != m.repoPath {
+			return m, nil
+		}
+		return m.finishPull(msg)
+
 	case autoRefreshTickMsg:
 		return m.onAutoRefreshTick()
 

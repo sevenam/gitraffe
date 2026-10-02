@@ -15,7 +15,8 @@ A text-based UI git graph command line tool built with Golang, Bubble Tea, go-gi
 - 🔀 Ahead/behind for the current branch next to its name, e.g. `main ↑3 ↓1` (see [Ahead and behind](#ahead-and-behind))
 - 📝 Uncommitted changes as a row above the newest commit, with their diff (see [Uncommitted changes](#uncommitted-changes))
 - 🔍 A commit view on `Space`: what the commit is, every file it touched, and one file's diff at a time (see [The commit view](#the-commit-view))
-- 🌐 `p` opens the commit's pull request in your browser, read from the merge subject and the remote (see [Opening a pull request](#opening-a-pull-request))
+- ⬇️ `p` pulls: fetch, then fast-forward your branch — and nothing riskier than that (see [Pulling](#pulling))
+- 🌐 `P` opens the commit's pull request in your browser, read from the merge subject and the remote (see [Opening a pull request](#opening-a-pull-request))
 - 🔖 `b` jumps to any branch or tag, typing to narrow the list (see [Jumping to a branch or tag](#jumping-to-a-branch-or-tag))
 - 🔄 Keeps itself up to date: changes on your machine appear without a keypress, and it can fetch on a timer too (see [Auto-refresh](#auto-refresh))
 - 🎨 Beautiful styling with Lip Gloss
@@ -81,7 +82,8 @@ in `gitraffe ./update`.
 - Click - Select the commit under the pointer (see [Mouse](#mouse))
 - `Enter` - Show one panel or both (see [One panel at a time](#one-panel-at-a-time))
 - `Space` - Open the commit view, `Esc` to come back (see [The commit view](#the-commit-view))
-- `p` - Open this commit's pull request in a browser (see [Opening a pull request](#opening-a-pull-request))
+- `p` - Pull: fetch, then fast-forward this branch (see [Pulling](#pulling))
+- `P` - Open this commit's pull request in a browser (see [Opening a pull request](#opening-a-pull-request))
 - `r` or `F5` - Reload the repository (see [Reloading](#reloading))
 - `f` - Fetch from the remote, then reload (see [Fetching](#fetching))
 - `/` - Search commits, then `n` / `N` for next and previous (see [Searching](#searching))
@@ -183,7 +185,7 @@ them and so has nothing to compare them with. Selecting one shows the whole file
 added lines, `+` and green, the way new lines in a tracked file look; a binary file
 is only named.
 
-Pressing `?` here lists this screen's keys rather than the graph's, and `p` opens the
+Pressing `?` here lists this screen's keys rather than the graph's, and `P` opens the
 commit's pull request (see [Opening a pull request](#opening-a-pull-request)).
 
 Why a screen of its own, rather than more boxes beside the graph? The graph is what
@@ -230,7 +232,7 @@ says so while it happens, since reading a long history takes a moment.
 
 ### Opening a pull request
 
-Press `p` on a commit that came from a pull request and its page opens in your
+Press `P` on a commit that came from a pull request and its page opens in your
 browser. It works on the graph and in the commit view, on whichever commit that
 screen is about.
 
@@ -294,15 +296,40 @@ Press `f` to run `git fetch --all --prune` and reload once it finishes, which is
 makes the ahead/behind counts and the tag marks true as of now rather than as of your
 last fetch.
 
-It is the one thing gitraffe does that writes to your repository, so unless you turn
+Fetching writes to your repository, so unless you turn
 on [auto-fetch](#auto-refresh) it only ever happens when you press the key — never on
-a timer, and never at startup. What it writes is limited to remote-tracking refs: your branches, your tags and your working
+a timer, and never at startup. What it writes is limited to remote-tracking refs: your
+branches, your tags and your working
 tree are not touched, and `--prune` only drops `origin/...` refs whose branch the
 remote no longer has.
 
 It never prompts. A remote that wants a password, or an SSH key with a passphrase,
 fails with git's own message on the bottom line instead of a prompt fighting the
 graph for the screen, and a remote that never answers is given up on after a minute.
+
+### Pulling
+
+Press `p` to catch your branch up with its upstream. It fetches, exactly as `f`
+does, and then moves the branch forward to where the remote is — a fast-forward, and
+only ever a fast-forward.
+
+That limit is the point. A fast-forward makes no commit and cannot conflict, and git
+refuses it, changing nothing, if an uncommitted edit of yours is in the way. Anything
+more than that — merging, rebasing — can stop halfway in a state that has to be
+sorted out by hand, and gitraffe is not the place to do that. So when it can't
+fast-forward it leaves everything as it was and says why on the bottom line:
+
+| The bottom line says | What happened |
+| --- | --- |
+| `Pulled 3 commits from origin/main` | the branch moved forward |
+| `Already up to date with origin/main` | there was nothing new; being ahead counts as up to date |
+| `Not pulled: main and origin/main have diverged (↑2 ↓3) — merge or rebase in a terminal` | both sides have commits the other lacks; nothing was changed |
+| `Pull failed: …` | git's own reason — most often an uncommitted edit to a file the incoming commits change |
+| `Nothing to pull — …` | the branch tracks no remote branch, or `HEAD` is not on a branch |
+
+It doesn't read `pull.rebase` or any other pull setting: what `p` does is the same
+in every repository. And it is never done for you — [auto-fetch](#auto-refresh) can
+show that there is something to pull, but moving your branch always takes the key.
 
 ### Reloading
 

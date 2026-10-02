@@ -51,6 +51,7 @@ type model struct {
 	reselect            string // full hash to reselect once a reload finishes; see reloadRepo
 	maximised           bool   // the focused panel has the window to itself; toggled with enter
 	fetching            bool   // a fetch is running; see startFetch
+	pulling             bool   // a pull is running; see startPull
 	commitLimit         int    // how many commits to read; grows with "m", see loadMoreCommits
 	moreCommits         bool   // the log was cut off at commitLimit
 	search              commitSearch
