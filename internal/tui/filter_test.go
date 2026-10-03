@@ -43,22 +43,40 @@ func finishReload(t *testing.T, m model) model {
 	return got
 }
 
-func TestFilterPromptShowsOnlyTheFilesHistory(t *testing.T) {
+// openFilePicker presses h and hands the list the files it asked for, as the
+// program does once git has answered.
+func openFilePicker(t *testing.T, m model) model {
+	t.Helper()
+	next, cmd := m.Update(keyPress("h"))
+	m = next.(model)
+	if !m.files.open || cmd == nil {
+		t.Fatal("h did not open the file list and ask for the files")
+	}
+	return res(m.Update(cmd()))
+}
+
+func TestHPicksAFileAndShowsItsHistory(t *testing.T) {
 	dir := filterRepo(t)
 	m := loadedModel(t, dir)
 	// Uncommitted work elsewhere: its row would read as a change to the file.
 	writeFile(t, filepath.Join(dir, "unrelated"), "edited")
 
-	m = press(m, keyPress("F"))
-	if !m.filterPrompt.active {
-		t.Fatal("F did not open the filter prompt")
+	m = typeText(openFilePicker(t, m), "note")
+	if f, ok := m.files.selectedFile(); !ok || f != "notes.txt" {
+		t.Fatalf("typing note highlights %q, want notes.txt", f)
 	}
-	if !strings.Contains(stripANSI(m.renderStatusLine()), "filter:") {
-		t.Errorf("the status line does not show the prompt: %q", stripANSI(m.renderStatusLine()))
+	screen := stripANSI(m.View())
+	if !strings.Contains(screen, "File history") || !strings.Contains(screen, "> notes.txt") {
+		t.Errorf("the list is not drawn over the graph:\n%s", screen)
 	}
-	m = typeText(m, "notes.txt")
-	m = finishReload(t, press(m, tea.KeyMsg{Type: tea.KeyEnter}))
+	if got := strings.Count(m.View(), "\n") + 1; got != m.windowHeight {
+		t.Errorf("View with the list open is %d lines, want %d", got, m.windowHeight)
+	}
 
+	m = finishReload(t, press(m, tea.KeyMsg{Type: tea.KeyEnter}))
+	if m.files.open {
+		t.Error("the list is still open over the filtered graph")
+	}
 	if got, want := messages(m), []string{"notes and more", "start notes"}; !slices.Equal(got, want) {
 		t.Errorf("filtered graph = %q, want %q", got, want)
 	}
@@ -70,11 +88,108 @@ func TestFilterPromptShowsOnlyTheFilesHistory(t *testing.T) {
 	}
 }
 
-// filterTo filters the graph the way a user does, with the prompt.
+// filterTo filters the graph the way a user does, with the list.
 func filterTo(t *testing.T, m model, path string) model {
 	t.Helper()
-	m = typeText(press(m, keyPress("F")), path)
+	m = typeText(openFilePicker(t, m), path)
 	return finishReload(t, press(m, tea.KeyMsg{Type: tea.KeyEnter}))
+}
+
+// Reopened on a filtered graph, the list starts with the filter typed, so
+// changing it is an edit.
+func TestFilePickerOpensOnTheCurrentFilter(t *testing.T) {
+	m := filterTo(t, loadedModel(t, filterRepo(t)), "notes.txt")
+	m = openFilePicker(t, m)
+	if got := m.files.input.Value(); got != "notes.txt" {
+		t.Errorf("the list opened with %q typed, want notes.txt", got)
+	}
+	// Emptied, enter means no filter at all.
+	for range len("notes.txt") {
+		m = press(m, tea.KeyMsg{Type: tea.KeyBackspace})
+	}
+	m = finishReload(t, press(m, tea.KeyMsg{Type: tea.KeyEnter}))
+	if !m.filter.IsZero() || len(m.commits) != 4 {
+		t.Errorf("enter on an empty list left filter %+v, commits %q", m.filter, messages(m))
+	}
+}
+
+// Tab puts the highlighted path in the box, so a directory can be narrowed
+// into rather than only chosen.
+func TestFilePickerTabCompletes(t *testing.T) {
+	dir, git, commit := gittest.Fixture(t)
+	git("init", "-q", "-b", "main")
+	commit("notes.txt")
+	writeFile(t, filepath.Join(dir, "docs", "guide.md"), "x")
+	writeFile(t, filepath.Join(dir, "docs", "intro.md"), "x")
+	git("add", "-A")
+	git("commit", "-qm", "docs")
+	m := typeText(openFilePicker(t, loadedModel(t, dir)), "doc")
+	if f, _ := m.files.selectedFile(); f != "docs/" {
+		t.Fatalf("typing doc highlights %q, want the directory docs/", f)
+	}
+	m = press(m, tea.KeyMsg{Type: tea.KeyTab})
+	if got := m.files.input.Value(); got != "docs/" {
+		t.Errorf("tab left %q typed, want docs/", got)
+	}
+	m = press(m, tea.KeyMsg{Type: tea.KeyDown})
+	m = finishReload(t, press(m, tea.KeyMsg{Type: tea.KeyEnter}))
+	if m.filter.Path != "docs/guide.md" && m.filter.Path != "docs/intro.md" {
+		t.Errorf("filter = %q, want a file under docs/", m.filter.Path)
+	}
+}
+
+// The files arrive after the list opens. An answer for a list since closed, or
+// for a repository since left, must not reopen or fill anything.
+func TestLateFileListIsDropped(t *testing.T) {
+	m := loadedModel(t, filterRepo(t))
+	next, cmd := m.Update(keyPress("h"))
+	m = press(next.(model), tea.KeyMsg{Type: tea.KeyEsc})
+	m = res(m.Update(cmd()))
+	if m.files.open || m.files.choices != nil {
+		t.Errorf("a late file list reopened or filled the closed picker: %+v", m.files)
+	}
+}
+
+func TestRankFiles(t *testing.T) {
+	choices := withDirectories([]string{
+		"README.md",
+		"internal/tui/keys.go",
+		"internal/tui/keys_test.go",
+		"other/monkeys.go",
+		"internal/git/log.go",
+	})
+	ranked := func(q string) []string {
+		var out []string
+		for _, i := range rankFiles(choices, q) {
+			out = append(out, choices[i])
+		}
+		return out
+	}
+	if got, want := ranked("keys"), []string{"internal/tui/keys.go", "internal/tui/keys_test.go", "other/monkeys.go"}; !slices.Equal(got, want) {
+		t.Errorf("keys ranks %q, want %q", got, want)
+	}
+	// Letters in order, with others between, still find the file.
+	if got := ranked("tuikeys"); len(got) == 0 || got[0] != "internal/tui/keys.go" {
+		t.Errorf("tuikeys ranks %q, want internal/tui/keys.go first", got)
+	}
+	// Case is ignored, and a typed backslash is a slash.
+	if got := ranked(`INTERNAL\GIT`); len(got) == 0 || got[0] != "internal/git/" {
+		t.Errorf(`INTERNAL\GIT ranks %q, want the directory first`, got)
+	}
+	if got := ranked(""); got != nil {
+		t.Errorf("an empty query lists %q, want nothing", got)
+	}
+	if got := ranked("zzz"); got != nil {
+		t.Errorf("zzz lists %q, want nothing", got)
+	}
+}
+
+func TestWithDirectoriesAddsEachDirectoryOnce(t *testing.T) {
+	got := withDirectories([]string{"a/b/c.go", "a/b/d.go", "e.go"})
+	want := []string{"a/", "a/b/", "a/b/c.go", "a/b/d.go", "e.go"}
+	if !slices.Equal(got, want) {
+		t.Errorf("withDirectories = %q, want %q", got, want)
+	}
 }
 
 func selectMessage(t *testing.T, m model, message string) model {
@@ -112,13 +227,13 @@ func TestEscClearsTheFilterAndKeepsYourPlace(t *testing.T) {
 	}
 }
 
-// Esc in the prompt abandons it: nothing is read and the filter is unchanged.
-func TestEscInTheFilterPromptChangesNothing(t *testing.T) {
+// Esc in the list abandons it: nothing is read and the filter is unchanged.
+func TestEscInTheFilePickerChangesNothing(t *testing.T) {
 	m := loadedModel(t, filterRepo(t))
-	m = press(typeText(press(m, keyPress("F")), "notes.txt"), tea.KeyMsg{Type: tea.KeyEsc})
-	if m.filterPrompt.active || !m.ready || !m.filter.IsZero() {
-		t.Errorf("after esc: prompt open %v, ready %v, filter %+v; want closed, ready, none",
-			m.filterPrompt.active, m.ready, m.filter)
+	m = press(typeText(openFilePicker(t, m), "notes"), tea.KeyMsg{Type: tea.KeyEsc})
+	if m.files.open || !m.ready || !m.filter.IsZero() {
+		t.Errorf("after esc: list open %v, ready %v, filter %+v; want closed, ready, none",
+			m.files.open, m.ready, m.filter)
 	}
 }
 
@@ -235,12 +350,11 @@ func TestCurrentPathOfARename(t *testing.T) {
 	}
 }
 
-// The auto-refresh must not reload under an open prompt, or the prompt would
-// close mid-word.
-func TestAutoRefreshWaitsForTheFilterPrompt(t *testing.T) {
-	m := loadedModel(t, filterRepo(t))
-	m = press(m, keyPress("F"))
+// The auto-refresh must not reload under the open list, or it would close
+// mid-word.
+func TestAutoRefreshWaitsForTheFilePicker(t *testing.T) {
+	m := openFilePicker(t, loadedModel(t, filterRepo(t)))
 	if m.canReloadUnasked() {
-		t.Error("an unasked reload may run while the filter prompt is open")
+		t.Error("an unasked reload may run while the file list is open")
 	}
 }

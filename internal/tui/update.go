@@ -96,6 +96,13 @@ func (m model) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		next, cmd := m.finishFetch(msg)
 		return next, tea.Batch(cmd, tick)
 
+	case filesLoadedMsg:
+		// Dropped once the list has closed, or for a repository since left.
+		if msg.repoPath == m.repoPath && m.files.open {
+			m.files.setFiles(msg.files, msg.err)
+		}
+		return m, nil
+
 	case copyDiffMsg:
 		// A diff read before a switch is of a commit no longer on screen,
 		// and copying it now would surprise whoever pastes it.

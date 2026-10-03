@@ -88,7 +88,7 @@ func (m model) canReloadUnasked() bool {
 	return m.ready && m.err == nil &&
 		!m.fetching && !m.pulling && m.updateState == updateIdle &&
 		!m.showHelp && !m.picker.open && !m.switcher.open && !m.refs.open && !m.search.active &&
-		!m.filterPrompt.active
+		!m.files.open
 }
 
 func (m model) onAutoRefreshTick() (model, tea.Cmd) {

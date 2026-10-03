@@ -88,7 +88,7 @@ in `gitraffe ./update`.
 - `r` or `F5` - Reload the repository (see [Reloading](#reloading))
 - `f` - Fetch from the remote, then reload (see [Fetching](#fetching))
 - `/` - Search commits, then `n` / `N` for next and previous (see [Searching](#searching))
-- `F` - Show only the commits that changed a file or directory, `Esc` for all of them again (see [A file's history](#a-files-history))
+- `h` - Show only the commits that changed a file or directory, picked from a list; `Esc` for all of them again (see [A file's history](#a-files-history))
 - `m` - Read more of a long history (see [Long histories](#long-histories))
 - `b` - Jump to a branch or tag (see [Jumping to a branch or tag](#jumping-to-a-branch-or-tag))
 - `o` - Open another repository (see [Switching repository](#switching-repository))
@@ -308,11 +308,22 @@ The search only covers the commits that are loaded; on a long history, `m` reads
 
 ### A file's history
 
-To see what happened to one file, open a commit that changed it with `Space`, pick
-the file in the list and press `h`. The graph then holds only the commits that
-changed that file, on every branch, joined up as they descend from each other. Or
-press `F` and type the path, from the top of the repository; a directory works too,
-and is everything under it.
+To see what happened to one file, press `h` on the graph and start typing its name.
+The list offers every file git tracks, and every directory, best match first: a name
+that starts with what you typed, then one that contains it, then a path that does,
+then a path holding its letters in order, so `tuikeys` finds `internal/tui/keys.go`.
+
+- `↑` / `↓` choose, and `Enter` shows the chosen file's history.
+- `Tab` puts the chosen path in the box, so `Tab` on a directory lists what is
+  under it.
+- When nothing matches, `Enter` uses the path as typed, from the top of the
+  repository: a file deleted since is not in the list, but its history is there.
+- `Enter` on an empty box clears the filter, and `Esc` closes the list unchanged.
+
+`h` does the same in the commit view, where the file is the one selected in its file
+list. Either way the graph then holds only the commits that changed that file (or
+anything under that directory), on every branch, joined up as they descend from each
+other.
 
 The top box says what the graph is filtered to, and `Esc` on the graph brings every
 commit back, with the one you were on still selected. Reloading, fetching and `m`
