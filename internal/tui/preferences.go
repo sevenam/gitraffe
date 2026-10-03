@@ -28,7 +28,7 @@ func applyPreferences(m model) model {
 }
 
 // savePreferences records them again as gitraffe exits, rather than on every
-// keystroke that changes one: "c" and tab are pressed often, and the file is
+// keystroke that changes one: "C" and tab are pressed often, and the file is
 // only ever read at startup.
 func savePreferences(m model) error {
 	if m.configDir == "" {

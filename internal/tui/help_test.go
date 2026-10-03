@@ -70,7 +70,7 @@ func TestCtrlCStillQuitsFromHelp(t *testing.T) {
 
 // The overlay hides the panels, so keys meant for them must not act unseen.
 func TestKeysDoNotLeakThroughHelp(t *testing.T) {
-	for _, key := range []string{"j", "G", "2", "c", "U"} {
+	for _, key := range []string{"j", "G", "2", "C", "U"} {
 		t.Run(key, func(t *testing.T) {
 			before := helpOpen()
 			before.latestVersion = "v9.9.9"
