@@ -19,7 +19,14 @@ real loaders against them. Nothing touches the network or the user's config dire
 package you changed with `-run` while iterating, and the full suite once before committing.
 
 A release is a tag matching the `version` constant in `main.go`; `release.yml` refuses any other.
-Don't change `version` unless asked.
+Don't change `version` unless asked. When asked to release:
+
+1. Set `version` in `main.go` to the new number and land that commit on `main` ("bump version to
+   X.Y.Z"). `release.yml` also refuses a tag on a commit that isn't on `main`.
+2. Tag that commit on `main` as `vX.Y.Z` (a lightweight tag, like the earlier ones) and push only the
+   tag: `git tag vX.Y.Z origin/main && git push origin vX.Y.Z`.
+3. The tag push runs `release.yml`: check-tag, the full test suite, then the builds that become the
+   GitHub release. Nothing else runs CI, so a red test shows up here first.
 
 ## Working here economically
 
@@ -60,7 +67,7 @@ release build and the release version check all depend on it being there.
 | `log.go` | `Commit`, `DisplayRow`, `IsCommitMarker`, `Filter`, `LoadGraph` (reads the history, then lays it out), `LoadCommits` (fallback) |
 | `layout.go` | the graph drawing: one row per commit, each connection on the row of the commit it belongs to; `commitPaths` |
 | `refs.go` | `ParseRefs`, merged-branch names, `ListRefs`, `CommitDepth` |
-| `diff.go` | `ShowCommit`, `WorkingTree`, `Status`, splitting a patch per file |
+| `diff.go` | `ShowCommit`, `WorkingTree`, `Status`, splitting a patch per file, `Patch` (uncut, for copying) |
 | `sync.go` | ahead/behind counts, `Fetch` |
 | `pull.go` | `Pull`: fetch, then fast-forward or nothing |
 | `remote_tags.go` | which tags the remotes hold |
@@ -76,7 +83,7 @@ release build and the release version check all depend on it being there.
 | Loading | `load.go` (repository into model), `diff_load.go`, `reload.go`, `auto_refresh.go` (the refresh and fetch timers), `more_commits.go`, `fetch.go`, `pull.go`, `remote_tags.go`, `working_tree.go` |
 | Screen assembly | `view.go` (`View`), `layout.go` (`currentLayout`: how the width is shared), `boxes.go` (clipping, labels, overlays, `trimToHeight`), `scroll_marks.go`, `background.go` (`paintBackground`) |
 | Main screen | `repo_info.go` (top box), `graph_panel.go` (commit list and `graphWindow`), `branch_label.go`, `details_panel.go` (`fitDetails`), `status_line.go` |
-| Other screens and overlays | `commit_view.go`, `ref_picker.go`, `repo_switcher.go`, `theme_picker.go`, `search.go`, `filter.go`, `help.go`, `pull_request.go` (also opens the browser) |
+| Other screens and overlays | `commit_view.go`, `ref_picker.go`, `repo_switcher.go`, `theme_picker.go`, `search.go`, `filter.go`, `help.go`, `pull_request.go` (also opens the browser), `copy.go` (the `y` prompt and the clipboard) |
 | Looks | `styles.go` (package-level styles built from the theme), `lane_colours.go` |
 | Session | `preferences.go` (what is remembered between runs), `selfupdate_tui.go` (the in-app update prompt), `terminal.go` |
 

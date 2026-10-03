@@ -111,6 +111,8 @@ func (m model) updateCommitView(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		return m, nil
 	case "P":
 		return m.openPullRequest()
+	case "y":
+		return m.openCopyPrompt(), nil
 	case "h":
 		// Only from the file list, where a file is what is selected; in the
 		// other boxes the selection is not something you can see.
