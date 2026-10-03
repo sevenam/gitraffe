@@ -30,6 +30,10 @@ func (m model) startPull() (model, tea.Cmd) {
 		m.notice = "A fetch is running — pull again when it has finished"
 		return m, nil
 	}
+	if m.deleting {
+		m.notice = "A delete is running — pull again when it has finished"
+		return m, nil
+	}
 	m.pulling = true
 	m.notice = ""
 	return m, pullCmd(m.repoPath)

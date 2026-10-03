@@ -41,6 +41,9 @@ func (m *model) renderStatusLine() string {
 	if m.pulling {
 		return truncateLines(noticeStyle.Render("Pulling from the remote..."), m.windowWidth)
 	}
+	if m.deleting {
+		return truncateLines(noticeStyle.Render("Deleting..."), m.windowWidth)
+	}
 	if m.fetching {
 		return truncateLines(noticeStyle.Render("Fetching from the remote..."), m.windowWidth)
 	}

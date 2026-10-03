@@ -47,6 +47,9 @@ func (m model) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	if m.picker.open {
 		return m.updateThemePicker(msg)
 	}
+	if m.deletePicker.open {
+		return m.updateDeletePicker(msg)
+	}
 	if m.switcher.open {
 		return m.updateRepoSwitcher(msg)
 	}
@@ -168,6 +171,10 @@ func (m model) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		// Capital, like P and U: it changes something outside gitraffe, so
 		// it should take more than a slip of the finger to start.
 		return m.openCheckout()
+	case "d":
+		// Lower case although it deletes: it only opens the list, and
+		// nothing goes until a row there is picked with enter.
+		return m.openDelete(), nil
 	case "L":
 		// Global rather than per-box: the graph stays visible whichever
 		// box has focus, so the colours should be reachable from both.
