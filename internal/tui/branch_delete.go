@@ -27,8 +27,20 @@ type deleteChoice struct {
 	what   git.DeleteWhat
 }
 
-// label is the row as shown, and what the notice says was deleted.
+// label is the row as shown: what kind of delete first, so the rows read
+// down as a choice of three, then the names in brackets.
 func (c deleteChoice) label() string {
+	switch c.what {
+	case git.DeleteLocal:
+		return "local (" + c.target.Local + ")"
+	case git.DeleteRemote:
+		return "remote (" + c.target.Remote + ")"
+	}
+	return "local & remote (" + c.target.Local + " + " + c.target.Remote + ")"
+}
+
+// deleted is the same thing as a sentence, for the notice afterwards.
+func (c deleteChoice) deleted() string {
 	switch c.what {
 	case git.DeleteLocal:
 		return "local " + c.target.Local
@@ -159,7 +171,7 @@ func (m model) finishDelete(msg deleteFinishedMsg) (model, tea.Cmd) {
 func deleteNotice(msg deleteFinishedMsg) string {
 	t := msg.choice.target
 	if msg.err == nil {
-		return "Deleted " + msg.choice.label()
+		return "Deleted " + msg.choice.deleted()
 	}
 	switch {
 	case errors.Is(msg.err, git.ErrOnlyCopy):

@@ -434,9 +434,9 @@ each thing that can go:
 ```
 Delete branch
 
-> local feature
-  remote origin/feature
-  local feature and remote origin/feature
+> local (feature)
+  remote (origin/feature)
+  local & remote (feature + origin/feature)
 ```
 
 `↑`/`↓` choose, `Enter` deletes the row picked, and `Esc` closes the list with
