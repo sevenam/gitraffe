@@ -91,6 +91,14 @@ func (m model) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		next, cmd := m.finishFetch(msg)
 		return next, tea.Batch(cmd, tick)
 
+	case copyDiffMsg:
+		// A diff read before a switch is of a commit no longer on screen,
+		// and copying it now would surprise whoever pastes it.
+		if msg.repoPath != m.repoPath {
+			return m, nil
+		}
+		return m.finishCopyDiff(msg), nil
+
 	case pullFinishedMsg:
 		// As for a fetch: a pull of the repository you have since left says
 		// nothing about the one on screen.
