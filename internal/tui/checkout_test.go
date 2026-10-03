@@ -26,7 +26,8 @@ func statusLine(m model) string {
 	return ansi.Strip(m.renderStatusLine())
 }
 
-// checkOut answers the prompt with key and feeds back what the switch reports.
+// checkOut presses key, which must start a switch — "C" itself, or the answer
+// to its prompt — and feeds back what the switch reports.
 func checkOut(t *testing.T, m model, key string) model {
 	t.Helper()
 	res, cmd := m.Update(keyPress(key))
@@ -37,15 +38,15 @@ func checkOut(t *testing.T, m model, key string) model {
 	return res.(model)
 }
 
-func TestCheckoutAsksThenSwitches(t *testing.T) {
+// One branch leaves nothing to ask.
+func TestCheckoutSwitchesWithoutAsking(t *testing.T) {
 	dir, _ := branchedRepo(t)
 	m := selectMessage(t, loadedModel(t, dir), "first")
 
-	m = press(m, keyPress("C"))
-	if got := statusLine(m); !strings.Contains(got, "Check out feature? (y/n)") {
-		t.Fatalf("status line = %q, want it to ask about feature", got)
+	m = checkOut(t, m, "C")
+	if m.checkout.open {
+		t.Error("a prompt is open though the commit has one branch")
 	}
-	m = checkOut(t, m, "y")
 	if !strings.Contains(m.notice, "Switched to feature") {
 		t.Errorf("notice = %q, want it to say where HEAD went", m.notice)
 	}
@@ -59,9 +60,10 @@ func TestCheckoutAsksThenSwitches(t *testing.T) {
 	}
 }
 
-// Anything but yes is no, so a stray key never switches.
+// Anything but a number on the list is no, so a stray key never switches.
 func TestCheckoutCancelledByAnyOtherKey(t *testing.T) {
-	dir, _ := branchedRepo(t)
+	dir, git := branchedRepo(t)
+	git("branch", "other", "feature")
 	m := selectMessage(t, loadedModel(t, dir), "first")
 
 	m = press(m, keyPress("C"))
@@ -97,11 +99,7 @@ func TestCheckoutOfACommitWithNoBranchSaysItIsDetached(t *testing.T) {
 	commit("second")
 	m := selectMessage(t, loadedModel(t, dir), "first")
 
-	m = press(m, keyPress("C"))
-	if got := statusLine(m); !strings.Contains(got, "detached") {
-		t.Fatalf("status line = %q, want it to say the checkout is detached", got)
-	}
-	m = checkOut(t, m, "y")
+	m = checkOut(t, m, "C")
 	if !strings.Contains(m.notice, "(detached)") {
 		t.Errorf("notice = %q, want it to say HEAD is detached", m.notice)
 	}
@@ -124,7 +122,7 @@ func TestCheckoutRefusedWithUncommittedChanges(t *testing.T) {
 	}
 	m := selectMessage(t, loadedModel(t, dir), "first")
 
-	m = checkOut(t, press(m, keyPress("C")), "y")
+	m = checkOut(t, m, "C")
 	if !strings.Contains(m.notice, "uncommitted changes") {
 		t.Errorf("notice = %q, want it to say the changes are in the way", m.notice)
 	}
@@ -154,7 +152,7 @@ func TestCheckoutOfTheUncommittedChangesRow(t *testing.T) {
 func TestLateCheckoutAnswerIsDropped(t *testing.T) {
 	dir, _ := branchedRepo(t)
 	m := selectMessage(t, loadedModel(t, dir), "first")
-	next, cmd := press(m, keyPress("C")).Update(keyPress("y"))
+	next, cmd := m.Update(keyPress("C"))
 	m = next.(model)
 	msg := cmd().(switchFinishedMsg)
 	msg.repoPath = "elsewhere"
