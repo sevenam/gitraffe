@@ -4,6 +4,8 @@ import (
 	"log"
 
 	tea "github.com/charmbracelet/bubbletea"
+
+	"github.com/sevenam/gitraffe/internal/git"
 )
 
 func (m model) Init() tea.Cmd {
@@ -36,6 +38,11 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	nm.graphTop, _ = nm.graphWindow()
 	if nm.commitView.open {
 		nm.commitView.filesTop = nm.fileTop(nm.fileRows())
+		// On the uncommitted changes the diff box follows a cursor, and its
+		// window is recorded for the same reason the others are.
+		if nm.commitView.workingTree {
+			nm.commitView.diffScroll = nm.diffTop(nm.currentCommitViewLayout().rows - 2)
+		}
 	}
 	return nm, cmd
 }
@@ -67,6 +74,20 @@ func (m model) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		// A diff requested before switching repositories would otherwise land
 		// on whichever commit of the new one has the same index.
 		if msg.repoPath != m.repoPath {
+			return m, nil
+		}
+		// The first row is the uncommitted changes when there are any and
+		// a commit when there are none, and which it is can change between
+		// asking and being answered. An answer about the one is not put on
+		// the other.
+		if msg.commitIdx >= 0 && msg.commitIdx < len(m.commits) &&
+			m.commits[msg.commitIdx].WorkingTree != msg.workingTree {
+			return m, nil
+		}
+		if msg.workingTree {
+			// The uncommitted changes are read again and again, and an
+			// open view has a selection to keep through each reading.
+			m.setWorkingDiff(git.Diff{Stat: msg.diffStat, Body: msg.diffBody, Files: msg.diffFiles, State: msg.state})
 			return m, nil
 		}
 		if msg.commitIdx >= 0 && msg.commitIdx < len(m.commits) {
@@ -126,6 +147,20 @@ func (m model) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return m, nil
 		}
 		return m.finishPullRequest(msg), nil
+
+	case stageFinishedMsg:
+		// The index it changed and the files it read are the repository's
+		// it ran in.
+		if msg.repoPath != m.repoPath {
+			return m, nil
+		}
+		return m.finishStage(msg), nil
+
+	case commitFinishedMsg:
+		if msg.repoPath != m.repoPath {
+			return m, nil
+		}
+		return m.finishCommit(msg)
 
 	case deleteFinishedMsg:
 		// As with a switch: the answer is about the repository it ran in.

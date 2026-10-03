@@ -68,7 +68,15 @@ func (m model) View() (result string) {
 	if m.commitView.open {
 		screen := m.renderCommitView()
 		if m.showHelp {
-			screen = overlayCentre(screen, renderHelpSections(commitViewHelp), m.windowWidth, m.windowHeight)
+			help := commitViewHelp
+			if m.commitView.workingTree {
+				help = stagingViewHelp
+			}
+			screen = overlayCentre(screen, renderHelpSections(help), m.windowWidth, m.windowHeight)
+		}
+		if m.commitPrompt.open {
+			box := m.commitPrompt.render(m.windowWidth, stagedCount(m.viewedFiles()), m.currentBranch)
+			screen = overlayCentre(screen, box, m.windowWidth, m.windowHeight)
 		}
 		return screen
 	}

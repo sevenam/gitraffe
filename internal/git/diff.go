@@ -7,6 +7,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"strings"
+	"sync"
 )
 
 // FileDiff is one file's part of a commit, split out of the diff git already
@@ -26,7 +27,11 @@ type FileDiff struct {
 	// Untracked marks a working-tree file git has never seen. It has no diff,
 	// so Body is the file's contents, every line written as an addition.
 	Untracked bool
-	Body      string // the file's hunks, without the "diff --git" header
+	// Staged marks an entry of the uncommitted changes that is in the index:
+	// what the next commit will hold. A file with staged and unstaged changes
+	// is two entries, one of each. Always false for a commit's files.
+	Staged bool
+	Body   string // the file's hunks, without the "diff --git" header
 }
 
 // MaxFileDiffLines caps one file's diff. The whole-commit cap this replaces
@@ -48,6 +53,10 @@ func parseFileDiffs(body string) []FileDiff {
 	var files []FileDiff
 	var current *FileDiff
 	var hunks []string
+	// inHunks is set from a file's first hunk on. The metadata skipped below
+	// only comes before it; after it a line starting "--- " is a removed line
+	// that began "-- ", and belongs to the diff like any other.
+	inHunks := false
 
 	flush := func() {
 		if current == nil {
@@ -66,8 +75,19 @@ func parseFileDiffs(body string) []FileDiff {
 		case strings.HasPrefix(line, "diff --git "):
 			flush()
 			current = &FileDiff{Path: pathFromDiffHeader(line)}
+			inHunks = false
 		case current == nil:
 			// Preamble: git wrote it about the commit, not about a file.
+		case inHunks:
+			if strings.HasPrefix(line, "+") {
+				current.Added++
+			} else if strings.HasPrefix(line, "-") {
+				current.Removed++
+			}
+			hunks = append(hunks, line)
+		case strings.HasPrefix(line, "@@"):
+			inHunks = true
+			hunks = append(hunks, line)
 		case strings.HasPrefix(line, "Binary files "):
 			current.Binary = true
 			hunks = append(hunks, line)
@@ -124,7 +144,12 @@ type Diff struct {
 	Body string // the patch, cut to a length the details panel can hold
 	// Files is the same patch split per file. It is parsed before Body is cut,
 	// so the commit view can list files the panel's text no longer reaches.
+	// For the uncommitted changes they are listed staged first, then unstaged,
+	// then untracked; see WorkingTree.
 	Files []FileDiff
+	// State is what the repository is in the middle of, for the uncommitted
+	// changes: it decides whether they can be staged and committed from here.
+	State WorkingState
 }
 
 // maxDiffLines caps the patch shown in the details panel.
@@ -159,9 +184,16 @@ func ShowCommit(dir, hash string, statWidth int) Diff {
 	return d
 }
 
-// WorkingTree reads the uncommitted changes. "git diff HEAD" covers staged and
-// unstaged together, matching Status's count; untracked files have no diff to
-// show and are listed instead.
+// WorkingTree reads the uncommitted changes. Stat and Body are "git diff
+// HEAD", which covers staged and unstaged together and matches Status's
+// count; untracked files have no diff to show and are listed instead.
+//
+// Files keeps the two apart, because that is the difference staging makes: the
+// index against HEAD first (what a commit would hold), then the working tree
+// against the index (what it would leave behind), then the untracked files.
+// While the repository is in a state staging is refused in, the split is
+// skipped and the files are listed as one diff: git writes a conflicted file
+// in a form of its own that has no hunks to pick from.
 func WorkingTree(dir string, statWidth int) Diff {
 	run := func(args ...string) string {
 		cmd := exec.Command("git", args...)
@@ -173,19 +205,56 @@ func WorkingTree(dir string, statWidth int) Diff {
 		return strings.TrimSpace(strings.ReplaceAll(string(out), "\r", ""))
 	}
 
-	stat := run("diff", "HEAD", "--stat="+fmt.Sprint(statWidth), "--no-color")
-	body := run("diff", "HEAD", "--no-color")
-	files := parseFileDiffs(body)
+	top, err := Toplevel(dir)
+	if err != nil {
+		top = dir
+	}
+
+	// Each of these is a git call or two, none depends on another, and the
+	// list is read again after every change made to it from the commit
+	// view; so they run side by side and it takes as long as the slowest.
+	var (
+		wg               sync.WaitGroup
+		stat, body       string
+		untracked        string
+		state            WorkingState
+		staged, unstaged []FileDiff
+	)
+	for _, read := range []func(){
+		func() { stat = run("diff", "HEAD", "--stat="+fmt.Sprint(statWidth), "--no-color") },
+		func() { body = run("diff", "HEAD", "--no-color") },
+		func() { state = ReadWorkingState(dir) },
+		func() { staged = sectionFiles(top, true) },
+		func() { unstaged = sectionFiles(top, false) },
+		// --full-name: named from the top of the working tree, as the files
+		// of a diff are, so a path means the same thing whichever list it
+		// came from.
+		func() { untracked = run("ls-files", "--others", "--exclude-standard", "--full-name") },
+	} {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			read()
+		}()
+	}
+	wg.Wait()
+
+	var files []FileDiff
+	if state.Operation != "" {
+		files = parseFileDiffs(body)
+	} else {
+		files = append(staged, unstaged...)
+	}
 	if lines := strings.Split(body, "\n"); len(lines) > maxDiffLines {
 		body = strings.Join(append(lines[:maxDiffLines], "... (truncated)"), "\n")
 	}
 
-	if untracked := run("ls-files", "--others", "--exclude-standard"); untracked != "" {
+	if untracked != "" {
 		var sb strings.Builder
 		sb.WriteString("Untracked files:\n")
 		for _, f := range strings.Split(untracked, "\n") {
 			sb.WriteString("  " + f + "\n")
-			files = append(files, untrackedFile(dir, f))
+			files = append(files, untrackedFile(top, f))
 		}
 		if body != "" {
 			sb.WriteString("\n")
@@ -193,7 +262,7 @@ func WorkingTree(dir string, statWidth int) Diff {
 		body = sb.String() + body
 	}
 
-	return Diff{Stat: stat, Body: body, Files: files}
+	return Diff{Stat: stat, Body: body, Files: files, State: state}
 }
 
 // untrackedFile lists a file git has never seen, with its contents as the

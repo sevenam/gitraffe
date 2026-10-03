@@ -64,9 +64,17 @@ type model struct {
 	filter              git.Filter // narrows the graph; the zero filter is all of it. See filter.go
 	files               filePicker // the file list opened with "h"
 	commitView          commitView // the whole-screen look at one commit; see commit_view.go
-	configDir           string     // gitraffe's config directory; "" means a picked theme can't be saved
-	notice              string     // one-off status line text, e.g. the theme just saved; cleared by the next key
-	loadedNotice        string     // takes over from notice once the repository has loaded; see refresh
+	// Staging and committing from the commit view; see staging.go and
+	// commit_prompt.go.
+	workingState git.WorkingState // what the repository is in the middle of, as last read
+	staging      bool             // a change to the index is running
+	commitPrompt commitPrompt     // the message box "c" opens
+	committing   bool             // a commit is running
+	committed    string           // full hash of the commit just made, until the reload finds it
+
+	configDir    string // gitraffe's config directory; "" means a picked theme can't be saved
+	notice       string // one-off status line text, e.g. the theme just saved; cleared by the next key
+	loadedNotice string // takes over from notice once the repository has loaded; see refresh
 	// Unasked refreshing and fetching; see auto_refresh.go. Zero intervals mean off.
 	autoRefresh      time.Duration
 	autoFetch        time.Duration

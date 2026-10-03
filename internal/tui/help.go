@@ -92,6 +92,30 @@ var commitViewHelp = []helpSection{
 	}},
 }
 
+// stagingViewHelp is commitViewHelp for the uncommitted changes, where the
+// view has keys a commit has no use for. It is a list of its own rather than
+// a section added to the other: the two together are taller than a
+// 24-row terminal, and the keys cut off would be the new ones. What only
+// applies to a commit is left out to make the room.
+var stagingViewHelp = []helpSection{
+	{"Uncommitted changes", []keyBinding{
+		{"s", "files: stage or unstage the file"},
+		{"s", "diff: stage or unstage the hunk under the cursor"},
+		{"v", "diff: pick lines for s, from here to where you move; esc lets go"},
+		{"S", "stage everything, or unstage it all when nothing is left"},
+		{"c", "commit what is staged: type a message, enter commits"},
+		{"1 / 2 / 3  tab", "focus commit / files / diff, or cycle"},
+		{"↑ / ↓  k / j", "move in the focused box"},
+		{"pgup/pgdn  g / G", "move by ten; first / last"},
+		{"wheel / click", "move in, or select, what is under the pointer"},
+		{"y", "copy the diff (d)"},
+		{"h", "files: show the selected file's history in the graph"},
+		{"?", "toggle this help"},
+		{"space / esc / q", "back to the graph"},
+		{"ctrl+c", "quit"},
+	}},
+}
+
 // renderHelpBox renders the whole key reference as a bordered box.
 func renderHelpBox() string {
 	return renderHelpSections(helpSections)

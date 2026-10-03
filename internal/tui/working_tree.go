@@ -82,7 +82,13 @@ func (m *model) workingTreeRow() displayRow {
 // Staged and unstaged changes are one number: both are work in progress, and
 // the split is a detail for the details panel, not the graph.
 func (m *model) workingTreeSummary() (string, bool) {
-	changed, untracked, err := git.Status(m.repoPath)
+	return summariseWorkingTree(m.repoPath)
+}
+
+// summariseWorkingTree is workingTreeSummary for a command running in the
+// background, which has a path and no model.
+func summariseWorkingTree(repoPath string) (string, bool) {
+	changed, untracked, err := git.Status(repoPath)
 	if err != nil {
 		log.Printf("Working tree: status failed: %v", err)
 		return "", false
@@ -106,6 +112,6 @@ func (m *model) workingTreeSummary() (string, bool) {
 func loadWorkingDiffCmd(repoPath string, statWidth int) tea.Cmd {
 	return func() tea.Msg {
 		d := git.WorkingTree(repoPath, statWidth)
-		return diffLoadedMsg{repoPath: repoPath, commitIdx: 0, diffStat: d.Stat, diffBody: d.Body, diffFiles: d.Files}
+		return diffLoadedMsg{repoPath: repoPath, commitIdx: 0, diffStat: d.Stat, diffBody: d.Body, diffFiles: d.Files, workingTree: true, state: d.State}
 	}
 }

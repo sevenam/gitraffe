@@ -34,6 +34,15 @@ type commitView struct {
 	filesTop      int // first file on screen; see fileTop
 	detailsScroll int
 	diffScroll    int
+	// The uncommitted changes can be staged from here, which gives the diff
+	// box a cursor; see staging.go. None of these mean anything on a commit.
+	diffCursor int     // the line of the diff the cursor is on
+	selecting  bool    // "v" was pressed: the lines from diffAnchor to the cursor are picked
+	diffAnchor int     // where the selection started
+	shown      fileKey // the entry the diff box is about, to find it again in a list read anew
+	// want is where the selection should go once a change has been made and
+	// the list read again, in order of preference.
+	want []fileKey
 }
 
 // The commit view's boxes, numbered as they are labelled on screen.
@@ -58,6 +67,7 @@ func (m model) openCommitView() (model, tea.Cmd) {
 		focus:       commitBoxFiles,
 	}
 	m.commitView.file = max(0, m.filteredFile(c.DiffFiles))
+	m.showFile()
 	// Usually already loaded, since selecting a commit asks for its diff; this
 	// covers opening the view before the answer arrived.
 	return m, m.maybeLoadDiff()
@@ -97,6 +107,9 @@ func (m model) viewedFiles() []fileDiff {
 // it is given: the graph behind it is not on screen, so a key meant for it
 // would move something the user cannot see.
 func (m model) updateCommitView(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+	if next, cmd, handled := m.stagingKey(msg); handled {
+		return next, cmd
+	}
 	switch msg.String() {
 	case "ctrl+c":
 		return m, tea.Quit
@@ -143,6 +156,9 @@ func (m model) updateCommitView(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	case commitBoxFiles:
 		m = m.moveFileSelection(msg)
 	case commitBoxDiff:
+		if m.commitView.workingTree {
+			return m.moveDiffCursor(msg), nil
+		}
 		m.commitView.diffScroll = scrollBy(m.commitView.diffScroll, msg, m.maxScroll(commitBoxDiff))
 	}
 	return m, nil
@@ -232,7 +248,7 @@ func (m model) moveFileSelection(msg tea.KeyMsg) model {
 	}
 	m.commitView.file = max(0, min(m.commitView.file, len(files)-1))
 	if m.commitView.file != was {
-		m.commitView.diffScroll = 0
+		m.showFile()
 	}
 	return m
 }
@@ -350,6 +366,11 @@ func fileBoxLabel(c commit) string {
 	if !c.DiffLoaded {
 		return "[2]-files"
 	}
+	// On the uncommitted changes the number worth knowing is how much of the
+	// list a commit would take.
+	if c.WorkingTree && len(c.DiffFiles) > 0 {
+		return fmt.Sprintf("[2]-files-(%d-of-%d-staged)", stagedCount(c.DiffFiles), len(c.DiffFiles))
+	}
 	return fmt.Sprintf("[2]-files-(%d)", len(c.DiffFiles))
 }
 
@@ -385,7 +406,7 @@ func (m model) renderFileList(c commit, width, rows int) (string, scrollMarks) {
 
 	var lines []string
 	for i := top; i < min(top+rows, len(c.DiffFiles)); i++ {
-		lines = append(lines, fileRow(c.DiffFiles[i], width, i == m.commitView.file))
+		lines = append(lines, fileRow(c.DiffFiles[i], width, i == m.commitView.file, c.WorkingTree))
 	}
 	return strings.Join(lines, "\n"), marksFor(len(c.DiffFiles), top, rows)
 }
@@ -393,24 +414,42 @@ func (m model) renderFileList(c commit, width, rows int) (string, scrollMarks) {
 // fileRow is "> path        +12 -3", the counts against the right edge so they
 // line up however long the paths are. A path too long is cut from the left:
 // the file's own name says more than the directories above it.
-func fileRow(f fileDiff, width int, selected bool) string {
+//
+// With staging (the uncommitted changes) each row also says which side of the
+// index it is on: "●" for staged, filled like a commit's marker because it is
+// what the next commit will hold, and "○" for not, hollow like the
+// uncommitted changes' own.
+func fileRow(f fileDiff, width int, selected, staging bool) string {
 	counts := fileCounts(f)
 	countWidth := ansi.StringWidth(counts)
 	marker := "  "
 	if selected {
 		marker = "> "
 	}
+	stage := ""
+	if staging {
+		stage = unstagedMarker + " "
+		if f.Staged {
+			stage = stagedMarker + " "
+		}
+		width -= 2
+	}
 	room := max(width-2-countWidth-1, 1)
 	path := truncateLeft(f.Path, room)
 	gap := max(room-ansi.StringWidth(path), 0) + 1
 
 	if !selected {
-		return marker + path + strings.Repeat(" ", gap) + counts
+		if f.Staged {
+			stage = lipgloss.NewStyle().Foreground(lipgloss.Color(theme.Current.DiffAdd)).Render(stage)
+		} else {
+			stage = helpStyle.Render(stage)
+		}
+		return marker + stage + path + strings.Repeat(" ", gap) + counts
 	}
 	// The selected row is a band across the box, as the graph's row is: every
 	// piece carries the background, since a reset inside one would end it.
 	band := lipgloss.NewStyle().Background(lipgloss.Color(theme.Current.SelectedBg))
-	row := band.Foreground(lipgloss.Color(theme.Current.SelectedFg)).Bold(true).Render(marker+path) +
+	row := band.Foreground(lipgloss.Color(theme.Current.SelectedFg)).Bold(true).Render(marker+stage+path) +
 		band.Render(strings.Repeat(" ", gap)) +
 		band.Render(ansi.Strip(counts))
 	if pad := width - 2 - ansi.StringWidth(path) - gap - countWidth; pad > 0 {
@@ -446,6 +485,17 @@ func (m model) renderFileDiff(c commit, width, rows int) (string, scrollMarks) {
 
 	var sb strings.Builder
 	sb.WriteString(lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color(theme.Current.DiffHeader)).Render(f.Path))
+	if c.WorkingTree {
+		// Which way "s" would move it is the first thing to know about it.
+		side := "not staged"
+		switch {
+		case f.Untracked:
+			side = "untracked"
+		case f.Staged:
+			side = "staged"
+		}
+		sb.WriteString(helpStyle.Render("  " + side))
+	}
 	sb.WriteString("\n\n")
 	switch {
 	case f.Untracked && f.Body == "":
@@ -453,12 +503,16 @@ func (m model) renderFileDiff(c commit, width, rows int) (string, scrollMarks) {
 	case strings.TrimSpace(f.Body) == "":
 		sb.WriteString(helpStyle.Render("No textual change"))
 	default:
-		for _, line := range strings.Split(f.Body, "\n") {
-			sb.WriteString(styleDiffLine(line))
+		for i, line := range strings.Split(f.Body, "\n") {
+			if m.linePicked(i) {
+				sb.WriteString(pickedDiffLine(line, width))
+			} else {
+				sb.WriteString(styleDiffLine(line))
+			}
 			sb.WriteString("\n")
 		}
 	}
-	return scrollLines(sb.String(), m.commitView.diffScroll, rows, width)
+	return scrollLines(sb.String(), m.diffTop(rows), rows, width)
 }
 
 // commitViewStatusLine is the view's own bottom line: the keys this screen
@@ -469,6 +523,24 @@ func (m model) commitViewStatusLine() string {
 	if m.notice != "" {
 		return truncateLines(lipgloss.NewStyle().Bold(true).
 			Foreground(lipgloss.Color(theme.Current.Tag)).Render(m.notice), m.windowWidth)
+	}
+	// Ahead of the hints: this outlives the key that started it.
+	if m.committing {
+		return truncateLines(lipgloss.NewStyle().Bold(true).
+			Foreground(lipgloss.Color(theme.Current.Tag)).Render("Committing..."), m.windowWidth)
+	}
+	if m.commitView.workingTree {
+		hints := "esc: back • s: stage file • S: all • c: commit • 3: diff, for hunks and lines • ?: help"
+		switch {
+		case m.commitView.selecting:
+			hints = "s: stage these lines • ↑/↓/j/k: pick more • esc: let go • ?: help"
+		case m.commitView.focus == commitBoxDiff:
+			hints = "esc: back • s: stage hunk • v: pick lines • S: all • c: commit • 2: files • ?: help"
+		}
+		if f, ok := m.selectedFile(); ok && f.Staged {
+			hints = strings.ReplaceAll(hints, "s: stage", "s: unstage")
+		}
+		return truncateLines(helpStyle.Render(hints), m.windowWidth)
 	}
 	return truncateLines(helpStyle.Render(
 		"esc: back • 1/2/3: focus box • tab: cycle • ↑/↓/j/k: move • h: file history • ?: help"), m.windowWidth)
@@ -557,7 +629,8 @@ func (m *model) followSelectionInCommitView() {
 		m.commitView.hash, m.commitView.workingTree = c.FullHash, c.WorkingTree
 	}
 	m.commitView.file = 0
-	m.commitView.detailsScroll, m.commitView.diffScroll = 0, 0
+	m.commitView.detailsScroll = 0
+	m.showFile()
 }
 
 // commitViewMouse is the wheel and the click while the view is open. It works
@@ -573,7 +646,14 @@ func (m model) commitViewMouse(msg tea.MouseMsg) (model, tea.Cmd) {
 		if box == commitBoxFiles {
 			if i := m.fileAt(msg.Y); i >= 0 && i != m.commitView.file {
 				m.commitView.file = i
-				m.commitView.diffScroll = 0
+				m.showFile()
+			}
+		}
+		// On the uncommitted changes a click in the diff puts the cursor on
+		// that line, as a click in the list selects that file.
+		if box == commitBoxDiff && m.commitView.workingTree {
+			if i := m.diffLineAt(msg.Y); i >= 0 {
+				m.commitView.diffCursor = i
 			}
 		}
 		return m, nil
@@ -599,10 +679,16 @@ func (m model) commitViewMouse(msg tea.MouseMsg) (model, tea.Cmd) {
 			was := m.commitView.file
 			m.commitView.file = max(0, min(m.commitView.file+delta, len(files)-1))
 			if m.commitView.file != was {
-				m.commitView.diffScroll = 0
+				m.showFile()
 			}
 		}
 	case commitBoxDiff:
+		// Where the box follows a cursor the wheel moves the cursor, as it
+		// moves the selection in the file list.
+		if f, ok := m.selectedFile(); ok && m.commitView.workingTree {
+			m.commitView.diffCursor = max(0, min(m.commitView.diffCursor+delta, lineCount(f.Body)-1))
+			return m, nil
+		}
 		m.commitView.diffScroll = max(0, m.commitView.diffScroll+delta)
 	}
 	return m, nil
@@ -641,6 +727,12 @@ func (m model) fileAt(y int) int {
 	}
 	return i
 }
+
+// The marks a file's row carries on the uncommitted changes; see fileRow.
+const (
+	stagedMarker   = "●"
+	unstagedMarker = "○"
+)
 
 // commitViewTopRow is the first row the boxes are drawn on: the header box
 // above them takes three, as the repository box does on the graph screen.
