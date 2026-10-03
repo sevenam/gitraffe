@@ -16,6 +16,7 @@ A text-based UI git graph command line tool built with Golang, Bubble Tea, go-gi
 - 🔍 A commit view on `Space`: what the commit is, every file it touched, and one file's diff at a time (see [The commit view](#the-commit-view))
 - ⬇️ `p` pulls: fetch, then fast-forward your branch — and nothing riskier than that (see [Pulling](#pulling))
 - 🔀 `C` checks out the selected commit's branch, and refuses while you have uncommitted changes (see [Checking out](#checking-out))
+- 🗑️ `d` deletes the selected commit's branch — local, remote or both — and refuses when its commits are on no other branch (see [Deleting branches](#deleting-branches))
 - 🌐 `P` opens the commit's pull request in your browser, on GitHub or Azure DevOps, read from the merge subject and the remote (see [Opening a pull request](#opening-a-pull-request))
 - 📋 `y` copies the commit's hash, subject or whole diff (see [Copying](#copying))
 - 🔖 `b` jumps to any branch or tag, typing to narrow the list (see [Jumping to a branch or tag](#jumping-to-a-branch-or-tag))
@@ -85,6 +86,7 @@ in `gitraffe ./update`.
 - `Space` - Open the commit view, `Esc` to come back (see [The commit view](#the-commit-view))
 - `p` - Pull: fetch, then fast-forward this branch (see [Pulling](#pulling))
 - `C` - Check out this commit's branch (see [Checking out](#checking-out))
+- `d` - Delete this commit's branch: local, remote or both (see [Deleting branches](#deleting-branches))
 - `P` - Open this commit's pull request in a browser (see [Opening a pull request](#opening-a-pull-request))
 - `y` - Copy this commit's hash (`y` again), subject (`s`) or diff (`d`) (see [Copying](#copying))
 - `r` or `F5` - Reload the repository (see [Reloading](#reloading))
@@ -423,6 +425,44 @@ would carry such changes over to the other branch, which is how work gets commit
 in the wrong place. Untracked files don't count: they belong to no branch, and git
 refuses on its own if the switch would overwrite one. If git refuses for any other
 reason, the bottom line gives git's reason after `Checkout failed:`.
+
+### Deleting branches
+
+Press `d` on a commit to delete a branch that is on it. A list opens with a row for
+each thing that can go:
+
+```
+Delete branch
+
+> local feature
+  remote origin/feature
+  local feature and remote origin/feature
+```
+
+`↑`/`↓` choose, `Enter` deletes the row picked, and `Esc` closes the list with
+nothing deleted. A commit with several branches lists each of them.
+
+- A local branch and a remote branch of the same name are offered together only when
+  both are on the selected commit. If the remote one is on another commit, select
+  that commit to delete it.
+- The branch you have checked out is not offered locally; its remote branch still is.
+- Deleting a remote branch is a push to that remote, so it needs the same access a
+  `git push` does.
+
+Like [pulling](#pulling) and [checking out](#checking-out), it only does what cannot
+lose work:
+
+- A branch whose commits are on no other branch or tag is not deleted; the bottom
+  line says `Not deleted: its commits are on no other branch`. Merge it first, or
+  delete it in a terminal if you mean to throw the commits away. For "local and
+  remote" that means a third branch must hold them, since the two would otherwise be
+  each other's only copy.
+- A remote branch is deleted only if it is still where your last fetch saw it. If
+  someone has pushed to it since, nothing is deleted and the bottom line asks you to
+  fetch.
+
+When both are asked for, the remote branch goes first: if that fails, nothing has
+changed.
 
 ### Reloading
 

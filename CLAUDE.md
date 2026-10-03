@@ -71,6 +71,7 @@ release build and the release version check all depend on it being there.
 | `sync.go` | ahead/behind counts, `Fetch` |
 | `pull.go` | `Pull`: fetch, then fast-forward or nothing |
 | `switch.go` | `Switch`, `SwitchTargets`: checking out a branch, refused while there are uncommitted changes |
+| `delete.go` | `DeleteBranch`, `DeleteTargets`: deleting a local or remote branch, refused when its commits are on no other branch |
 | `remote_tags.go` | which tags the remotes hold |
 | `files.go` | `ListFiles`: every tracked file, for the file-history picker |
 | `fingerprint.go` | one string for "would a reload draw anything different", for auto-refresh |
@@ -82,7 +83,7 @@ release build and the release version check all depend on it being there.
 | --- | --- |
 | Entry and state | `run.go` (`Run`, `Version`, `LogPath`), `model.go` (all state), `types.go` (aliases for the git types), `messages.go` |
 | Event loop | `update.go` (`Init`, `Update`, message handling), `keys.go` (`handleKey`: who owns the keyboard, and every key binding), `mouse.go` |
-| Loading | `load.go` (repository into model), `diff_load.go`, `reload.go`, `auto_refresh.go` (the refresh and fetch timers), `more_commits.go`, `fetch.go`, `pull.go`, `checkout.go`, `remote_tags.go`, `working_tree.go` |
+| Loading | `load.go` (repository into model), `diff_load.go`, `reload.go`, `auto_refresh.go` (the refresh and fetch timers), `more_commits.go`, `fetch.go`, `pull.go`, `checkout.go`, `branch_delete.go` (the `d` list and the delete), `remote_tags.go`, `working_tree.go` |
 | Screen assembly | `view.go` (`View`), `layout.go` (`currentLayout`: how the width is shared), `boxes.go` (clipping, labels, overlays, `trimToHeight`), `scroll_marks.go`, `background.go` (`paintBackground`) |
 | Main screen | `repo_info.go` (top box), `graph_panel.go` (commit list and `graphWindow`), `branch_label.go`, `details_panel.go` (`fitDetails`), `status_line.go` |
 | Other screens and overlays | `commit_view.go`, `ref_picker.go`, `repo_switcher.go`, `theme_picker.go`, `search.go`, `filter.go` (the file-history filter and its `h` picker), `help.go`, `pull_request.go` (also opens the browser), `copy.go` (the `y` prompt and the clipboard) |
@@ -144,9 +145,11 @@ new helpers.
 - **`settings.yml` is read, changed and written per field** (`config.Load`, change one field,
   `config.Save`), so one setting never drops another.
 - **Gitraffe only does to a repository what cannot lose work or need resolving.** That is a
-  fetch, a fast-forward of the current branch, and a switch of branch with a clean working tree
-  (`git switch`, never `git checkout`, and refused while tracked files have changes); a merge, a
-  rebase or a push is not. Moving the branch always takes a key press — only fetching may run
+  fetch, a fast-forward of the current branch, a switch of branch with a clean working tree
+  (`git switch`, never `git checkout`, and refused while tracked files have changes), and the
+  deletion of a branch whose commits stay on another branch or tag; a merge, a rebase or a
+  push of commits is not. Deleting takes a row picked from a list; moving the branch always
+  takes a key press — only fetching may run
   on a timer, and only when asked for in `settings.yml`.
 
 ## Style

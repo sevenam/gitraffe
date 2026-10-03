@@ -119,6 +119,13 @@ func (m model) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 		return m.finishSwitch(msg)
 
+	case deleteFinishedMsg:
+		// As with a switch: the answer is about the repository it ran in.
+		if msg.repoPath != m.repoPath {
+			return m, nil
+		}
+		return m.finishDelete(msg)
+
 	case pullFinishedMsg:
 		// As for a fetch: a pull of the repository you have since left says
 		// nothing about the one on screen.

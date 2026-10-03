@@ -104,6 +104,11 @@ func (m model) startSwitch(target git.SwitchTarget) (model, tea.Cmd) {
 		m.notice = "A pull is running — check out again when it has finished"
 		return m, nil
 	}
+	// Nor under a delete: the branch being switched to may be the one going.
+	if m.deleting {
+		m.notice = "A delete is running — check out again when it has finished"
+		return m, nil
+	}
 	m.switching = true
 	return m, switchCmd(m.repoPath, target)
 }

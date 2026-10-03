@@ -48,6 +48,8 @@ type model struct {
 	copying             bool           // the copy prompt opened with "y" waits for its answer; see copy.go
 	checkout            checkoutPrompt // which branch "C" asks for; see checkout.go
 	switching           bool           // a checkout is running
+	deletePicker        deletePicker   // the list "d" opens; see branch_delete.go
+	deleting            bool           // a branch delete is running
 	picker              themePicker
 	refs                refPicker // the branch and tag list opened with "b"
 	switcher            repoSwitcher
