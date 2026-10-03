@@ -166,9 +166,8 @@ func (m model) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		return m.startUpdate(), nil
 	case "C":
 		// Capital, like P and U: it changes something outside gitraffe, so
-		// it should take more than a slip of the finger to start. It asks
-		// before switching all the same.
-		return m.openCheckout(), nil
+		// it should take more than a slip of the finger to start.
+		return m.openCheckout()
 	case "L":
 		// Global rather than per-box: the graph stays visible whichever
 		// box has focus, so the colours should be reachable from both.

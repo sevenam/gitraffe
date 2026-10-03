@@ -11,15 +11,18 @@ import (
 )
 
 // Checking out: "C" on the graph switches to the selected commit's branch.
-// It always asks first, on the status line like the copy prompt, because it
-// is the one key besides "p" that changes the working tree: with one branch
-// the next key says yes or no, with several it picks which.
+// With one place to go it switches at once: the key is a capital, the switch
+// is refused while there are uncommitted changes, and it is undone by
+// pressing "C" on the branch left behind, so a question first only cost a
+// key press. With several branches on the commit it asks which, on the
+// status line like the copy prompt.
 //
-// A commit with no branch is checked out detached, which is said in the
-// question. One with branches is never offered detached: a detached HEAD is
-// where commits get lost, and anyone who wants one has a terminal.
+// A commit with no branch is checked out detached, which the notice says
+// afterwards. One with branches is never offered detached: a detached HEAD
+// is where commits get lost, and anyone who wants one has a terminal.
 
-// checkoutPrompt is the question "C" asks while it waits for its answer.
+// checkoutPrompt is the question "C" asks, while it waits for its answer,
+// about a commit with more than one branch.
 type checkoutPrompt struct {
 	open    bool
 	targets []git.SwitchTarget
@@ -36,50 +39,40 @@ type switchFinishedMsg struct {
 	err      error
 }
 
-// openCheckout asks where to switch for the commit on the graph.
-func (m model) openCheckout() model {
+// openCheckout switches to the branch of the commit on the graph, or asks
+// which when the commit has several.
+func (m model) openCheckout() (model, tea.Cmd) {
 	if !m.ready || m.err != nil || m.switching {
-		return m
+		return m, nil
 	}
 	c, ok := m.commitOnScreen()
 	if !ok {
-		return m
+		return m, nil
 	}
 	if c.WorkingTree {
 		m.notice = "These are your uncommitted changes — pick a commit to check out"
-		return m
+		return m, nil
 	}
 	targets := git.SwitchTargets(c.Refs, c.FullHash)
-	if len(targets) == 1 && targets[0].Kind == git.SwitchBranch && targets[0].Name == m.currentBranch {
-		m.notice = "Already on " + m.currentBranch
-		return m
+	if len(targets) == 1 {
+		return m.startSwitch(targets[0])
 	}
 	if len(targets) > maxCheckoutChoices {
 		targets = targets[:maxCheckoutChoices]
 	}
 	m.checkout = checkoutPrompt{open: true, targets: targets}
-	return m
+	return m, nil
 }
 
 // checkoutQuestion is the status line while the prompt is open.
 func (m model) checkoutQuestion() string {
 	t := m.checkout.targets
-	if len(t) == 1 {
-		return "Check out " + targetLabel(t[0]) + "? (y/n)"
-	}
 	parts := make([]string, 0, len(t)+1)
 	for i, target := range t {
-		parts = append(parts, fmt.Sprintf("%d %s", i+1, targetLabel(target)))
+		parts = append(parts, fmt.Sprintf("%d %s", i+1, target.Name))
 	}
 	parts = append(parts, "esc cancel")
 	return "Check out: " + strings.Join(parts, " • ")
-}
-
-func targetLabel(t git.SwitchTarget) string {
-	if t.Kind == git.SwitchDetached {
-		return shortHash(t.Name) + " (detached, on no branch)"
-	}
-	return t.Name
 }
 
 // answerCheckout switches to what the key picked. Any key it doesn't know
@@ -92,16 +85,15 @@ func (m model) answerCheckout(msg tea.KeyMsg) (model, tea.Cmd) {
 		return m, tea.Quit
 	}
 
-	var target git.SwitchTarget
-	switch {
-	case len(targets) == 1 && (key == "y" || key == "Y" || key == "enter"):
-		target = targets[0]
-	case len(targets) > 1 && len(key) == 1 && key[0] >= '1' && int(key[0]-'0') <= len(targets):
-		target = targets[key[0]-'1']
-	default:
+	if len(key) != 1 || key[0] < '1' || int(key[0]-'0') > len(targets) {
 		return m, nil
 	}
+	return m.startSwitch(targets[key[0]-'1'])
+}
 
+// startSwitch begins the switch to target, unless there is nothing to do or
+// something is in the way.
+func (m model) startSwitch(target git.SwitchTarget) (model, tea.Cmd) {
 	if target.Kind == git.SwitchBranch && target.Name == m.currentBranch {
 		m.notice = "Already on " + m.currentBranch
 		return m, nil

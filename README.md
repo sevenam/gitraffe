@@ -84,7 +84,7 @@ in `gitraffe ./update`.
 - `Enter` - Show one panel or both (see [One panel at a time](#one-panel-at-a-time))
 - `Space` - Open the commit view, `Esc` to come back (see [The commit view](#the-commit-view))
 - `p` - Pull: fetch, then fast-forward this branch (see [Pulling](#pulling))
-- `C` - Check out this commit's branch, after asking (see [Checking out](#checking-out))
+- `C` - Check out this commit's branch (see [Checking out](#checking-out))
 - `P` - Open this commit's pull request in a browser (see [Opening a pull request](#opening-a-pull-request))
 - `y` - Copy this commit's hash (`y` again), subject (`s`) or diff (`d`) (see [Copying](#copying))
 - `r` or `F5` - Reload the repository (see [Reloading](#reloading))
@@ -397,10 +397,11 @@ show that there is something to pull, but moving your branch always takes the ke
 
 ### Checking out
 
-Press `C` on a commit to switch to its branch. It asks first, on the bottom line:
-`Check out feature? (y/n)` when the commit has one branch, or a numbered list —
-`Check out: 1 main • 2 origin/release • esc cancel` — when it has several. Any other
-key cancels.
+Press `C` on a commit to switch to its branch. It switches straight away and says
+where it went on the bottom line: `Switched to feature`. Only a commit with several
+branches asks which, with a numbered list —
+`Check out: 1 main • 2 origin/release • esc cancel` — where any key but a number
+cancels.
 
 - A **local branch** is switched to as it is.
 - A **remote branch** with no local branch of the same name on that commit is
@@ -408,7 +409,7 @@ key cancels.
   you `feature`, set up to pull from `origin/feature`. When the local branch is on the
   same commit, only the local one is offered.
 - A commit with **no branch** is checked out on no branch (a "detached HEAD"), which
-  the question says. A commit that has a branch is never offered detached: commits
+  the bottom line says afterwards. A commit that has a branch is never offered detached: commits
   made on no branch are easy to lose.
 
 It uses `git switch`, git's newer command for changing branches (since 2.23), rather
