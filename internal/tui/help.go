@@ -40,7 +40,7 @@ var helpSections = []helpSection{
 		{"n / N", "next / previous match"},
 		{"h", "pick a file or directory and show only its history"},
 		{"esc", "clear the filter"},
-		{"C", "toggle graph lane colours"},
+		{"L", "toggle graph lane colours"},
 		{"t", "choose a colour theme"},
 		{"o", "open another repository"},
 		{"r / f5", "reload this repository"},

@@ -122,35 +122,37 @@ func TestTrunkKeepsTheThemeGraphColour(t *testing.T) {
 	}
 }
 
-func TestCKeyTogglesLaneColours(t *testing.T) {
+func TestLKeyTogglesLaneColours(t *testing.T) {
 	if !initialModel(".").colourLanes {
 		t.Fatal("lane colouring should start on, or nobody finds it")
 	}
 
-	off, _ := testModel().Update(keyPress("C"))
+	off, _ := testModel().Update(keyPress("L"))
 	if off.(model).colourLanes {
-		t.Error("C did not turn lane colouring off")
+		t.Error("L did not turn lane colouring off")
 	}
-	on, _ := off.(model).Update(keyPress("C"))
+	on, _ := off.(model).Update(keyPress("L"))
 	if !on.(model).colourLanes {
-		t.Error("C did not turn lane colouring back on")
+		t.Error("L did not turn lane colouring back on")
 	}
-	// Lower-case c used to toggle it and was too easy to hit by accident.
-	if got, _ := testModel().Update(keyPress("c")); !got.(model).colourLanes {
-		t.Error("c still toggles lane colouring")
+	// c and C both used to toggle it; they are kept for commit and checkout.
+	for _, key := range []string{"c", "C"} {
+		if got, _ := testModel().Update(keyPress(key)); !got.(model).colourLanes {
+			t.Errorf("%s still toggles lane colouring", key)
+		}
 	}
 }
 
 // The graph is on screen whichever box has focus, so the key has to reach it
 // from both rather than only from the commit list.
-func TestCKeyWorksFromEitherBox(t *testing.T) {
+func TestLKeyWorksFromEitherBox(t *testing.T) {
 	for _, box := range []int{1, 2} {
 		m := testModel()
 		m.focusedBox = box
 		m.colourLanes = true
-		got, _ := m.Update(keyPress("C"))
+		got, _ := m.Update(keyPress("L"))
 		if got.(model).colourLanes {
-			t.Errorf("C did nothing with box %d focused", box)
+			t.Errorf("L did nothing with box %d focused", box)
 		}
 	}
 }
