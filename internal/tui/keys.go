@@ -174,9 +174,11 @@ func (m model) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		return m.refresh()
 	case "U":
 		return m.startUpdate(), nil
-	case "C":
-		// Capital, like U: it changes something outside gitraffe, so
-		// it should take more than a slip of the finger to start.
+	case "c":
+		// Lower case although it moves HEAD: the switch is refused while
+		// there are uncommitted changes, so a slip loses nothing and "c"
+		// on the branch left behind undoes it. In the commit view "c"
+		// commits; that view never hands its keys on to the graph.
 		return m.openCheckout()
 	case "d":
 		// Lower case although it deletes: it only opens the list, and

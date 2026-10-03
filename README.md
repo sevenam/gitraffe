@@ -16,7 +16,7 @@ A text-based UI git graph command line tool built with Golang, Bubble Tea, go-gi
 - 🔍 A commit view on `Space`: what the commit is, every file it touched, and one file's diff at a time (see [The commit view](#the-commit-view))
 - ✍️ Stage files, hunks or single lines from the commit view and commit them with `c`, without leaving gitraffe (see [Staging and committing](#staging-and-committing))
 - ⬇️ `p` pulls: fetch, then fast-forward your branch — and nothing riskier than that (see [Pulling](#pulling))
-- 🔀 `C` checks out the selected commit's branch, and refuses while you have uncommitted changes (see [Checking out](#checking-out))
+- 🔀 `c` checks out the selected commit's branch, and refuses while you have uncommitted changes (see [Checking out](#checking-out))
 - 🗑️ `d` deletes the selected commit's branch — local, remote or both — and refuses when its commits are on no other branch (see [Deleting branches](#deleting-branches))
 - 🌐 `o` opens the commit's pull request in your browser, on GitHub or Azure DevOps, read from the merge subject and the remote (see [Opening a pull request](#opening-a-pull-request))
 - 📋 `y` copies the commit's hash, subject or whole diff (see [Copying](#copying))
@@ -86,7 +86,7 @@ in `gitraffe ./update`.
 - `Enter` - Show one panel or both (see [One panel at a time](#one-panel-at-a-time))
 - `Space` - Open the commit view, `Esc` to come back (see [The commit view](#the-commit-view))
 - `p` - Pull: fetch, then fast-forward this branch (see [Pulling](#pulling))
-- `C` - Check out this commit's branch (see [Checking out](#checking-out))
+- `c` - Check out this commit's branch (see [Checking out](#checking-out))
 - `d` - Delete this commit's branch: local, remote or both (see [Deleting branches](#deleting-branches))
 - `o` - Open this commit's pull request in a browser (see [Opening a pull request](#opening-a-pull-request))
 - `y` - Copy this commit's hash (`y` again), subject (`s`) or diff (`d`) (see [Copying](#copying))
@@ -511,7 +511,7 @@ show that there is something to pull, but moving your branch always takes the ke
 
 ### Checking out
 
-Press `C` on a commit to switch to its branch. It switches straight away and says
+Press `c` on a commit to switch to its branch. It switches straight away and says
 where it went on the bottom line: `Switched to feature`. Only a commit with several
 branches asks which, with a numbered list —
 `Check out: 1 main • 2 origin/release • esc cancel` — where any key but a number

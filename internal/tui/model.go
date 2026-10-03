@@ -46,7 +46,7 @@ type model struct {
 	colourLanes         bool           // tint each graph column differently; see lane_colours.go
 	showHelp            bool           // key reference overlay, toggled with "?"
 	copying             bool           // the copy prompt opened with "y" waits for its answer; see copy.go
-	checkout            checkoutPrompt // which branch "C" asks for; see checkout.go
+	checkout            checkoutPrompt // which branch "c" asks for; see checkout.go
 	switching           bool           // a checkout is running
 	deletePicker        deletePicker   // the list "d" opens; see branch_delete.go
 	deleting            bool           // a branch delete is running
