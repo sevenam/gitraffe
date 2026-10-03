@@ -45,4 +45,8 @@ type diffLoadedMsg struct {
 	// is cut to length, so the commit view can list files the panel's text no
 	// longer reaches.
 	diffFiles []fileDiff
+	// workingTree marks the uncommitted changes' diff, and state is what
+	// came with it; see git.WorkingState.
+	workingTree bool
+	state       git.WorkingState
 }

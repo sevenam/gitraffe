@@ -43,6 +43,9 @@ func (m model) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	if m.checkout.open {
 		return m.answerCheckout(msg)
 	}
+	if m.commitPrompt.open {
+		return m.updateCommitPrompt(msg)
+	}
 
 	if m.picker.open {
 		return m.updateThemePicker(msg)

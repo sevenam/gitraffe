@@ -44,6 +44,11 @@ func (m model) reloadRepo() (model, tea.Cmd) {
 	// opened. See followSelectionInCommitView for how it finds its commit
 	// again once the new graph has loaded.
 	next.commitView = m.commitView
+	// As is a commit message being written, and what was last known of the
+	// repository's state until it is read again.
+	next.commitPrompt = m.commitPrompt
+	next.workingState = m.workingState
+	next.staging, next.committing = m.staging, m.committing
 	return next, cmd
 }
 

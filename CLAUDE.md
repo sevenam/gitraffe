@@ -8,9 +8,9 @@ that holds a thing instead of reading packages end to end.
 
 ```
 go build -o gitraffe.exe .
-go test ./internal/git                         # ~5s: parsing and graph layout
+go test ./internal/git                         # ~40s: parsing, graph layout, staging
 go test ./internal/tui -run TestFollowWindow   # one test; prefer this while iterating
-go test ./...                                  # ~40s, nearly all in internal/tui
+go test ./...                                  # ~2 min, most of it in internal/tui
 go vet ./... && gofmt -l .
 ```
 
@@ -67,10 +67,11 @@ release build and the release version check all depend on it being there.
 | `log.go` | `Commit`, `DisplayRow`, `IsCommitMarker`, `Filter`, `LoadGraph` (reads the history, then lays it out), `LoadCommits` (fallback) |
 | `layout.go` | the graph drawing: one row per commit, each connection on the row of the commit it belongs to; `commitPaths` |
 | `refs.go` | `ParseRefs`, merged-branch names, `ListRefs`, `CommitDepth` |
-| `diff.go` | `ShowCommit`, `WorkingTree`, `Status`, splitting a patch per file, `Patch` (uncut, for copying) |
+| `diff.go` | `ShowCommit`, `WorkingTree` (its files listed staged, then unstaged, then untracked), `Status`, splitting a patch per file, `Patch` (uncut, for copying) |
 | `sync.go` | ahead/behind counts, `Fetch` |
 | `pull.go` | `Pull`: fetch, then fast-forward or nothing |
 | `switch.go` | `Switch`, `SwitchTargets`: checking out a branch, refused while there are uncommitted changes |
+| `stage.go` | `StageFile`, `UnstageFile`, `StageAll`, `StageLines` (a patch of picked lines for `git apply --cached`; see `buildPatch`), `CommitStaged`, `WorkingState` (a merge or rebase in progress, a detached HEAD) |
 | `delete.go` | `DeleteBranch`, `DeleteTargets`: deleting a local or remote branch, refused when its commits are on no other branch |
 | `remote_tags.go` | which tags the remotes hold |
 | `files.go` | `ListFiles`: every tracked file, for the file-history picker |
@@ -86,7 +87,7 @@ release build and the release version check all depend on it being there.
 | Loading | `load.go` (repository into model), `diff_load.go`, `reload.go`, `auto_refresh.go` (the refresh and fetch timers), `more_commits.go`, `fetch.go`, `pull.go`, `checkout.go`, `branch_delete.go` (the `d` list and the delete), `remote_tags.go`, `working_tree.go` |
 | Screen assembly | `view.go` (`View`), `layout.go` (`currentLayout`: how the width is shared), `boxes.go` (clipping, labels, overlays, `trimToHeight`), `scroll_marks.go`, `background.go` (`paintBackground`) |
 | Main screen | `repo_info.go` (top box), `graph_panel.go` (commit list and `graphWindow`), `branch_label.go`, `details_panel.go` (`fitDetails`), `status_line.go` |
-| Other screens and overlays | `commit_view.go`, `ref_picker.go`, `repo_switcher.go`, `theme_picker.go`, `search.go`, `filter.go` (the file-history filter and its `h` picker), `help.go`, `pull_request.go` (also opens the browser), `copy.go` (the `y` prompt and the clipboard) |
+| Other screens and overlays | `commit_view.go`, `staging.go` (`s`, `S`, `v` and the diff box's cursor on uncommitted changes), `commit_prompt.go` (the `c` message box and the commit), `ref_picker.go`, `repo_switcher.go`, `theme_picker.go`, `search.go`, `filter.go` (the file-history filter and its `h` picker), `help.go`, `pull_request.go` (also opens the browser), `copy.go` (the `y` prompt and the clipboard) |
 | Looks | `styles.go` (package-level styles built from the theme), `lane_colours.go` |
 | Session | `preferences.go` (what is remembered between runs), `selfupdate_tui.go` (the in-app update prompt), `terminal.go` |
 
@@ -97,6 +98,9 @@ release build and the release version check all depend on it being there.
 - **A setting:** the `Settings` struct in `internal/config/config.go` (with `omitempty`), the code
   that reads it, and the README section that documents it.
 - **A theme:** a `.yml` in `themes/`; it is embedded and listed automatically.
+- **The commit view's keys:** `updateCommitView` in `commit_view.go` (and `stagingKey` in
+  `staging.go` for the uncommitted changes), `commitViewHelp` and `stagingViewHelp` in
+  `help.go`, and README's "The commit view" and "Staging and committing".
 - **A new git query:** a function in `internal/git` with a test there, called from `internal/tui`
   through an asynchronous message that carries `repoPath`.
 
@@ -136,6 +140,11 @@ new helpers.
 - **A line's colour is a branch path, not a column.** Columns are reused; `commitPaths` says which
   branch a commit is on, and a line takes the path of the commit at its upper end.
 - **Refs are read with `--decorate=full`.** Short names cannot tell a local branch from a remote one.
+- **Lines are staged by index into the diff on screen.** `git.StageLines` reads the
+  file's diff again, refuses if it is not the one the lines were picked from, and builds its
+  patch from that same output; so the listing (`sectionArgs`) and the patch must stay one
+  command, pinned against user config. A file with staged and unstaged changes is two
+  entries, found again after each reload by path and side (`fileKey`), never by index.
 - **A commit has more than one marker.** `●` for a commit and `◆` for a merge, each with a
   ringed form when selected. Code looking for "the commit on this row" asks
   `git.IsCommitMarker`, not for a particular character.
@@ -146,10 +155,13 @@ new helpers.
   `config.Save`), so one setting never drops another.
 - **Gitraffe only does to a repository what cannot lose work or need resolving.** That is a
   fetch, a fast-forward of the current branch, a switch of branch with a clean working tree
-  (`git switch`, never `git checkout`, and refused while tracked files have changes), and the
-  deletion of a branch whose commits stay on another branch or tag; a merge, a rebase or a
-  push of commits is not. Deleting takes a row picked from a list; moving the branch always
-  takes a key press — only fetching may run
+  (`git switch`, never `git checkout`, and refused while tracked files have changes), the
+  deletion of a branch whose commits stay on another branch or tag, and staging and
+  committing; a merge, a rebase or a push of commits is not. Staging only copies changes
+  into the index and back, never touching a file; a commit holds only what was staged, is
+  made only by `c` then `Enter`, runs the repository's hooks and never skips one, and is
+  refused on a detached HEAD or during a merge or rebase. Deleting takes a row picked from a
+  list; moving the branch always takes a key press — only fetching may run
   on a timer, and only when asked for in `settings.yml`.
 
 ## Style

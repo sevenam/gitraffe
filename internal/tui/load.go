@@ -131,6 +131,7 @@ func (m model) finishLoad(openErr error, fingerprint string) (model, tea.Cmd) {
 	m.applyReselect()
 	m.noteEmptyFilter()
 	m.rememberCurrentRepo()
+	m.applyCommitted()
 	m.followSelectionInCommitView()
 	if cmd := m.keepLoadedDiffs(prev); cmd != nil {
 		return m, cmd

@@ -14,6 +14,7 @@ A text-based UI git graph command line tool built with Golang, Bubble Tea, go-gi
 - 🔀 Ahead/behind for the current branch next to its name, e.g. `main ↑3 ↓1` (see [Ahead and behind](#ahead-and-behind))
 - 📝 Uncommitted changes as a row above the newest commit, with their diff (see [Uncommitted changes](#uncommitted-changes))
 - 🔍 A commit view on `Space`: what the commit is, every file it touched, and one file's diff at a time (see [The commit view](#the-commit-view))
+- ✍️ Stage files, hunks or single lines from the commit view and commit them with `c`, without leaving gitraffe (see [Staging and committing](#staging-and-committing))
 - ⬇️ `p` pulls: fetch, then fast-forward your branch — and nothing riskier than that (see [Pulling](#pulling))
 - 🔀 `C` checks out the selected commit's branch, and refuses while you have uncommitted changes (see [Checking out](#checking-out))
 - 🗑️ `d` deletes the selected commit's branch — local, remote or both — and refuses when its commits are on no other branch (see [Deleting branches](#deleting-branches))
@@ -189,7 +190,8 @@ It works on uncommitted changes too: the working-tree row opens like any other
 commit, and untracked files are listed — marked `untracked`, since git has never seen
 them and so has nothing to compare them with. Selecting one shows the whole file as
 added lines, `+` and green, the way new lines in a tracked file look; a binary file
-is only named.
+is only named. There the view does more than show: see
+[Staging and committing](#staging-and-committing).
 
 Pressing `?` here lists this screen's keys rather than the graph's, and `o` opens the
 commit's pull request (see [Opening a pull request](#opening-a-pull-request)).
@@ -198,6 +200,96 @@ Why a screen of its own, rather than more boxes beside the graph? The graph is w
 gitraffe is for, and splitting the details panel three ways would have taken room
 from it on every screen to answer a question you ask on some of them. Here the commit
 has the window, and `Esc` gives the graph back untouched.
+
+### Staging and committing
+
+Open the uncommitted changes (`Space` on the row at the top of the graph) and the commit
+view becomes the place to put a commit together: choose what goes in, type a message,
+commit. Nothing else in gitraffe writes a commit, and this only does on `c` then `Enter`.
+
+```
+╭[1]-commit─────────────────╮╭[3]-diff────────────────────────────────╮
+│ Uncommitted changes       ││ parser.go  not staged                  │
+│ 2 changed, 1 untracked    ││                                        │
+╰───────────────────────────╯│ @@ -18,6 +18,9 @@                      │
+╭[2]-files-(1-of-3-staged)──╮│  func parse() {                        │
+│   ● README.md       +2 -0 ││ -  amount = -amount                    │
+│ > ○ parser.go       +2 -2 ││ +  if amount < 0 {                     │
+│   ○ notes.txt   untracked ││                                        │
+╰───────────────────────────╯╰────────────────────────────────────────╯
+esc: back • s: stage file • S: all • c: commit • 3: diff, for hunks and lines • ?: help
+```
+
+Each row of the file list says which side it is on: `●` is staged — what the next
+commit will hold — and `○` is not. Staged files come first, then unstaged, then
+untracked. A file with some changes staged and some not is listed twice, once on each
+side, so the diff beside a row is exactly what `s` on that row would move.
+
+| Where | Key | Does |
+| --- | --- | --- |
+| files | `s` | stage the selected file, or unstage it if it is staged |
+| diff | `s` | stage or unstage the hunk under the cursor |
+| diff | `v`, move, `s` | pick lines, then stage or unstage just those; `Esc` lets go of them |
+| any | `S` | stage everything; when everything is staged already, unstage it all |
+| any | `c` | commit what is staged |
+
+Here the diff box has a cursor, which `↑/↓`, `j/k`, the wheel and a click all move; the
+box follows it. With nothing picked, `s` takes the hunk the cursor is in, from its
+`@@` line to the next. For less than a hunk, press `v` on a line and move: the lines
+from there to the cursor are picked, and `s` stages the changed ones among them — so
+`v` `s` on one line stages that line. After `s` the cursor stays put and the next hunk
+moves up under it, so pressing it again works down the file; on the file list the
+selection steps to the next file in the same way.
+
+`c` opens a box for the message, with a subject line and a body:
+
+```
+Commit  2 staged files to main
+
+Subject  22
+Stop negating refunds
+
+Body
+The sign was flipped twice.
+
+enter: commit • tab: body • esc: cancel
+```
+
+`Enter` in the subject commits. `Tab` moves to the body, where `Enter` is a new line;
+`Tab` again goes back to the subject to commit. `Esc` closes the box and keeps what
+you typed, so `c` finds it again. The number after `Subject` is its length, which turns
+into a note past 50 — a convention for what fits in a log, not a limit.
+
+After the commit the graph is read again. If changes are left, you stay in the view
+with what remains, ready for the next commit; if none are, you are back on the graph
+with the new commit selected.
+
+What it will and won't do:
+
+- **Only what is staged is committed.** With nothing staged, `c` says
+  `Nothing staged` rather than committing everything.
+- **Staging never touches your files.** It copies changes into git's index, and
+  unstaging takes them out again; the files on disk stay as they are either way.
+- **Hooks run, and are obeyed.** A `pre-commit` or `commit-msg` hook that refuses
+  stops the commit, and what it printed is shown in the message box with your message
+  still there. Gitraffe never passes `--no-verify`.
+- **The message is committed as typed.** It is passed to git directly, no editor
+  opens, and a line starting with `#` is kept: there is no template whose comments
+  would need stripping.
+- **Not during a merge, rebase, cherry-pick or revert, or with unresolved
+  conflicts.** There, staging a file means "this conflict is resolved" and a commit
+  concludes the operation; both are refused, with the reason on the bottom line, and
+  the files are listed as one diff to read. Finish it in a terminal.
+- **Not on a detached HEAD.** You can stage, but `c` is refused: a commit made on no
+  branch is easy to lose. Check out a branch first (see [Checking out](#checking-out)).
+- **A file that changed since it was read is shown again, not staged.** If you edit a
+  file after its diff was drawn, the line numbers on screen are of a diff that no
+  longer exists; `s` then stages nothing and redraws it.
+- **A rename is a deletion and an addition here.** They are two rows, staged one at
+  a time; git still records it as a rename when both are committed.
+
+A diff longer than 800 lines is cut on screen, and only the lines shown can be picked;
+`s` on the file list stages all of it.
 
 ### Jumping to a branch or tag
 
@@ -578,10 +670,11 @@ When the working tree isn't clean, a row sits above the newest commit with a hol
 marker and a count — `3 changed, 1 untracked` — so the graph answers "what have I
 got in progress" as well as "where am I". A clean tree adds no row.
 
-Staged and unstaged changes are one number: both are work in progress, and which is
-which is a detail for the details panel. Select the row and it shows the stats and
-the diff of everything against `HEAD`, staged changes included. Untracked files have
-no diff, so they are listed by name instead; open the row (`Space`) to read them.
+Staged and unstaged changes are one number: both are work in progress. Select the row
+and it shows the stats and the diff of everything against `HEAD`, staged changes
+included. Untracked files have no diff, so they are listed by name instead. Open the
+row (`Space`) to read them, to see what is staged and what is not, and to stage and
+commit (see [Staging and committing](#staging-and-committing)).
 
 The row follows your edits on its own (see [Auto-refresh](#auto-refresh)); press `r`
 if you don't want to wait for the next check.
