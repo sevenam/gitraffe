@@ -92,7 +92,9 @@ func (m model) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		return m, nil
 	case "t":
 		return m.openThemePicker(), nil
-	case "o":
+	case "O":
+		// Capital: it leaves the repository on screen for another, which
+		// should take more than a slip of the finger.
 		// Not while loading: the load under way would finish into the model
 		// the switch replaced it with.
 		if !m.ready {

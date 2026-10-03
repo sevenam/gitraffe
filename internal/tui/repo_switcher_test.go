@@ -121,7 +121,7 @@ func switcherModel(t *testing.T, current string, others ...string) model {
 	}
 	m.repoPath = current
 	m.rememberCurrentRepo()
-	return press(m, keyPress("o"))
+	return press(m, keyPress("O"))
 }
 
 func TestSwitcherListsOtherRecentRepos(t *testing.T) {
@@ -131,7 +131,7 @@ func TestSwitcherListsOtherRecentRepos(t *testing.T) {
 	if err := os.RemoveAll(gone); err != nil {
 		t.Skipf("can't remove %s: %v", gone, err)
 	}
-	m = press(m, esc, keyPress("o"))
+	m = press(m, esc, keyPress("O"))
 
 	if !m.switcher.open {
 		t.Fatal("r did not open the switcher")
@@ -219,13 +219,13 @@ func TestSwitcherSuggestsFolders(t *testing.T) {
 		{dir + sep + ".", ".hidden"},
 		{dir + sep + "zz", ""},
 	} {
-		got := typeText(press(m, esc, keyPress("o")), tc.typed)
+		got := typeText(press(m, esc, keyPress("O")), tc.typed)
 		if labels := itemLabels(got.switcher); labels != tc.want {
 			t.Errorf("typing %q suggested %q, want %q", tc.typed, labels, tc.want)
 		}
 	}
 
-	got := typeText(press(m, esc, keyPress("o")), filepath.Join(dir, "missing", "x"))
+	got := typeText(press(m, esc, keyPress("O")), filepath.Join(dir, "missing", "x"))
 	if len(got.switcher.items) != 0 || !strings.Contains(got.switcher.empty, "No folder at") {
 		t.Errorf("a missing folder gave %q / %q", itemLabels(got.switcher), got.switcher.empty)
 	}
@@ -245,7 +245,7 @@ func TestSwitcherTabCompletes(t *testing.T) {
 	}
 
 	// Highlighted: that one.
-	m = typeText(press(m, esc, keyPress("o")), dir+sep+"al")
+	m = typeText(press(m, esc, keyPress("O")), dir+sep+"al")
 	m = press(m, down, down, tea.KeyMsg{Type: tea.KeyTab})
 	if want := dir + sep + "alpine" + sep; m.switcher.input.Value() != want {
 		t.Errorf("tab on the highlighted folder gave %q, want %q", m.switcher.input.Value(), want)
@@ -348,10 +348,20 @@ func TestSwitcherOnTheOpenRepoJustCloses(t *testing.T) {
 	}
 }
 
+// The key is the capital; "o" on its own is left free.
+func TestLowerCaseODoesNotOpenTheSwitcher(t *testing.T) {
+	if m := press(testModel(), keyPress("o")); m.switcher.open {
+		t.Error("o opened the switcher, want only O to")
+	}
+	if m := press(testModel(), keyPress("O")); !m.switcher.open {
+		t.Error("O did not open the switcher")
+	}
+}
+
 func TestSwitcherWaitsForLoading(t *testing.T) {
 	m := testModel()
 	m.ready = false
-	if m = press(m, keyPress("o")); m.switcher.open {
+	if m = press(m, keyPress("O")); m.switcher.open {
 		t.Error("r opened the switcher while a repository was loading")
 	}
 }
