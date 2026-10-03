@@ -40,11 +40,13 @@ type model struct {
 	latestVersion       string          // latest version from GitHub, e.g., "v0.2.0"
 	remoteTags          map[tagRef]bool // union of all remotes' tags; nil while unknown
 	updateState         updateState
-	updateMessage       string // prompt, progress or error text for the status line
-	updatedTo           string // tag installed this session; read by main after Run returns
-	colourLanes         bool   // tint each graph column differently; see lane_colours.go
-	showHelp            bool   // key reference overlay, toggled with "?"
-	copying             bool   // the copy prompt opened with "y" waits for its answer; see copy.go
+	updateMessage       string         // prompt, progress or error text for the status line
+	updatedTo           string         // tag installed this session; read by main after Run returns
+	colourLanes         bool           // tint each graph column differently; see lane_colours.go
+	showHelp            bool           // key reference overlay, toggled with "?"
+	copying             bool           // the copy prompt opened with "y" waits for its answer; see copy.go
+	checkout            checkoutPrompt // the question "C" asks; see checkout.go
+	switching           bool           // a checkout is running
 	picker              themePicker
 	refs                refPicker // the branch and tag list opened with "b"
 	switcher            repoSwitcher

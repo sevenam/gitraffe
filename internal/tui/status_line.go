@@ -25,6 +25,9 @@ func (m *model) renderStatusLine() string {
 	if m.copying {
 		return truncateLines(noticeStyle.Render(copyPrompt), m.windowWidth)
 	}
+	if m.checkout.open {
+		return truncateLines(noticeStyle.Render(m.checkoutQuestion()), m.windowWidth)
+	}
 	if m.updateState == updateConfirming {
 		return truncateLines(noticeStyle.Render(
 			fmt.Sprintf("Update v%s → %s? This replaces the binary and quits. (y/n)", Version, m.latestVersion)),
