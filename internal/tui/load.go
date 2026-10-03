@@ -46,6 +46,7 @@ func (m *model) loadRepoInfoFromCLI() {
 
 func (m *model) setRepoInfo(info git.Info) {
 	m.repoName, m.currentBranch, m.currentCommit = info.Name, info.Branch, info.Commit
+	m.headHash = info.HeadHash
 }
 
 // loadUpstreamSync counts the commits the current branch and the remote don't

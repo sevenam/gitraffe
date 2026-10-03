@@ -141,3 +141,35 @@ func boolsString(b []bool) string {
 	}
 	return sb.String()
 }
+
+// The ">" column marks the checked out commit, not the selection: moving the
+// selection leaves it where it is, and the working tree row never carries it.
+func TestHeadMarkerFollowsCheckedOutCommit(t *testing.T) {
+	for sel := range 3 {
+		m := highlightModel()
+		for i := range m.commits {
+			m.commits[i].FullHash = strings.Repeat(m.commits[i].Hash[:1], 40)
+		}
+		m.headHash = m.commits[1].FullHash
+		m.selected = sel
+		l := computePanelLayout(m.windowWidth, m.maxGraphWidth, m.maxBranchWidth, len(dateColumnFormat), m.maxAuthorWidth)
+		lines := strings.Split(m.renderCommitList(l, l.leftWidth-4), "\n")
+
+		for row, want := range map[int]bool{0: false, 1: true, 3: false} {
+			if got := strings.HasPrefix(ansi.Strip(lines[row]), "> "); got != want {
+				t.Errorf("selected %d: row %d marked = %v, want %v: %q", sel, row, got, want, ansi.Strip(lines[row]))
+			}
+		}
+	}
+
+	m := &model{windowWidth: 100, windowHeight: 12}
+	m.commits = []commit{
+		{WorkingTree: true, GraphLine: "○ "},
+		{Hash: "aaaaaaa", FullHash: strings.Repeat("a", 40), GraphLine: "● "},
+	}
+	m.headHash = m.commits[1].FullHash
+	lines := strings.Split(m.renderCommitList(panelLayout{}, 40), "\n")
+	if strings.HasPrefix(ansi.Strip(lines[0]), "> ") || !strings.HasPrefix(ansi.Strip(lines[1]), "> ") {
+		t.Errorf("fallback list: want only the HEAD commit marked, got %q", lines[:2])
+	}
+}

@@ -29,9 +29,10 @@ type model struct {
 	repoName            string
 	currentBranch       string
 	currentCommit       string
-	ahead, behind       int // current branch vs its upstream; both 0 when in sync or unknown
-	focusedBox          int // 0 = repo info, 1 = commit list, 2 = commit details
-	detailsScroll       int // scroll offset for the details panel
+	headHash            string // full hash of the checked out commit, marked with ">" in the graph
+	ahead, behind       int    // current branch vs its upstream; both 0 when in sync or unknown
+	focusedBox          int    // 0 = repo info, 1 = commit list, 2 = commit details
+	detailsScroll       int    // scroll offset for the details panel
 	displayRows         []displayRow
 	maxGraphWidth       int
 	maxBranchWidth      int
