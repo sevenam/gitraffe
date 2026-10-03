@@ -16,6 +16,7 @@ A text-based UI git graph command line tool built with Golang, Bubble Tea, go-gi
 - 🔍 A commit view on `Space`: what the commit is, every file it touched, and one file's diff at a time (see [The commit view](#the-commit-view))
 - ⬇️ `p` pulls: fetch, then fast-forward your branch — and nothing riskier than that (see [Pulling](#pulling))
 - 🌐 `P` opens the commit's pull request in your browser, on GitHub or Azure DevOps, read from the merge subject and the remote (see [Opening a pull request](#opening-a-pull-request))
+- 📋 `y` copies the commit's hash, subject or whole diff (see [Copying](#copying))
 - 🔖 `b` jumps to any branch or tag, typing to narrow the list (see [Jumping to a branch or tag](#jumping-to-a-branch-or-tag))
 - 🔄 Keeps itself up to date: changes on your machine appear without a keypress, and it can fetch on a timer too (see [Auto-refresh](#auto-refresh))
 - 🎨 Beautiful styling with Lip Gloss
@@ -83,6 +84,7 @@ in `gitraffe ./update`.
 - `Space` - Open the commit view, `Esc` to come back (see [The commit view](#the-commit-view))
 - `p` - Pull: fetch, then fast-forward this branch (see [Pulling](#pulling))
 - `P` - Open this commit's pull request in a browser (see [Opening a pull request](#opening-a-pull-request))
+- `y` - Copy this commit's hash (`y` again), subject (`s`) or diff (`d`) (see [Copying](#copying))
 - `r` or `F5` - Reload the repository (see [Reloading](#reloading))
 - `f` - Fetch from the remote, then reload (see [Fetching](#fetching))
 - `/` - Search commits, then `n` / `N` for next and previous (see [Searching](#searching))
@@ -228,6 +230,22 @@ commits have not been loaded yet — which are exactly the ones worth jumping to
 too old to scroll to. Picking one reads enough history to reach it first: gitraffe
 works out how deep the commit is and reads that far, then lands on it. The bottom line
 says so while it happens, since reading a long history takes a moment.
+
+### Copying
+
+Press `y` and the bottom line asks what to copy from the commit: `y` again for its full
+hash (so `yy`, as in vim, gives you what a `git revert` or `git cherry-pick` wants), `s`
+for its subject, or `d` for its whole diff. Any other key cancels. It works in the commit
+view too, on the commit that view is open on.
+
+The diff is read afresh rather than taken from the details panel, which stops after a
+few hundred lines, so what you paste is the complete patch and `git apply` takes it. On
+the uncommitted-changes row, `d` copies `git diff HEAD`; there is no hash or subject.
+
+Gitraffe uses the system clipboard where there is one. Where there isn't — on Linux
+without `xclip`, `xsel` or `wl-copy`, or over SSH — it asks the terminal to hold the text
+instead (OSC 52), and says it was sent rather than copied, since a terminal that doesn't
+support that ignores it silently.
 
 ### Opening a pull request
 

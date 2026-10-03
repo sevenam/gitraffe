@@ -44,6 +44,7 @@ type model struct {
 	updatedTo           string // tag installed this session; read by main after Run returns
 	colourLanes         bool   // tint each graph column differently; see lane_colours.go
 	showHelp            bool   // key reference overlay, toggled with "?"
+	copying             bool   // the copy prompt opened with "y" waits for its answer; see copy.go
 	picker              themePicker
 	refs                refPicker // the branch and tag list opened with "b"
 	switcher            repoSwitcher

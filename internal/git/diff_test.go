@@ -225,3 +225,56 @@ func TestUntrackedFileBody(t *testing.T) {
 		t.Errorf("a missing file = %+v, want it to say it could not be read", got)
 	}
 }
+
+// A copied patch is the whole diff, however long, and one git can apply: the
+// details panel's cut would leave a patch that stops halfway through a hunk.
+func TestPatchIsWholeAndApplies(t *testing.T) {
+	dir, git, commit := gittest.Fixture(t)
+	git("init", "-q", "-b", "main")
+	commit("first")
+	var sb strings.Builder
+	for i := range maxDiffLines * 3 {
+		fmt.Fprintf(&sb, "line %d\n", i)
+	}
+	write(t, dir, "long.txt", sb.String())
+	git("add", "-A")
+	git("commit", "-qm", "long")
+
+	patch, err := Patch(dir, "HEAD")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(patch, fmt.Sprintf("+line %d\n", maxDiffLines*3-1)) {
+		t.Errorf("patch is missing its last line; it has %d lines", strings.Count(patch, "\n"))
+	}
+	if strings.Contains(patch, "truncated") {
+		t.Error("patch carries the details panel's truncation note")
+	}
+	writePatch := filepath.Join(t.TempDir(), "p.diff")
+	if err := os.WriteFile(writePatch, []byte(patch), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	// Reversed, since the change is already in the working tree.
+	git("apply", "--check", "--reverse", writePatch)
+}
+
+// No hash means the uncommitted changes, staged and unstaged together.
+func TestPatchOfWorkingTree(t *testing.T) {
+	dir, git, commit := gittest.Fixture(t)
+	git("init", "-q", "-b", "main")
+	commit("a.txt")
+	commit("b.txt")
+	write(t, dir, "a.txt", "staged\n")
+	git("add", "a.txt")
+	write(t, dir, "b.txt", "unstaged\n")
+
+	patch, err := Patch(dir, "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, want := range []string{"+staged", "+unstaged"} {
+		if !strings.Contains(patch, want) {
+			t.Errorf("working-tree patch has no %q:\n%s", want, patch)
+		}
+	}
+}

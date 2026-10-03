@@ -36,6 +36,11 @@ func (m model) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	m.updateMessage = ""
 	m.notice = ""
 
+	// The copy prompt is answered by the next key, wherever it was opened.
+	if m.copying {
+		return m.answerCopyPrompt(msg)
+	}
+
 	if m.picker.open {
 		return m.updateThemePicker(msg)
 	}
@@ -106,6 +111,8 @@ func (m model) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 			return m, nil
 		}
 		return m.openPullRequest()
+	case "y":
+		return m.openCopyPrompt(), nil
 	case " ":
 		// Space, not ctrl+enter: most terminals cannot tell ctrl+enter
 		// from enter, so only the newer keyboard protocols would report

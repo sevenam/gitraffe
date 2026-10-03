@@ -110,6 +110,8 @@ func (m model) updateCommitView(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		return m, nil
 	case "P":
 		return m.openPullRequest()
+	case "y":
+		return m.openCopyPrompt(), nil
 	case "1":
 		m.commitView.focus = commitBoxDetails
 		return m, nil

@@ -249,3 +249,22 @@ func Status(dir string) (changed, untracked int, err error) {
 	}
 	return changed, untracked, nil
 }
+
+// Patch is a commit's whole diff, uncut, for copying: the details panel's text
+// stops at maxDiffLines, and a patch missing its tail would not apply. An empty
+// hash means the uncommitted changes, as "git diff HEAD" sees them; untracked
+// files are not in it, since git has no diff for a file it has never seen.
+func Patch(dir, hash string) (string, error) {
+	args := []string{"diff", "HEAD", "--no-color"}
+	if hash != "" {
+		args = []string{"show", "--format=", "--no-color", "-p", hash}
+	}
+	cmd := exec.Command("git", args...)
+	cmd.Dir = dir
+	out, err := cmd.Output()
+	if err != nil {
+		return "", err
+	}
+	// Not trimmed: git apply wants the final newline a patch ends with.
+	return strings.ReplaceAll(string(out), "\r", ""), nil
+}

@@ -51,7 +51,7 @@ release build and the release version check all depend on it being there.
 | `log.go` | `Commit`, `DisplayRow`, `LoadGraph` (reads the history, then lays it out), `LoadCommits` (fallback) |
 | `layout.go` | the graph drawing: one row per commit, each connection on the row of the commit it belongs to |
 | `refs.go` | `ParseRefs`, merged-branch names, `ListRefs`, `CommitDepth` |
-| `diff.go` | `ShowCommit`, `WorkingTree`, `Status`, splitting a patch per file |
+| `diff.go` | `ShowCommit`, `WorkingTree`, `Status`, splitting a patch per file, `Patch` (uncut, for copying) |
 | `sync.go` | ahead/behind counts, `Fetch` |
 | `pull.go` | `Pull`: fetch, then fast-forward or nothing |
 | `remote_tags.go` | which tags the remotes hold |
@@ -67,7 +67,7 @@ release build and the release version check all depend on it being there.
 | Loading | `load.go` (repository into model), `diff_load.go`, `reload.go`, `auto_refresh.go` (the refresh and fetch timers), `more_commits.go`, `fetch.go`, `pull.go`, `remote_tags.go`, `working_tree.go` |
 | Screen assembly | `view.go` (`View`), `layout.go` (how the width is shared), `boxes.go` (clipping, labels, overlays), `scroll_marks.go`, `background.go` |
 | Main screen | `repo_info.go` (top box), `graph_panel.go` (commit list and its scroll window), `branch_label.go`, `details_panel.go`, `status_line.go` |
-| Other screens and overlays | `commit_view.go`, `ref_picker.go`, `repo_switcher.go`, `theme_picker.go`, `search.go`, `help.go`, `pull_request.go` |
+| Other screens and overlays | `commit_view.go`, `ref_picker.go`, `repo_switcher.go`, `theme_picker.go`, `search.go`, `help.go`, `pull_request.go`, `copy.go` |
 | Looks | `styles.go` (package-level styles built from the theme), `lane_colours.go` |
 | Session | `preferences.go` (what is remembered between runs), `selfupdate_tui.go` (the in-app update prompt), `terminal.go` |
 
