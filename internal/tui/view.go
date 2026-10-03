@@ -49,7 +49,7 @@ func (m model) View() (result string) {
 		errorStyle := lipgloss.NewStyle().
 			Foreground(lipgloss.Color(theme.Current.Error)).
 			Bold(true)
-		screen := fmt.Sprintf("\n  %s\n\n  Error: %v\n\n  Press o to open another repository, or q to quit. Check %s for details.\n",
+		screen := fmt.Sprintf("\n  %s\n\n  Error: %v\n\n  Press O to open another repository, or q to quit. Check %s for details.\n",
 			errorStyle.Render("❌ Error loading repository"),
 			m.err, LogPath)
 		// Wrapped rather than left to the terminal: the log path makes the last

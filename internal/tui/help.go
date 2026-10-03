@@ -44,7 +44,7 @@ var helpSections = []helpSection{
 		{"esc", "clear the filter"},
 		{"L", "toggle graph lane colours"},
 		{"t", "choose a colour theme"},
-		{"o", "open another repository"},
+		{"O", "open another repository"},
 		{"r / f5", "reload this repository"},
 		{"f", "fetch from the remote, then reload"},
 		{"m", "read more of a long history"},

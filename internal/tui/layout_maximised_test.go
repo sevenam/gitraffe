@@ -159,7 +159,7 @@ func TestEnterInABoxDoesNotMaximise(t *testing.T) {
 	if picker.maximised {
 		t.Error("enter picked a theme and maximised a panel")
 	}
-	switcher := press(m, keyPress("o"), enter)
+	switcher := press(m, keyPress("O"), enter)
 	if switcher.maximised {
 		t.Error("enter in the repository box maximised a panel")
 	}

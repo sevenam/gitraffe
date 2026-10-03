@@ -95,7 +95,7 @@ in `gitraffe ./update`.
 - `h` - Show only the commits that changed a file or directory, picked from a list; `Esc` for all of them again (see [A file's history](#a-files-history))
 - `m` - Read more of a long history (see [Long histories](#long-histories))
 - `b` - Jump to a branch or tag (see [Jumping to a branch or tag](#jumping-to-a-branch-or-tag))
-- `o` - Open another repository (see [Switching repository](#switching-repository))
+- `O` - Open another repository (see [Switching repository](#switching-repository))
 - `t` - Pick a colour theme (see [Picking a theme](#picking-a-theme))
 - `L` - Toggle lane colours in the graph (see [Graph lane colours](#graph-lane-colours))
 - `U` - Update to the latest release (shown in the help line when one is available)
@@ -526,7 +526,7 @@ raised to those.
 
 ### Switching repository
 
-Press `o` to open another repository without leaving gitraffe. The box starts with
+Press `O` to open another repository without leaving gitraffe. The box starts with
 the last ten repositories you opened, most recent first: pick one with `↑/↓` and
 press `Enter`. `Esc` closes the box and keeps the repository you had.
 
@@ -547,7 +547,7 @@ A few more things about paths:
 - A path that isn't a repository is refused with the reason, and the box stays
   open to correct it.
 
-`o` also works from the error screen, so starting gitraffe in a folder that isn't a
+`O` also works from the error screen, so starting gitraffe in a folder that isn't a
 repository isn't a dead end. The recent list is kept in `settings.yml` in your config
 directory (see [Picking a theme](#picking-a-theme)), next to your theme choice.
 
@@ -559,7 +559,7 @@ next run starts where the last one left off:
 | Key | What it holds |
 | --- | --- |
 | `theme` | the theme picked with `t` (see [Picking a theme](#picking-a-theme)) |
-| `recent_repos` | the repositories the `o` box offers |
+| `recent_repos` | the repositories the `O` box offers |
 | `lane_colours` | whether the graph is coloured per branch (`L`) |
 | `focused_box` | the panel that had focus, `1` or `2` |
 | `maximised` | whether that panel filled the window (`Enter`) |

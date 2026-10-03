@@ -131,7 +131,7 @@ func TestMouseDoesNothingBehindABox(t *testing.T) {
 		"repository box": func() model {
 			m := m
 			m.configDir = t.TempDir()
-			return press(m, keyPress("o"))
+			return press(m, keyPress("O"))
 		}(),
 	} {
 		for event, msg := range map[string]tea.MouseMsg{
