@@ -169,7 +169,7 @@ func TestKeysDoNotLeakThroughTheRefPicker(t *testing.T) {
 	m.selected = 1
 	before := m
 
-	for _, key := range []string{"j", "k", "G", "c", "2"} {
+	for _, key := range []string{"j", "k", "G", "C", "2"} {
 		after := press(before, keyPress(key))
 		if after.selected != before.selected {
 			t.Errorf("%q moved the graph's selection %d→%d", key, before.selected, after.selected)

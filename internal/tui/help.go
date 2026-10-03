@@ -40,7 +40,7 @@ var helpSections = []helpSection{
 		{"n / N", "next / previous match"},
 		{"F", "show only the commits that changed a file or directory"},
 		{"esc", "clear the filter"},
-		{"c", "toggle graph lane colours"},
+		{"C", "toggle graph lane colours"},
 		{"t", "choose a colour theme"},
 		{"o", "open another repository"},
 		{"r / f5", "reload this repository"},

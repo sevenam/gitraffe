@@ -158,7 +158,7 @@ func (m model) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		return m.refresh()
 	case "U":
 		return m.startUpdate(), nil
-	case "c":
+	case "C":
 		// Global rather than per-box: the graph stays visible whichever
 		// box has focus, so the colours should be reachable from both.
 		m.colourLanes = !m.colourLanes

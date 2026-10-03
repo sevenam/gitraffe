@@ -127,13 +127,17 @@ func TestCKeyTogglesLaneColours(t *testing.T) {
 		t.Fatal("lane colouring should start on, or nobody finds it")
 	}
 
-	off, _ := testModel().Update(keyPress("c"))
+	off, _ := testModel().Update(keyPress("C"))
 	if off.(model).colourLanes {
-		t.Error("c did not turn lane colouring off")
+		t.Error("C did not turn lane colouring off")
 	}
-	on, _ := off.(model).Update(keyPress("c"))
+	on, _ := off.(model).Update(keyPress("C"))
 	if !on.(model).colourLanes {
-		t.Error("c did not turn lane colouring back on")
+		t.Error("C did not turn lane colouring back on")
+	}
+	// Lower-case c used to toggle it and was too easy to hit by accident.
+	if got, _ := testModel().Update(keyPress("c")); !got.(model).colourLanes {
+		t.Error("c still toggles lane colouring")
 	}
 }
 
@@ -144,9 +148,9 @@ func TestCKeyWorksFromEitherBox(t *testing.T) {
 		m := testModel()
 		m.focusedBox = box
 		m.colourLanes = true
-		got, _ := m.Update(keyPress("c"))
+		got, _ := m.Update(keyPress("C"))
 		if got.(model).colourLanes {
-			t.Errorf("c did nothing with box %d focused", box)
+			t.Errorf("C did nothing with box %d focused", box)
 		}
 	}
 }
