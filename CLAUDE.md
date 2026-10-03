@@ -19,7 +19,14 @@ real loaders against them. Nothing touches the network or the user's config dire
 package you changed with `-run` while iterating, and the full suite once before committing.
 
 A release is a tag matching the `version` constant in `main.go`; `release.yml` refuses any other.
-Don't change `version` unless asked.
+Don't change `version` unless asked. When asked to release:
+
+1. Set `version` in `main.go` to the new number and land that commit on `main` ("bump version to
+   X.Y.Z"). `release.yml` also refuses a tag on a commit that isn't on `main`.
+2. Tag that commit on `main` as `vX.Y.Z` (a lightweight tag, like the earlier ones) and push only the
+   tag: `git tag vX.Y.Z origin/main && git push origin vX.Y.Z`.
+3. The tag push runs `release.yml`: check-tag, the full test suite, then the builds that become the
+   GitHub release. Nothing else runs CI, so a red test shows up here first.
 
 ## Working here economically
 
