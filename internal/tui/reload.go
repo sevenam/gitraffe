@@ -34,6 +34,7 @@ func (m model) reloadRepo() (model, tea.Cmd) {
 	// However much history was asked for stays asked for; a reload that threw
 	// away the batches loaded with "m" would be a reload that loses your place.
 	next.commitLimit = m.commitCount()
+	next.filter = m.filter
 	if m.selected >= 0 && m.selected < len(m.commits) {
 		next.reselect = m.commits[m.selected].FullHash
 	}

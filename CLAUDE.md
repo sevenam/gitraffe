@@ -67,7 +67,7 @@ release build and the release version check all depend on it being there.
 | Loading | `load.go` (repository into model), `diff_load.go`, `reload.go`, `auto_refresh.go` (the refresh and fetch timers), `more_commits.go`, `fetch.go`, `pull.go`, `remote_tags.go`, `working_tree.go` |
 | Screen assembly | `view.go` (`View`), `layout.go` (how the width is shared), `boxes.go` (clipping, labels, overlays), `scroll_marks.go`, `background.go` |
 | Main screen | `repo_info.go` (top box), `graph_panel.go` (commit list and its scroll window), `branch_label.go`, `details_panel.go`, `status_line.go` |
-| Other screens and overlays | `commit_view.go`, `ref_picker.go`, `repo_switcher.go`, `theme_picker.go`, `search.go`, `help.go`, `pull_request.go` |
+| Other screens and overlays | `commit_view.go`, `ref_picker.go`, `repo_switcher.go`, `theme_picker.go`, `search.go`, `filter.go`, `help.go`, `pull_request.go` |
 | Looks | `styles.go` (package-level styles built from the theme), `lane_colours.go` |
 | Session | `preferences.go` (what is remembered between runs), `selfupdate_tui.go` (the in-app update prompt), `terminal.go` |
 

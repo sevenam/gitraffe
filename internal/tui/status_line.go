@@ -21,6 +21,9 @@ func (m *model) renderStatusLine() string {
 	if m.search.active {
 		return m.renderSearchPrompt()
 	}
+	if m.filterPrompt.active {
+		return m.renderFilterPrompt()
+	}
 
 	if m.updateState == updateConfirming {
 		return truncateLines(noticeStyle.Render(
@@ -50,6 +53,11 @@ func (m *model) renderStatusLine() string {
 		// Leads rather than trails: the line is already near a typical terminal's
 		// width, so a trailing hint is the first thing truncation eats.
 		help = "U: update to " + m.latestVersion + " • " + help
+	}
+	if !m.filter.IsZero() {
+		// Leads for the same reason: a filtered graph that gave no hint of
+		// the way out would look like a repository with three commits.
+		help = "esc: clear filter • " + help
 	}
 
 	// The position is pinned to the right edge and the key help gives way to

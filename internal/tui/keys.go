@@ -48,6 +48,9 @@ func (m model) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	if m.search.active {
 		return m.updateSearch(msg)
 	}
+	if m.filterPrompt.active {
+		return m.updateFilterPrompt(msg)
+	}
 
 	// The help overlay covers the panels, so keys acting on them would change
 	// things the user can't see. Esc and q close it rather than quit: pressed
@@ -123,6 +126,15 @@ func (m model) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 			return m, nil
 		}
 		return m.openSearch(), nil
+	case "F":
+		if !m.ready {
+			return m, nil
+		}
+		return m.openFilterPrompt(), nil
+	case "esc":
+		// Esc means "back" everywhere, and on the graph the only place to go
+		// back to is the whole history.
+		return m.clearFilter()
 	case "n":
 		return m.searchNext(1)
 	case "N":

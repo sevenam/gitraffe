@@ -57,6 +57,7 @@ func (m model) openCommitView() (model, tea.Cmd) {
 		workingTree: c.WorkingTree,
 		focus:       commitBoxFiles,
 	}
+	m.commitView.file = max(0, m.filteredFile(c.DiffFiles))
 	// Usually already loaded, since selecting a commit asks for its diff; this
 	// covers opening the view before the answer arrived.
 	return m, m.maybeLoadDiff()
@@ -110,6 +111,13 @@ func (m model) updateCommitView(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		return m, nil
 	case "P":
 		return m.openPullRequest()
+	case "h":
+		// Only from the file list, where a file is what is selected; in the
+		// other boxes the selection is not something you can see.
+		if m.commitView.focus == commitBoxFiles {
+			return m.showFileHistory()
+		}
+		return m, nil
 	case "1":
 		m.commitView.focus = commitBoxDetails
 		return m, nil
@@ -461,7 +469,7 @@ func (m model) commitViewStatusLine() string {
 			Foreground(lipgloss.Color(theme.Current.Tag)).Render(m.notice), m.windowWidth)
 	}
 	return truncateLines(helpStyle.Render(
-		"esc: back • 1/2/3: focus box • tab: cycle • ↑/↓/j/k: move • ?: help"), m.windowWidth)
+		"esc: back • 1/2/3: focus box • tab: cycle • ↑/↓/j/k: move • h: file history • ?: help"), m.windowWidth)
 }
 
 // fileTop is the first file drawn in a list of this many rows. It follows the

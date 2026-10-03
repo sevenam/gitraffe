@@ -74,6 +74,11 @@ func (m model) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.commits[msg.commitIdx].DiffStat = msg.diffStat
 			m.commits[msg.commitIdx].DiffBody = msg.diffBody
 			m.commits[msg.commitIdx].DiffFiles = msg.diffFiles
+			// The commit view opened before its files were known; now they
+			// are, it can open on the one the filter is about.
+			if v := &m.commitView; v.open && v.commit == msg.commitIdx && v.file == 0 {
+				v.file = max(0, m.filteredFile(msg.diffFiles))
+			}
 		}
 		return m, nil
 

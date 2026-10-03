@@ -23,7 +23,13 @@ const workingTreeMarker = "○"
 // along, rather than being woven into the layout: git log has nothing to say
 // about uncommitted work, and the layout is of commits and their parents,
 // which a made-up row has none of.
+//
+// Not while the graph is filtered: the row counts every uncommitted change,
+// and among a file's history it would read as changes to that file.
 func (m *model) addWorkingTreeRow() {
+	if !m.filter.IsZero() {
+		return
+	}
 	summary, ok := m.workingTreeSummary()
 	if !ok {
 		return

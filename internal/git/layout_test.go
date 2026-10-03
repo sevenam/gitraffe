@@ -299,7 +299,7 @@ func TestLoadGraphDrawsBothBranchesFromTheirCommit(t *testing.T) {
 	git("checkout", "-q", "main")
 	git("merge", "-q", "--no-ff", "merged", "-m", "merge it")
 
-	g, err := LoadGraph(dir, 100)
+	g, err := LoadGraph(dir, 100, Filter{})
 	if err != nil {
 		t.Fatal(err)
 	}
