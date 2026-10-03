@@ -60,18 +60,50 @@ type Graph struct {
 	More bool
 }
 
+// Filter narrows the history to the commits that answer one question. The
+// zero Filter is the whole history.
+type Filter struct {
+	// Path keeps the commits that changed this file, or anything under this
+	// directory. It is relative to the top of the repository, with forward
+	// slashes, as the commit view lists paths.
+	Path string
+}
+
+// IsZero reports whether the filter lets every commit through.
+func (f Filter) IsZero() bool { return f.Path == "" }
+
+// args are the git log arguments that apply the filter, to go last on the
+// command line.
+func (f Filter) args() []string {
+	if f.Path == "" {
+		return nil
+	}
+	return []string{
+		// Without --parents, %P is a commit's real parents, most of which the
+		// path leaves out of the list: every lane would run to a commit that
+		// never arrives. With it, git rewrites each parent to the nearest
+		// ancestor that is in the list, so the graph joins up.
+		"--parents",
+		"--",
+		// top: the path is the repository's, wherever gitraffe was started
+		// from. literal: a file called "*.go" means that file, not a glob.
+		":(top,literal)" + f.Path,
+	}
+}
+
 // LoadCommits reads the history without its graph, for when LoadGraph
 // fails. Each commit gets a marker in place of the drawing, and the second
 // result reports whether the history was cut off at limit.
-func LoadCommits(dir string, limit int) ([]Commit, bool, error) {
+func LoadCommits(dir string, limit int, filter Filter) ([]Commit, bool, error) {
 
 	log.Println("Using git CLI to load commits...")
 
 	// Use git log with a custom format
-	cmd := exec.Command("git", "log",
+	args := []string{"log",
 		fmt.Sprintf("-n%d", limit),
 		"--pretty=format:%H%x00%an%x00%at%x00%s%x00%P",
-		"--all")
+		"--all"}
+	cmd := exec.Command("git", append(args, filter.args()...)...)
 	cmd.Dir = dir
 
 	var out bytes.Buffer
@@ -179,12 +211,12 @@ func IsCommitMarker(r rune) bool {
 	return r == CommitMarker || r == MergeMarker
 }
 
-// LoadGraph reads up to limit commits across every ref and lays them out as a
-// graph; see layoutGraph for the drawing.
-func LoadGraph(dir string, limit int) (Graph, error) {
+// LoadGraph reads up to limit commits across every ref, those the filter lets
+// through, and lays them out as a graph; see layoutGraph for the drawing.
+func LoadGraph(dir string, limit int, filter Filter) (Graph, error) {
 	log.Println("Loading graph data from git CLI...")
 
-	cmd := exec.Command("git", "log",
+	args := []string{"log",
 		// Every commit before its parents, which the layout depends on: a
 		// lane is opened by a child and closed by the parent it leads to.
 		"--topo-order",
@@ -194,7 +226,8 @@ func LoadGraph(dir string, limit int) (Graph, error) {
 		// guessing — see ParseRefs.
 		"--decorate=full",
 		"--pretty=format:%H%x00%an%x00%at%x00%s%x00%P%x00%D",
-	)
+	}
+	cmd := exec.Command("git", append(args, filter.args()...)...)
 	cmd.Dir = dir
 
 	var out bytes.Buffer

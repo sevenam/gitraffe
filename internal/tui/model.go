@@ -56,10 +56,12 @@ type model struct {
 	commitLimit         int    // how many commits to read; grows with "m", see loadMoreCommits
 	moreCommits         bool   // the log was cut off at commitLimit
 	search              commitSearch
-	commitView          commitView // the whole-screen look at one commit; see commit_view.go
-	configDir           string     // gitraffe's config directory; "" means a picked theme can't be saved
-	notice              string     // one-off status line text, e.g. the theme just saved; cleared by the next key
-	loadedNotice        string     // takes over from notice once the repository has loaded; see refresh
+	filter              git.Filter   // narrows the graph; the zero filter is all of it. See filter.go
+	filterPrompt        filterPrompt // the "F" prompt
+	commitView          commitView   // the whole-screen look at one commit; see commit_view.go
+	configDir           string       // gitraffe's config directory; "" means a picked theme can't be saved
+	notice              string       // one-off status line text, e.g. the theme just saved; cleared by the next key
+	loadedNotice        string       // takes over from notice once the repository has loaded; see refresh
 	// Unasked refreshing and fetching; see auto_refresh.go. Zero intervals mean off.
 	autoRefresh      time.Duration
 	autoFetch        time.Duration

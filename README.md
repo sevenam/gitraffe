@@ -88,6 +88,7 @@ in `gitraffe ./update`.
 - `r` or `F5` - Reload the repository (see [Reloading](#reloading))
 - `f` - Fetch from the remote, then reload (see [Fetching](#fetching))
 - `/` - Search commits, then `n` / `N` for next and previous (see [Searching](#searching))
+- `F` - Show only the commits that changed a file or directory, `Esc` for all of them again (see [A file's history](#a-files-history))
 - `m` - Read more of a long history (see [Long histories](#long-histories))
 - `b` - Jump to a branch or tag (see [Jumping to a branch or tag](#jumping-to-a-branch-or-tag))
 - `o` - Open another repository (see [Switching repository](#switching-repository))
@@ -304,6 +305,23 @@ message, the author and the hash, so a hash pasted from a bug report finds its c
 
 The search only covers the commits that are loaded; on a long history, `m` reads more
 (see [Long histories](#long-histories)).
+
+### A file's history
+
+To see what happened to one file, open a commit that changed it with `Space`, pick
+the file in the list and press `h`. The graph then holds only the commits that
+changed that file, on every branch, joined up as they descend from each other. Or
+press `F` and type the path, from the top of the repository; a directory works too,
+and is everything under it.
+
+The top box says what the graph is filtered to, and `Esc` on the graph brings every
+commit back, with the one you were on still selected. Reloading, fetching and `m`
+keep the filter; opening another repository drops it. Opening a commit while
+filtered starts its file list on the filtered file.
+
+The row of uncommitted changes is left out while filtered, since it counts every
+change in the working tree, not just the file's. A rename is not followed: the
+history is of the file under its current name, as `git log -- path` gives it.
 
 ### Long histories
 

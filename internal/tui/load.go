@@ -60,7 +60,7 @@ func (m *model) loadUpstreamSync() {
 // the screen derives from it: tag marks, and the widths of the label and
 // author columns.
 func (m *model) loadGraphData() error {
-	g, err := git.LoadGraph(m.repoPath, m.commitCount())
+	g, err := git.LoadGraph(m.repoPath, m.commitCount(), m.filter)
 	if err != nil {
 		return err
 	}
@@ -82,7 +82,7 @@ func (m *model) loadGraphData() error {
 // loadCommitsFromGitCLI reads the history without a graph, for when the graph
 // could not be read.
 func (m *model) loadCommitsFromGitCLI() ([]commit, error) {
-	commits, more, err := git.LoadCommits(m.repoPath, m.commitCount())
+	commits, more, err := git.LoadCommits(m.repoPath, m.commitCount(), m.filter)
 	if err != nil {
 		return nil, err
 	}
@@ -128,6 +128,7 @@ func (m model) finishLoad(openErr error, fingerprint string) (model, tea.Cmd) {
 	m.addWorkingTreeRow()
 	m.addMoreCommitsRow()
 	m.applyReselect()
+	m.noteEmptyFilter()
 	m.rememberCurrentRepo()
 	m.followSelectionInCommitView()
 	if cmd := m.keepLoadedDiffs(prev); cmd != nil {

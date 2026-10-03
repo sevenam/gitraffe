@@ -45,6 +45,12 @@ func (m *model) renderRepoInfo() string {
 	sb.WriteString(lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color(theme.Current.Hash)).Render("Commit: "))
 	sb.WriteString(commitHashStyle.Render(m.currentCommit))
 
+	if !m.filter.IsZero() {
+		sb.WriteString("  ")
+		sb.WriteString(lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color(theme.Current.Tag)).Render("Filter: "))
+		sb.WriteString(m.filter.Path)
+	}
+
 	leftContent := sb.String()
 
 	// Title on the right

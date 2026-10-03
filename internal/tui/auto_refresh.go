@@ -87,7 +87,8 @@ func checkRepoStateCmd(repoPath string, fromTick bool) tea.Cmd {
 func (m model) canReloadUnasked() bool {
 	return m.ready && m.err == nil &&
 		!m.fetching && !m.pulling && m.updateState == updateIdle &&
-		!m.showHelp && !m.picker.open && !m.switcher.open && !m.refs.open && !m.search.active
+		!m.showHelp && !m.picker.open && !m.switcher.open && !m.refs.open && !m.search.active &&
+		!m.filterPrompt.active
 }
 
 func (m model) onAutoRefreshTick() (model, tea.Cmd) {

@@ -25,7 +25,7 @@ func mergeRepo(t *testing.T) string {
 // it, drawn in the branch's own colour. The marker is what says that commit is
 // where it went.
 func TestMergeCommitsGetTheirOwnMarker(t *testing.T) {
-	g, err := LoadGraph(mergeRepo(t), 100)
+	g, err := LoadGraph(mergeRepo(t), 100, Filter{})
 	if err != nil {
 		t.Fatal(err)
 	}
