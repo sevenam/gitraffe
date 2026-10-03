@@ -185,11 +185,23 @@ func TestPullStartsAutoFetchOffAgain(t *testing.T) {
 	}
 }
 
-// p used to open the pull request; that moved to P when p became pull.
-func TestCapitalPOpensThePullRequest(t *testing.T) {
+// The pull request key has been p and then P; it is o now, p pulls, and P is
+// left free.
+func TestLowerCaseOOpensThePullRequest(t *testing.T) {
 	m := loadedModel(t, prRepo(t))
 	m.selected = len(m.commits) - 1 // the first commit, which merged nothing
 	if got, _ := pullRequest(t, m); !strings.Contains(got.notice, "No pull request") || got.pulling {
-		t.Errorf("notice=%q pulling=%v; want P to look for a pull request, not pull", got.notice, got.pulling)
+		t.Errorf("notice=%q pulling=%v; want o to look for a pull request, not pull", got.notice, got.pulling)
+	}
+
+	m.selected = 0 // the merge of a pull request
+	for name, at := range map[string]model{"the graph": m, "the commit view": res(m.openCommitView())} {
+		next, cmd := at.Update(keyPress("P"))
+		if got := next.(model); cmd != nil || got.pulling || got.notice != "" {
+			t.Errorf("P on %s: cmd=%v pulling=%v notice=%q, want it to do nothing", name, cmd != nil, got.pulling, got.notice)
+		}
+		if _, cmd := at.Update(keyPress("o")); cmd == nil {
+			t.Errorf("o on %s started nothing", name)
+		}
 	}
 }
