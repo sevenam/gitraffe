@@ -44,11 +44,11 @@ func TestDeleteListsLocalRemoteAndBoth(t *testing.T) {
 	m := selectMessage(t, loadedModel(t, dir), "first")
 
 	m = press(m, keyPress("d"))
-	want := []string{"local feature", "remote origin/feature", "local feature and remote origin/feature"}
+	want := []string{"local (feature)", "remote (origin/feature)", "local & remote (feature + origin/feature)"}
 	if got := deleteRows(m); strings.Join(got, "|") != strings.Join(want, "|") {
 		t.Fatalf("rows = %q, want %q", got, want)
 	}
-	if view := ansi.Strip(m.View()); !strings.Contains(view, "Delete branch") || !strings.Contains(view, "> local feature") {
+	if view := ansi.Strip(m.View()); !strings.Contains(view, "Delete branch") || !strings.Contains(view, "> local (feature)") {
 		t.Error("the list is not on screen with its first row selected")
 	}
 
@@ -90,7 +90,7 @@ func TestDeleteListClosesWithoutDeleting(t *testing.T) {
 func TestDeleteOffersOnlyTheRemoteOfTheCurrentBranch(t *testing.T) {
 	dir, _, _, _ := repoWithRemote(t)
 	m := press(loadedModel(t, dir), keyPress("d"))
-	if got := deleteRows(m); len(got) != 1 || got[0] != "remote origin/main" {
+	if got := deleteRows(m); len(got) != 1 || got[0] != "remote (origin/main)" {
 		t.Fatalf("rows = %q, want only the remote branch", got)
 	}
 }
