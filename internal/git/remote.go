@@ -70,8 +70,8 @@ func isAzure(host, path string) bool {
 //	Merged PR 59: Teach the parser about groups
 //
 // A rebase leaves nothing behind to find on either, and a hand-written "(#59)"
-// may mean an issue rather than a pull request; GitHub redirects one to the
-// other, so the worst that happens is landing on the issue it names.
+// may mean an issue rather than a pull request. The subject alone cannot tell
+// the two apart, which is why PullRequestFor asks the history first.
 func PullRequestNumber(subject, remote string) int {
 	if strings.TrimSpace(remote) == "" {
 		if n := gitHubPullRequest(subject); n > 0 {
@@ -85,8 +85,89 @@ func PullRequestNumber(subject, remote string) int {
 	return gitHubPullRequest(subject)
 }
 
+// PullRequestFor is the number of the pull request a commit came from, or 0
+// when nothing says. It asks in order of how much each answer can be trusted:
+//
+//  1. The commit's own subject, when it is a merge the host wrote.
+//  2. The merge that brought the commit in (see MergedBy), when that names a
+//     pull request. This is what finds the page for a commit inside a pull
+//     request, and it comes before the next because of subjects like
+//     "Fix the sign flip (#12)" written by hand about issue 12: on a commit
+//     that a pull request merged, the number in brackets is not that pull
+//     request's, and following it opens the issue.
+//  3. A "(#59)" ending the commit's subject, which on a commit that no merge
+//     brought in is how GitHub marks a squashed pull request.
+func PullRequestFor(dir, hash, subject, remote string) int {
+	if n := mergedPullRequest(subject, remote); n > 0 {
+		return n
+	}
+	if n := mergedPullRequest(MergedBy(dir, hash), remote); n > 0 {
+		return n
+	}
+	return PullRequestNumber(subject, remote)
+}
+
+// mergedPullRequest reads only the subjects a host writes for a merge, which
+// cannot be mistaken for anything else: PullRequestNumber without GitHub's
+// squashed form.
+func mergedPullRequest(subject, remote string) int {
+	if strings.HasPrefix(subject, gitHubMergePrefix) || azurePullRequest(subject) > 0 {
+		return PullRequestNumber(subject, remote)
+	}
+	return 0
+}
+
+// MergedBy is the subject of the merge commit that brought a commit onto the
+// line HEAD is on, or "" when there is none: the commit was made on that line,
+// is not part of HEAD's history, or is HEAD.
+//
+// "The line" is HEAD's first-parent chain — what the branch itself looked
+// like at each step, each merge counted as one. The oldest commit on that
+// chain that descends from the commit is where it arrived; if that is a merge
+// and the commit came in by a parent other than the first, the merge brought
+// it. Two walks and a check, whatever the history's size, where trying each
+// merge in turn would be a walk apiece.
+func MergedBy(dir, hash string) string {
+	if hash == "" {
+		return ""
+	}
+	descendants, err := Run(dir, "rev-list", "--ancestry-path", hash+"..HEAD")
+	if err != nil || descendants == "" {
+		return ""
+	}
+	line, err := Run(dir, "rev-list", "--first-parent", hash+"..HEAD")
+	if err != nil {
+		return ""
+	}
+	descends := map[string]bool{}
+	for _, h := range strings.Split(descendants, "\n") {
+		descends[h] = true
+	}
+	arrival := ""
+	for _, h := range strings.Split(line, "\n") {
+		if descends[h] {
+			arrival = h // newest first, so the last one kept is the oldest
+		}
+	}
+	if arrival == "" {
+		return ""
+	}
+	// On the line already before the arrival: it was committed there, and
+	// the next commit merely follows it.
+	if _, err := Run(dir, "merge-base", "--is-ancestor", hash, arrival+"^1"); err == nil {
+		return ""
+	}
+	subject, err := Run(dir, "log", "-1", "--format=%s", arrival)
+	if err != nil {
+		return ""
+	}
+	return subject
+}
+
+const gitHubMergePrefix = "Merge pull request #"
+
 func gitHubPullRequest(subject string) int {
-	if rest, ok := strings.CutPrefix(subject, "Merge pull request #"); ok {
+	if rest, ok := strings.CutPrefix(subject, gitHubMergePrefix); ok {
 		digits, _, _ := strings.Cut(rest, " ")
 		if n, err := strconv.Atoi(digits); err == nil && n > 0 {
 			return n

@@ -11,38 +11,63 @@ import (
 	"github.com/sevenam/gitraffe/internal/git"
 )
 
-// openPullRequest opens the pull request the commit on screen came from. It
-// says why when it cannot, rather than appearing to do nothing: there are
-// several ordinary reasons a commit has no page to open.
+// pullRequestFoundMsg is what was found out about a commit's pull request.
+type pullRequestFoundMsg struct {
+	repoPath string // the repository asked; see the handler
+	remote   string
+	number   int // 0 when the commit names no pull request
+}
+
+// openPullRequest looks for the pull request the commit on screen came from.
+// Finding it means asking the history which merge brought the commit in, so
+// it runs in the background and finishPullRequest opens the page.
 func (m model) openPullRequest() (model, tea.Cmd) {
 	c, ok := m.commitOnScreen()
 	if !ok {
 		return m, nil
 	}
-	// The remote comes first because it says how to read the subject: GitHub
-	// and Azure DevOps each write a merge their own way.
-	remote := git.BrowserRemote(m.repoPath)
-	number := git.PullRequestNumber(c.Message, remote)
-	if number == 0 {
-		m.notice = "No pull request on this commit — its message doesn't name one"
-		return m, nil
-	}
-	if remote == "" {
-		m.notice = "No remote to build a pull request address from"
-		return m, nil
-	}
-	address := git.PullRequestURL(remote, number)
-	if address == "" {
-		m.notice = "The remote " + remote + " has no page on the web"
-		return m, nil
-	}
+	return m, findPullRequestCmd(m.repoPath, c.FullHash, c.Message)
+}
 
-	if err := openURL(address); err != nil {
-		m.notice = "Could not open a browser: " + err.Error()
-		return m, nil
+func findPullRequestCmd(repoPath, hash, subject string) tea.Cmd {
+	return func() tea.Msg {
+		// The remote comes first because it says how to read a subject:
+		// GitHub and Azure DevOps each write a merge their own way.
+		remote := git.BrowserRemote(repoPath)
+		return pullRequestFoundMsg{
+			repoPath: repoPath,
+			remote:   remote,
+			number:   git.PullRequestFor(repoPath, hash, subject, remote),
+		}
 	}
-	m.notice = fmt.Sprintf("Opening pull request #%d in your browser", number)
-	return m, nil
+}
+
+// openBrowser is openURL, except in tests, which must not open one.
+var openBrowser = openURL
+
+// finishPullRequest opens the page, or says why it cannot rather than
+// appearing to do nothing: there are several ordinary reasons a commit has no
+// page to open.
+func (m model) finishPullRequest(msg pullRequestFoundMsg) model {
+	if msg.number == 0 {
+		m.notice = "No pull request on this commit — neither its message nor a merge names one"
+		return m
+	}
+	if msg.remote == "" {
+		m.notice = "No remote to build a pull request address from"
+		return m
+	}
+	address := git.PullRequestURL(msg.remote, msg.number)
+	if address == "" {
+		m.notice = "The remote " + msg.remote + " has no page on the web"
+		return m
+	}
+	if err := openBrowser(address); err != nil {
+		m.notice = "Could not open a browser: " + err.Error()
+		return m
+	}
+	m.notice = fmt.Sprintf("Opening pull request #%d in your browser", msg.number)
+	return m
 }
 
 // openURL hands an address to whatever the desktop opens links with.

@@ -217,3 +217,116 @@ func TestOtherHostsAreReadAsGitHub(t *testing.T) {
 		}
 	}
 }
+
+// hashOf finds a commit by its subject, on any branch.
+func hashOf(t *testing.T, dir, subject string) string {
+	t.Helper()
+	out, err := Run(dir, "log", "--all", "--format=%H %s")
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, line := range strings.Split(out, "\n") {
+		if hash, s, _ := strings.Cut(line, " "); s == subject {
+			return hash
+		}
+	}
+	t.Fatalf("no commit %q", subject)
+	return ""
+}
+
+// A "(#12)" written by hand names an issue. On a commit a pull request merged,
+// the merge is what knows the pull request, so it is asked first; the number
+// in brackets is only believed where no merge brought the commit in, which is
+// where GitHub's squashed pull requests are.
+func TestPullRequestForAsksTheMergeBeforeTheSubject(t *testing.T) {
+	const remote = "git@github.com:sevenam/gitraffe.git"
+	dir, git, commit := gittest.Fixture(t)
+	git("init", "-q", "-b", "main")
+	commit("first")
+
+	git("checkout", "-qb", "side")
+	commit("Fix the sign flip (#12)")
+	commit("more of the same")
+	git("checkout", "-q", "main")
+	git("merge", "-q", "--no-ff", "side", "-m", "Merge pull request #59 from sevenam/side")
+
+	commit("Teach the parser about groups (#60)")
+
+	// A merge no host wrote says nothing about a pull request.
+	git("checkout", "-qb", "other", "main~1")
+	commit("Other work (#7)")
+	git("checkout", "-q", "main")
+	git("merge", "-q", "--no-ff", "other", "-m", "Merge branch 'other'")
+
+	git("checkout", "-qb", "loose")
+	commit("Not merged anywhere (#9)")
+	git("checkout", "-q", "main")
+	commit("Newest, on HEAD (#61)")
+
+	for _, tc := range []struct {
+		subject string
+		want    int
+	}{
+		{"Fix the sign flip (#12)", 59},
+		{"more of the same", 59},
+		{"Merge pull request #59 from sevenam/side", 59},
+		{"Teach the parser about groups (#60)", 60},
+		{"Other work (#7)", 7},
+		{"Merge branch 'other'", 0},
+		{"Not merged anywhere (#9)", 9},
+		{"Newest, on HEAD (#61)", 61},
+		{"first", 0},
+	} {
+		if got := PullRequestFor(dir, hashOf(t, dir, tc.subject), tc.subject, remote); got != tc.want {
+			t.Errorf("PullRequestFor(%q) = %d, want %d", tc.subject, got, tc.want)
+		}
+	}
+}
+
+func TestPullRequestForOnAzure(t *testing.T) {
+	dir, git, commit := gittest.Fixture(t)
+	git("init", "-q", "-b", "main")
+	commit("first")
+	git("checkout", "-qb", "side")
+	commit("Fix the sign flip (#12)")
+	git("checkout", "-q", "main")
+	git("merge", "-q", "--no-ff", "side", "-m", "Merged PR 61: Fix the sign flip")
+
+	subject := "Fix the sign flip (#12)"
+	if got := PullRequestFor(dir, hashOf(t, dir, subject), subject, azureRemote); got != 61 {
+		t.Errorf("PullRequestFor = %d, want the pull request that merged it", got)
+	}
+}
+
+func TestMergedBy(t *testing.T) {
+	dir, git, commit := gittest.Fixture(t)
+	git("init", "-q", "-b", "main")
+	commit("first")
+	git("checkout", "-qb", "side")
+	commit("on side")
+	// The branch catches up with main before it is merged; that merge is on
+	// the branch, not the one that brought its commits to main.
+	git("checkout", "-q", "main")
+	commit("second")
+	git("checkout", "-q", "side")
+	git("merge", "-q", "--no-ff", "main", "-m", "Merge branch 'main' into side")
+	git("checkout", "-q", "main")
+	git("merge", "-q", "--no-ff", "side", "-m", "the merge of side")
+	commit("third")
+
+	for subject, want := range map[string]string{
+		"on side":                       "the merge of side",
+		"Merge branch 'main' into side": "the merge of side",
+		"first":                         "",
+		"second":                        "",
+		"the merge of side":             "",
+		"third":                         "",
+	} {
+		if got := MergedBy(dir, hashOf(t, dir, subject)); got != want {
+			t.Errorf("MergedBy(%q) = %q, want %q", subject, got, want)
+		}
+	}
+	if got := MergedBy(dir, ""); got != "" {
+		t.Errorf("MergedBy with no hash = %q, want nothing", got)
+	}
+}
