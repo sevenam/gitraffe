@@ -40,6 +40,9 @@ func (m model) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	if m.copying {
 		return m.answerCopyPrompt(msg)
 	}
+	if m.checkout.open {
+		return m.answerCheckout(msg)
+	}
 
 	if m.picker.open {
 		return m.updateThemePicker(msg)
@@ -161,6 +164,11 @@ func (m model) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		return m.refresh()
 	case "U":
 		return m.startUpdate(), nil
+	case "C":
+		// Capital, like P and U: it changes something outside gitraffe, so
+		// it should take more than a slip of the finger to start. It asks
+		// before switching all the same.
+		return m.openCheckout(), nil
 	case "L":
 		// Global rather than per-box: the graph stays visible whichever
 		// box has focus, so the colours should be reachable from both.

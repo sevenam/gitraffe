@@ -111,6 +111,14 @@ func (m model) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 		return m.finishCopyDiff(msg), nil
 
+	case switchFinishedMsg:
+		// A switch is answered by the repository it ran in; the one on
+		// screen now has its own HEAD, which this says nothing about.
+		if msg.repoPath != m.repoPath {
+			return m, nil
+		}
+		return m.finishSwitch(msg)
+
 	case pullFinishedMsg:
 		// As for a fetch: a pull of the repository you have since left says
 		// nothing about the one on screen.
