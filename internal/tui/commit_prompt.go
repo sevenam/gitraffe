@@ -44,12 +44,45 @@ type commitFinishedMsg struct {
 	err      error
 }
 
+// The 50/72 rule: a subject of at most fifty characters, which is what fits
+// in a one-line log, and body lines of at most seventy-two, which leaves git's
+// indent and as much again to spare in an eighty-column terminal. The box
+// counts down to both and does not stop at either: they are conventions, and
+// some subjects are worth more.
 const (
-	commitPromptWidth    = 72 // the width a commit message is conventionally kept to
-	commitBodyRows       = 6
-	commitFailureRows    = 6
-	commitSubjectAdvised = 50
+	commitSubjectWidth  = 50
+	commitBodyWidth     = 72
+	commitPromptWidth   = commitBodyWidth
+	commitBodyRows      = 6
+	commitFailureRows   = 6
+	commitPromptPadding = 2
 )
+
+// roomLeft draws a count of the columns left before a limit: how many more
+// fit, or below zero, in the colour of an error, how many too many there are.
+// Counting down says the one thing worth knowing while typing, and says it
+// without the limit having to be remembered.
+func roomLeft(n int) string {
+	if n < 0 {
+		return lipgloss.NewStyle().Foreground(lipgloss.Color(theme.Current.Error)).Render(fmt.Sprint(n))
+	}
+	return helpStyle.Render(fmt.Sprint(n))
+}
+
+// bodyRoom is the room left on the body line being typed. With the cursor
+// elsewhere it is that of the longest line, so one that is too long is not
+// forgotten for being out of sight.
+func (p commitPrompt) bodyRoom() int {
+	lines := strings.Split(p.body.Value(), "\n")
+	if row := p.body.Line(); p.inBody && row >= 0 && row < len(lines) {
+		return commitBodyWidth - ansi.StringWidth(lines[row])
+	}
+	room := commitBodyWidth
+	for _, line := range lines {
+		room = min(room, commitBodyWidth-ansi.StringWidth(line))
+	}
+	return room
+}
 
 // openCommitPrompt asks for the message, or says why there is nothing to
 // commit yet.
@@ -95,7 +128,32 @@ func (m model) openCommitPrompt() model {
 	}
 	p.open, p.failure = true, ""
 	p.focusField(false)
+	p.resize(m.windowWidth)
 	return m
+}
+
+// fieldWidth is how wide the two fields are in a window this wide: as wide as
+// a body line may be, so that a line which wraps on screen is a line that is
+// too long, and narrower only where the window is.
+func fieldWidth(windowWidth int) int {
+	return max(20, min(commitPromptWidth, windowWidth-8))
+}
+
+// resize fits the fields to the window. It is done to the fields themselves
+// and not just to a copy being drawn: where a long subject scrolls and where
+// a body line wraps are worked out as the text is typed, from the width the
+// field has then.
+func (p *commitPrompt) resize(windowWidth int) {
+	width := fieldWidth(windowWidth)
+	if p.subject.Width == width {
+		return
+	}
+	p.subject.Width = width
+	// The width decides which part of a long subject is on show.
+	p.subject.SetCursor(p.subject.Position())
+	// One column more than the text: the cursor sits past the last character.
+	p.body.SetWidth(width + 1)
+	p.body.SetHeight(commitBodyRows)
 }
 
 // focusField puts the keyboard in the subject line or the body.
@@ -124,6 +182,8 @@ func (p commitPrompt) message() string {
 // updateCommitPrompt is the keyboard while the box is open.
 func (m model) updateCommitPrompt(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	p := &m.commitPrompt
+	// The window may have changed size since the box was opened.
+	p.resize(m.windowWidth)
 	switch msg.String() {
 	case "ctrl+c":
 		return m, tea.Quit
@@ -224,10 +284,9 @@ func (m *model) applyCommitted() {
 // render draws the box: where the commit is going, the two fields, the reason
 // the last try failed, and the keys of the field the cursor is in.
 func (p commitPrompt) render(windowWidth, staged int, branch string) string {
-	width := max(20, min(commitPromptWidth, windowWidth-8))
-	p.subject.Width = width - 1 // the cursor takes a column past the text
-	p.body.SetWidth(width)
-	p.body.SetHeight(commitBodyRows)
+	// The box's padding goes round the fields; see resize for their width.
+	p.resize(windowWidth)
+	width := fieldWidth(windowWidth)
 
 	label := lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color(theme.Current.Title))
 	var sb strings.Builder
@@ -235,17 +294,11 @@ func (p commitPrompt) render(windowWidth, staged int, branch string) string {
 	sb.WriteString(helpStyle.Render(fmt.Sprintf("  %s to %s", plural(staged, "staged file"), branch)))
 	sb.WriteString("\n\n")
 
-	// Counted, not capped: fifty is a convention for what fits in a log, and
-	// some subjects are worth more.
-	count := fmt.Sprintf("%d", ansi.StringWidth(p.subject.Value()))
-	if ansi.StringWidth(p.subject.Value()) > commitSubjectAdvised {
-		count += fmt.Sprintf(" — over %d", commitSubjectAdvised)
-	}
-	sb.WriteString(label.Render("Subject") + helpStyle.Render("  "+count))
+	sb.WriteString(label.Render("Subject") + "  " + roomLeft(commitSubjectWidth-ansi.StringWidth(p.subject.Value())))
 	sb.WriteString("\n")
 	sb.WriteString(p.subject.View())
 	sb.WriteString("\n\n")
-	sb.WriteString(label.Render("Body"))
+	sb.WriteString(label.Render("Body") + "  " + roomLeft(p.bodyRoom()))
 	sb.WriteString("\n")
 	sb.WriteString(p.body.View())
 	sb.WriteString("\n\n")
@@ -270,9 +323,9 @@ func (p commitPrompt) render(windowWidth, staged int, branch string) string {
 	sb.WriteString(helpStyle.Render(footer))
 
 	return lipgloss.NewStyle().
-		Width(width).
+		Width(width+2*commitPromptPadding+1).
 		BorderStyle(lipgloss.RoundedBorder()).
 		BorderForeground(lipgloss.Color(theme.Current.BorderActive)).
-		Padding(1, 2).
+		Padding(1, commitPromptPadding).
 		Render(sb.String())
 }
