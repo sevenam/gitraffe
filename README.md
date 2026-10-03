@@ -15,6 +15,7 @@ A text-based UI git graph command line tool built with Golang, Bubble Tea, go-gi
 - 📝 Uncommitted changes as a row above the newest commit, with their diff (see [Uncommitted changes](#uncommitted-changes))
 - 🔍 A commit view on `Space`: what the commit is, every file it touched, and one file's diff at a time (see [The commit view](#the-commit-view))
 - ⬇️ `p` pulls: fetch, then fast-forward your branch — and nothing riskier than that (see [Pulling](#pulling))
+- 🔀 `C` checks out the selected commit's branch, and refuses while you have uncommitted changes (see [Checking out](#checking-out))
 - 🌐 `P` opens the commit's pull request in your browser, on GitHub or Azure DevOps, read from the merge subject and the remote (see [Opening a pull request](#opening-a-pull-request))
 - 📋 `y` copies the commit's hash, subject or whole diff (see [Copying](#copying))
 - 🔖 `b` jumps to any branch or tag, typing to narrow the list (see [Jumping to a branch or tag](#jumping-to-a-branch-or-tag))
@@ -83,6 +84,7 @@ in `gitraffe ./update`.
 - `Enter` - Show one panel or both (see [One panel at a time](#one-panel-at-a-time))
 - `Space` - Open the commit view, `Esc` to come back (see [The commit view](#the-commit-view))
 - `p` - Pull: fetch, then fast-forward this branch (see [Pulling](#pulling))
+- `C` - Check out this commit's branch, after asking (see [Checking out](#checking-out))
 - `P` - Open this commit's pull request in a browser (see [Opening a pull request](#opening-a-pull-request))
 - `y` - Copy this commit's hash (`y` again), subject (`s`) or diff (`d`) (see [Copying](#copying))
 - `r` or `F5` - Reload the repository (see [Reloading](#reloading))
@@ -392,6 +394,34 @@ fast-forward it leaves everything as it was and says why on the bottom line:
 It doesn't read `pull.rebase` or any other pull setting: what `p` does is the same
 in every repository. And it is never done for you — [auto-fetch](#auto-refresh) can
 show that there is something to pull, but moving your branch always takes the key.
+
+### Checking out
+
+Press `C` on a commit to switch to its branch. It asks first, on the bottom line:
+`Check out feature? (y/n)` when the commit has one branch, or a numbered list —
+`Check out: 1 main • 2 origin/release • esc cancel` — when it has several. Any other
+key cancels.
+
+- A **local branch** is switched to as it is.
+- A **remote branch** with no local branch of the same name on that commit is
+  switched to through a new local branch that tracks it, so `origin/feature` gives
+  you `feature`, set up to pull from `origin/feature`. When the local branch is on the
+  same commit, only the local one is offered.
+- A commit with **no branch** is checked out on no branch (a "detached HEAD"), which
+  the question says. A commit that has a branch is never offered detached: commits
+  made on no branch are easy to lose.
+
+It uses `git switch`, git's newer command for changing branches (since 2.23), rather
+than `git checkout`, which also restores files and can overwrite edits if given the
+wrong argument.
+
+Like [pulling](#pulling), it only does what cannot lose work. While any tracked file
+has uncommitted changes it changes nothing and says
+`Not checked out: you have uncommitted changes — commit or stash them first`; git
+would carry such changes over to the other branch, which is how work gets committed
+in the wrong place. Untracked files don't count: they belong to no branch, and git
+refuses on its own if the switch would overwrite one. If git refuses for any other
+reason, the bottom line gives git's reason after `Checkout failed:`.
 
 ### Reloading
 

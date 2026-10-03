@@ -14,8 +14,8 @@ type pullFinishedMsg struct {
 	err      error
 }
 
-// startPull catches the current branch up with its upstream. It is the one
-// key that changes your branch and your working tree, and it is kept to what
+// startPull catches the current branch up with its upstream. Like checking
+// out, it changes your branch and your working tree, so it is kept to what
 // cannot lose work or need resolving: a fast-forward, or nothing. See git.Pull.
 //
 // Like a fetch it is never started for you. Auto-fetch may show that there is
