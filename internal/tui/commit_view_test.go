@@ -238,7 +238,7 @@ func TestKeysDoNotLeakThroughToTheGraph(t *testing.T) {
 	m.commitView.commit = 1
 	before := m
 
-	for _, key := range []string{"j", "k", "G", "g", "C", "2"} {
+	for _, key := range []string{"j", "k", "G", "g", "L", "2"} {
 		after := press(before, keyPress(key))
 		if after.selected != before.selected {
 			t.Errorf("%s moved the graph's selection %d→%d", key, before.selected, after.selected)

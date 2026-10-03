@@ -102,7 +102,7 @@ func TestThemePickerRefusesBrokenTheme(t *testing.T) {
 func TestKeysDoNotLeakThroughThemePicker(t *testing.T) {
 	m := pickerModel(t)
 	m.commits = make([]commit, 25)
-	for _, key := range []string{"2", "C", "U", "?"} {
+	for _, key := range []string{"2", "L", "U", "?"} {
 		got := press(m, keyPress(key))
 		if !got.picker.open || got.focusedBox != m.focusedBox || got.colourLanes != m.colourLanes ||
 			got.updateState != m.updateState || got.showHelp {
