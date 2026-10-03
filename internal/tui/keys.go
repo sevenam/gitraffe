@@ -117,7 +117,9 @@ func (m model) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 			return m, nil
 		}
 		return m.startPull()
-	case "P":
+	case "o":
+		// Lower case: it opens a page and changes nothing, here or in the
+		// repository.
 		if !m.ready {
 			return m, nil
 		}
@@ -170,7 +172,7 @@ func (m model) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	case "U":
 		return m.startUpdate(), nil
 	case "C":
-		// Capital, like P and U: it changes something outside gitraffe, so
+		// Capital, like U: it changes something outside gitraffe, so
 		// it should take more than a slip of the finger to start.
 		return m.openCheckout()
 	case "d":

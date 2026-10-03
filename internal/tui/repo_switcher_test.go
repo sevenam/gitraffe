@@ -348,7 +348,7 @@ func TestSwitcherOnTheOpenRepoJustCloses(t *testing.T) {
 	}
 }
 
-// The key is the capital; "o" on its own is left free.
+// The key is the capital; "o" on its own opens the pull request.
 func TestLowerCaseODoesNotOpenTheSwitcher(t *testing.T) {
 	if m := press(testModel(), keyPress("o")); m.switcher.open {
 		t.Error("o opened the switcher, want only O to")

@@ -109,7 +109,7 @@ func (m model) updateCommitView(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	case "?":
 		m.showHelp = true
 		return m, nil
-	case "P":
+	case "o":
 		return m.openPullRequest()
 	case "y":
 		return m.openCopyPrompt(), nil

@@ -41,7 +41,7 @@ func prRepo(t *testing.T) string {
 	return dir
 }
 
-// pullRequest presses P and feeds back what was found, with a browser that
+// pullRequest presses o and feeds back what was found, with a browser that
 // only notes the address it was asked to open.
 func pullRequest(t *testing.T, m model) (model, string) {
 	t.Helper()
@@ -50,9 +50,9 @@ func pullRequest(t *testing.T, m model) (model, string) {
 	openBrowser = func(address string) error { opened = address; return nil }
 	defer func() { openBrowser = real }()
 
-	next, cmd := m.Update(keyPress("P"))
+	next, cmd := m.Update(keyPress("o"))
 	if cmd == nil {
-		t.Fatal("P started nothing")
+		t.Fatal("o started nothing")
 	}
 	next, _ = next.(model).Update(cmd())
 	return next.(model), opened
@@ -75,7 +75,7 @@ func issueRepo(t *testing.T) string {
 	return dir
 }
 
-// P on a commit inside a pull request opens that pull request, not the issue
+// o on a commit inside a pull request opens that pull request, not the issue
 // its subject mentions.
 func TestPullRequestOpensTheOneThatMergedTheCommit(t *testing.T) {
 	dir := issueRepo(t)
@@ -99,7 +99,7 @@ func TestPullRequestOpensTheOneThatMergedTheCommit(t *testing.T) {
 // repository's numbers.
 func TestLatePullRequestAnswerIsDropped(t *testing.T) {
 	m := selectMessage(t, loadedModel(t, issueRepo(t)), "Delete a branch with d (#141)")
-	next, cmd := m.Update(keyPress("P"))
+	next, cmd := m.Update(keyPress("o"))
 	msg := cmd().(pullRequestFoundMsg)
 	msg.repoPath = "elsewhere"
 
