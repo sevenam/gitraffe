@@ -119,6 +119,14 @@ func (m model) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 		return m.finishSwitch(msg)
 
+	case pullRequestFoundMsg:
+		// Found in the repository it was asked of; another one's numbers
+		// are another one's pull requests.
+		if msg.repoPath != m.repoPath {
+			return m, nil
+		}
+		return m.finishPullRequest(msg), nil
+
 	case deleteFinishedMsg:
 		// As with a switch: the answer is about the repository it ran in.
 		if msg.repoPath != m.repoPath {

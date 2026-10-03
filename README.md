@@ -268,6 +268,17 @@ Teach the parser about nested groups (#59)             ← GitHub, a squashed pu
 Merged PR 59: Teach the parser about nested groups     ← Azure DevOps, however it was completed
 ```
 
+A commit *inside* a pull request has no such subject, so gitraffe looks for the merge
+that brought it onto the branch you are on and reads that one's. `P` on any commit
+of a merged pull request opens the pull request.
+
+That merge is asked before a `(#59)` at the end of the commit's own subject. The
+brackets are how GitHub marks a squashed pull request, but they are also how people
+mention an issue — `Fix the sign flip (#12)` — and following that number would open
+issue 12. So the brackets are only believed on a commit no merge brought in, which is
+where squashed pull requests are. On a squashed commit that names an issue by hand,
+the issue is still what opens: nothing in the repository tells the two apart.
+
 The rest of the address comes from the remote, so `git@github.com:sevenam/gitraffe.git`
 and `https://github.com/sevenam/gitraffe.git` both lead to the same page. `origin` is
 used when there is one, otherwise the first remote git lists; any username or password
@@ -291,7 +302,7 @@ pull request there.
 
 Some commits leave nothing behind to find, and gitraffe says so on the bottom line
 rather than appearing to ignore the key, as it does when the repository has no
-remote: a rebase merge on either host, or an Azure DevOps pull request whose commit
+remote: a rebase merge on either host, a commit not yet merged, or an Azure DevOps pull request whose commit
 message was rewritten without the `Merged PR 59:` at the front.
 
 ### Searching

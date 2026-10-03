@@ -189,8 +189,7 @@ func TestPullStartsAutoFetchOffAgain(t *testing.T) {
 func TestCapitalPOpensThePullRequest(t *testing.T) {
 	m := loadedModel(t, prRepo(t))
 	m.selected = len(m.commits) - 1 // the first commit, which merged nothing
-	res, _ := m.Update(keyPress("P"))
-	if got := res.(model); !strings.Contains(got.notice, "No pull request") || got.pulling {
+	if got, _ := pullRequest(t, m); !strings.Contains(got.notice, "No pull request") || got.pulling {
 		t.Errorf("notice=%q pulling=%v; want P to look for a pull request, not pull", got.notice, got.pulling)
 	}
 }
