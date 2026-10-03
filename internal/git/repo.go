@@ -24,6 +24,10 @@ type Info struct {
 	Name   string
 	Branch string
 	Commit string // short hash of HEAD
+	// HeadHash is HEAD's full hash, for finding its row in the graph: a
+	// short hash can be shared by two commits in a large history. "" when
+	// there is no HEAD to read, as in a repository with no commits.
+	HeadHash string
 }
 
 // repoName is the last element of the repository's path, or of the working
@@ -51,7 +55,8 @@ func ReadInfo(path string, repo *Repository) Info {
 		} else {
 			info.Branch = "HEAD (detached)"
 		}
-		info.Commit = ref.Hash().String()[:7]
+		info.HeadHash = ref.Hash().String()
+		info.Commit = info.HeadHash[:7]
 	}
 	return info
 }
@@ -66,10 +71,12 @@ func ReadInfoCLI(path string) Info {
 		info.Branch = strings.TrimSpace(string(out))
 	}
 
-	cmd = exec.Command("git", "rev-parse", "--short=7", "HEAD")
+	cmd = exec.Command("git", "rev-parse", "HEAD")
 	cmd.Dir = path
 	if out, err := cmd.Output(); err == nil {
-		info.Commit = strings.TrimSpace(string(out))
+		if full := strings.TrimSpace(string(out)); len(full) >= 7 {
+			info.HeadHash, info.Commit = full, full[:7]
+		}
 	}
 	return info
 }

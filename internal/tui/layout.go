@@ -35,7 +35,7 @@ type panelLayout struct {
 // you are, which matters most; a date is short and fixed, so it is cheaper to
 // keep than a name. dateWidth is 0 when no date column is wanted.
 func computePanelLayout(windowWidth, maxGraphWidth, maxBranchWidth, dateWidth, maxAuthorWidth int) panelLayout {
-	// Base graph needs: 2 (selection "> ") + maxGraphWidth + 1 (space) +
+	// Base graph needs: 2 (checked out "> ") + maxGraphWidth + 1 (space) +
 	// 7 (hash) + borders(2) + padding(2) = maxGraphWidth + 14
 	graphBase := maxGraphWidth + 14
 	maxLeftWidth := windowWidth * 4 / 5

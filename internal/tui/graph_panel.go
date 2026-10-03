@@ -244,9 +244,13 @@ func (m *model) renderCommitList(layout panelLayout, contentWidth int) string {
 			// the hash would be, and the columns after it stay empty.
 			working := isCommit && m.commits[row.CommitIdx].WorkingTree
 
+			marker := "  "
+			if isCommit {
+				marker = m.headMarker(m.commits[row.CommitIdx])
+			}
+			write(plainStyle, marker)
 			if isSel {
 				highlighted := selectedMarkers.Replace(graphPadded)
-				write(plainStyle, "> ")
 				renderBranchLabel()
 				write(selGraphColor, highlighted)
 				write(plainStyle, " ")
@@ -256,7 +260,6 @@ func (m *model) renderCommitList(layout panelLayout, contentWidth int) string {
 					write(selHashStyle, m.commits[row.CommitIdx].Hash)
 				}
 			} else {
-				write(plainStyle, "  ")
 				renderBranchLabel()
 				writeGraph(row.GraphChars, row.Lanes)
 				if padLen > 0 {
@@ -321,7 +324,7 @@ func (m *model) renderCommitList(layout panelLayout, contentWidth int) string {
 				// Same band as graph mode; each piece carries the background (see
 				// the note on write there).
 				band := func(s lipgloss.Style) lipgloss.Style { return s.Background(selectedBg) }
-				row := band(plainStyle).Render("> ") +
+				row := band(plainStyle).Render(m.headMarker(c)) +
 					band(selGraphColor).Render(c.GraphLine) +
 					band(plainStyle).Render(" ") +
 					band(selHashStyle).Render(c.Hash)
@@ -330,7 +333,7 @@ func (m *model) renderCommitList(layout panelLayout, contentWidth int) string {
 				}
 				sb.WriteString(row)
 			} else {
-				sb.WriteString("  ")
+				sb.WriteString(m.headMarker(c))
 				sb.WriteString(graphColor.Render(c.GraphLine))
 				sb.WriteString(" ")
 				sb.WriteString(commitHashStyle.Render(c.Hash))
@@ -366,3 +369,13 @@ var selectedMarkers = strings.NewReplacer(
 	string(git.CommitMarker), "◉",
 	string(git.MergeMarker), "◈",
 )
+
+// headMarker is the first two columns of a commit's row: "> " on the commit
+// that is checked out, so HEAD can be found at a glance wherever the selection
+// is, and blank elsewhere. The selection already shows as the highlight band.
+func (m model) headMarker(c commit) string {
+	if m.headHash != "" && !c.WorkingTree && c.FullHash == m.headHash {
+		return "> "
+	}
+	return "  "
+}

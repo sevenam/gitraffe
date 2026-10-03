@@ -552,6 +552,7 @@ So where a line meets a commit is where it really starts or ends.
 
 | Drawn | Meaning |
 | --- | --- |
+| `>` | the commit that is checked out (HEAD), in the column left of the labels; the selected commit is the highlighted row |
 | `●` | a commit; `◉` when selected |
 | `◆` | a merge commit, with more than one parent; `◈` when selected |
 | `○` | uncommitted changes (see [Uncommitted changes](#uncommitted-changes)) |
