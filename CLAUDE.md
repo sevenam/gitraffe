@@ -110,8 +110,11 @@ A test file sits beside what it tests, in the same package: `internal/git/layout
 `internal/tui/layout_test.go`. Tests that read git output directly are in `internal/git`; tests that
 go through the model are in `internal/tui`.
 
-`gittest.Fixture` and `gittest.NewRepo` build repositories. In `internal/tui`,
-`testhelpers_test.go` holds what more than one test file uses — `testModel`, `keyPress`, `press` and
+`gittest.Fixture` and `gittest.NewRepo` build repositories. The fixture's `git` commits as a
+made-up author through its environment; a test that has gitraffe itself commit or merge calls
+`gittest.Identify` first, since the release pipeline's machine has no `user.name` to fall back on.
+
+In `internal/tui`, `testhelpers_test.go` holds what more than one test file uses — `testModel`, `keyPress`, `press` and
 `res` drive the model — and its `TestMain` sets the default theme and a fixed `Version`, so no test
 depends on the machine it runs on. Read that file before writing a `tui` test rather than inventing
 new helpers.

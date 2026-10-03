@@ -31,6 +31,7 @@ func stagingRepo(t *testing.T) (dir string, gitCmd func(...string)) {
 	t.Helper()
 	dir, gitCmd, _ = gittest.Fixture(t)
 	gitCmd("init", "-q", "-b", "main")
+	gittest.Identify(gitCmd)
 	// The index is compared byte for byte; nothing may rewrite line ends.
 	gitCmd("config", "core.autocrlf", "false")
 	write(t, dir, "numbered.txt", numberedLines(30))

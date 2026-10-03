@@ -46,6 +46,16 @@ func Fixture(t *testing.T) (dir string, git func(...string), commit func(string)
 	return dir, git, commit
 }
 
+// Identify gives the repository an author of its own. The fixture's git
+// already commits as someone, through its environment; this is for the
+// commits and merges a test has gitraffe itself make, which run git with no
+// such environment and would otherwise depend on whoever is running the test
+// having a name configured. A build machine has none.
+func Identify(git func(...string)) {
+	git("config", "user.name", "t")
+	git("config", "user.email", "t@t")
+}
+
 // NewRepo makes an empty git repository and returns its root as git reports
 // it, which is the form the switcher stores and compares.
 func NewRepo(t *testing.T) string {

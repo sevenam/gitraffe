@@ -19,6 +19,7 @@ func stageRepo(t *testing.T) (dir string, git func(...string)) {
 	t.Helper()
 	dir, git, _ = gittest.Fixture(t)
 	git("init", "-q", "-b", "main")
+	gittest.Identify(git)
 	// Files are compared byte for byte below; nothing may rewrite line ends.
 	git("config", "core.autocrlf", "false")
 	write(t, dir, "numbered.txt", numbered(30))
@@ -219,6 +220,7 @@ func TestStageAllAndUnstageAll(t *testing.T) {
 func TestStagingBeforeTheFirstCommit(t *testing.T) {
 	dir, git, _ := gittest.Fixture(t)
 	git("init", "-q", "-b", "main")
+	gittest.Identify(git)
 	git("config", "core.autocrlf", "false")
 	write(t, dir, "a.txt", "one\ntwo\nthree\n")
 
