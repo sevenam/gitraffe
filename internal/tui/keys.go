@@ -53,8 +53,8 @@ func (m model) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	if m.search.active {
 		return m.updateSearch(msg)
 	}
-	if m.filterPrompt.active {
-		return m.updateFilterPrompt(msg)
+	if m.files.open {
+		return m.updateFilePicker(msg)
 	}
 
 	// The help overlay covers the panels, so keys acting on them would change
@@ -133,11 +133,14 @@ func (m model) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 			return m, nil
 		}
 		return m.openSearch(), nil
-	case "F":
+	case "h":
+		// The same key as in the commit view's file list, so "history" is
+		// one key wherever you are; there the file is already chosen, here
+		// it is picked from the list.
 		if !m.ready {
 			return m, nil
 		}
-		return m.openFilterPrompt(), nil
+		return m.openFilePicker()
 	case "esc":
 		// Esc means "back" everywhere, and on the graph the only place to go
 		// back to is the whole history.

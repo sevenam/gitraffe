@@ -21,9 +21,6 @@ func (m *model) renderStatusLine() string {
 	if m.search.active {
 		return m.renderSearchPrompt()
 	}
-	if m.filterPrompt.active {
-		return m.renderFilterPrompt()
-	}
 
 	if m.copying {
 		return truncateLines(noticeStyle.Render(copyPrompt), m.windowWidth)

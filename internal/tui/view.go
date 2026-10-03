@@ -186,6 +186,11 @@ func (m model) View() (result string) {
 		// The same room the theme list leaves for its title, footer and border.
 		output = overlayCentre(output, m.refs.render(m.windowHeight-10), m.windowWidth, m.windowHeight)
 	}
+	if m.files.open {
+		// The same room the branch list leaves, and two rows more for the
+		// line under the query.
+		output = overlayCentre(output, m.files.render(m.windowHeight-12, m.windowWidth), m.windowWidth, m.windowHeight)
+	}
 	if m.switcher.open {
 		output = overlayCentre(output, m.switcher.render(m.windowWidth, m.windowHeight), m.windowWidth, m.windowHeight)
 	}

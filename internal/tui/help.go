@@ -38,7 +38,7 @@ var helpSections = []helpSection{
 		{"tab / shift+tab", "cycle focus"},
 		{"/", "search messages, authors and hashes"},
 		{"n / N", "next / previous match"},
-		{"F", "show only the commits that changed a file or directory"},
+		{"h", "pick a file or directory and show only its history"},
 		{"esc", "clear the filter"},
 		{"c", "toggle graph lane colours"},
 		{"t", "choose a colour theme"},

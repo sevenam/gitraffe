@@ -71,6 +71,7 @@ release build and the release version check all depend on it being there.
 | `sync.go` | ahead/behind counts, `Fetch` |
 | `pull.go` | `Pull`: fetch, then fast-forward or nothing |
 | `remote_tags.go` | which tags the remotes hold |
+| `files.go` | `ListFiles`: every tracked file, for the file-history picker |
 | `fingerprint.go` | one string for "would a reload draw anything different", for auto-refresh |
 | `remote.go` | `PullRequestNumber`, `PullRequestURL`: from commit subjects and remotes, for GitHub and Azure DevOps |
 
@@ -83,7 +84,7 @@ release build and the release version check all depend on it being there.
 | Loading | `load.go` (repository into model), `diff_load.go`, `reload.go`, `auto_refresh.go` (the refresh and fetch timers), `more_commits.go`, `fetch.go`, `pull.go`, `remote_tags.go`, `working_tree.go` |
 | Screen assembly | `view.go` (`View`), `layout.go` (`currentLayout`: how the width is shared), `boxes.go` (clipping, labels, overlays, `trimToHeight`), `scroll_marks.go`, `background.go` (`paintBackground`) |
 | Main screen | `repo_info.go` (top box), `graph_panel.go` (commit list and `graphWindow`), `branch_label.go`, `details_panel.go` (`fitDetails`), `status_line.go` |
-| Other screens and overlays | `commit_view.go`, `ref_picker.go`, `repo_switcher.go`, `theme_picker.go`, `search.go`, `filter.go`, `help.go`, `pull_request.go` (also opens the browser), `copy.go` (the `y` prompt and the clipboard) |
+| Other screens and overlays | `commit_view.go`, `ref_picker.go`, `repo_switcher.go`, `theme_picker.go`, `search.go`, `filter.go` (the file-history filter and its `h` picker), `help.go`, `pull_request.go` (also opens the browser), `copy.go` (the `y` prompt and the clipboard) |
 | Looks | `styles.go` (package-level styles built from the theme), `lane_colours.go` |
 | Session | `preferences.go` (what is remembered between runs), `selfupdate_tui.go` (the in-app update prompt), `terminal.go` |
 
