@@ -246,10 +246,10 @@ selection steps to the next file in the same way.
 ```
 Commit  2 staged files to main
 
-Subject  22
+Subject  29
 Stop negating refunds
 
-Body
+Body  45
 The sign was flipped twice.
 
 enter: commit • tab: body • esc: cancel
@@ -257,8 +257,17 @@ enter: commit • tab: body • esc: cancel
 
 `Enter` in the subject commits. `Tab` moves to the body, where `Enter` is a new line;
 `Tab` again goes back to the subject to commit. `Esc` closes the box and keeps what
-you typed, so `c` finds it again. The number after `Subject` is its length, which turns
-into a note past 50 — a convention for what fits in a log, not a limit.
+you typed, so `c` finds it again.
+
+The numbers count down to the 50/72 rule: 50 characters for the subject, which is what
+fits in a one-line log, and 72 for each line of the body, which leaves room for git's
+indent in an 80-column terminal. `Subject  29` means 29 more fit. Past the limit the
+number goes below zero and turns red — `-4` is four too many — but nothing stops you:
+they are conventions, not limits. The body is drawn 72 columns wide, so a line that
+wraps on screen is one that has run over; the wrap is only on screen, and the line is
+committed as you typed it. The body's number is for the line you are typing;
+with the cursor in the subject it is for the longest line, so one that runs over is
+not forgotten.
 
 After the commit the graph is read again. If changes are left, you stay in the view
 with what remains, ready for the next commit; if none are, you are back on the graph
