@@ -36,6 +36,7 @@ type model struct {
 	displayRows         []displayRow
 	maxGraphWidth       int
 	maxBranchWidth      int
+	localLabelWidth     int // width the local-branch part is padded to, so remote branches start in one column
 	maxAuthorWidth      int // display columns, not runes: names may be wide (CJK)
 	detailsContentWidth int
 	latestVersion       string          // latest version from GitHub, e.g., "v0.2.0"
