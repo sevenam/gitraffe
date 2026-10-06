@@ -21,9 +21,9 @@ type fetchFinishedMsg struct {
 // one, or a pull: it reaches the network and writes to the repository, so it
 // happens when you ask and not before.
 func (m model) startFetch() (model, tea.Cmd) {
-	// A pull is fetching already, and reloads when it is done; so does a
-	// delete, which is moving refs of its own meanwhile.
-	if m.fetching || m.pulling || m.deleting {
+	// A pull is fetching already, and reloads when it is done; so do a push and a
+	// delete, which are moving refs of their own meanwhile.
+	if m.fetching || m.pulling || m.deleting || m.pushing {
 		return m, nil
 	}
 	// One the timer started is already on its way. Adopting it, rather than

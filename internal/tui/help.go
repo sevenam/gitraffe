@@ -32,6 +32,7 @@ var helpSections = []helpSection{
 		{"enter", "one panel or both"},
 		{"space", "open the commit view"},
 		{"p", "pull: fetch, then fast-forward this branch"},
+		{"P", "push this branch, or this commit's unpushed tag"},
 		{"c", "check out this commit's branch"},
 		{"d", "delete this commit's branch: local, remote or both"},
 		{"o", "open this commit's pull request in a browser"},

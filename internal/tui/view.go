@@ -190,6 +190,9 @@ func (m model) View() (result string) {
 		box := m.picker.render(m.windowHeight - 10)
 		output = overlayCentre(output, box, m.windowWidth, m.windowHeight)
 	}
+	if m.push.naming {
+		output = overlayCentre(output, m.push.render(m.windowWidth), m.windowWidth, m.windowHeight)
+	}
 	if m.deletePicker.open {
 		output = overlayCentre(output, m.deletePicker.render(m.windowHeight-10), m.windowWidth, m.windowHeight)
 	}

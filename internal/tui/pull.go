@@ -34,6 +34,12 @@ func (m model) startPull() (model, tea.Cmd) {
 		m.notice = "A delete is running — pull again when it has finished"
 		return m, nil
 	}
+	// A push that lands while the branch is being moved would be answered
+	// about a branch that is no longer where it was.
+	if m.pushing {
+		m.notice = "A push is running — pull again when it has finished"
+		return m, nil
+	}
 	m.pulling = true
 	m.notice = ""
 	return m, pullCmd(m.repoPath)

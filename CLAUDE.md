@@ -70,6 +70,7 @@ release build and the release version check all depend on it being there.
 | `diff.go` | `ShowCommit`, `WorkingTree` (its files listed staged, then unstaged, then untracked), `Status`, splitting a patch per file, `Patch` (uncut, for copying) |
 | `sync.go` | ahead/behind counts, `Fetch` |
 | `pull.go` | `Pull`: fetch, then fast-forward or nothing |
+| `push.go` | `Push`, `PushNewBranch`, `PushTag`: one branch or one tag, moved forward or created, never forced; `ReadPushPlan` (what the branch tracks and where a new one would go) |
 | `switch.go` | `Switch`, `SwitchTargets`: checking out a branch, refused while there are uncommitted changes |
 | `stage.go` | `StageFile`, `UnstageFile`, `StageAll`, `StageLines` (a patch of picked lines for `git apply --cached`; see `buildPatch`), `CommitStaged`, `WorkingState` (a merge or rebase in progress, a detached HEAD) |
 | `delete.go` | `DeleteBranch`, `DeleteTargets`: deleting a local or remote branch, refused when its commits are on no other branch |
@@ -85,7 +86,7 @@ release build and the release version check all depend on it being there.
 | --- | --- |
 | Entry and state | `run.go` (`Run`, `Version`, `LogPath`), `model.go` (all state), `types.go` (aliases for the git types), `messages.go` |
 | Event loop | `update.go` (`Init`, `Update`, message handling), `keys.go` (`handleKey`: who owns the keyboard, and every key binding), `mouse.go` |
-| Loading | `load.go` (repository into model), `diff_load.go`, `reload.go`, `auto_refresh.go` (the refresh and fetch timers), `more_commits.go`, `fetch.go`, `pull.go`, `checkout.go`, `branch_delete.go` (the `d` list and the delete), `remote_tags.go`, `working_tree.go` |
+| Loading | `load.go` (repository into model), `diff_load.go`, `reload.go`, `auto_refresh.go` (the refresh and fetch timers), `more_commits.go`, `fetch.go`, `pull.go`, `push.go` (`P`, its tag-or-branch question and the new-branch box), `checkout.go`, `branch_delete.go` (the `d` list and the delete), `remote_tags.go`, `working_tree.go` |
 | Screen assembly | `view.go` (`View`), `layout.go` (`currentLayout`: how the width is shared), `boxes.go` (clipping, labels, overlays, `trimToHeight`), `scroll_marks.go`, `background.go` (`paintBackground`) |
 | Main screen | `repo_info.go` (top box), `graph_panel.go` (commit list and `graphWindow`), `branch_label.go`, `details_panel.go` (`fitDetails`), `line_numbers.go` (the number column in front of a diff, here and in the commit view), `status_line.go` |
 | Other screens and overlays | `commit_view.go`, `staging.go` (`s`, `S`, `v` and the diff box's cursor on uncommitted changes), `commit_prompt.go` (the `c` message box and the commit), `ref_picker.go`, `repo_switcher.go`, `theme_picker.go`, `search.go`, `filter.go` (the file-history filter and its `h` picker), `help.go`, `pull_request.go` (also opens the browser), `copy.go` (the `y` prompt and the clipboard) |
@@ -160,13 +161,17 @@ new helpers.
 - **Gitraffe only does to a repository what cannot lose work or need resolving.** That is a
   fetch, a fast-forward of the current branch, a switch of branch with a clean working tree
   (`git switch`, never `git checkout`, and refused while tracked files have changes), the
-  deletion of a branch whose commits stay on another branch or tag, and staging and
-  committing; a merge, a rebase or a push of commits is not. Staging only copies changes
+  deletion of a branch whose commits stay on another branch or tag, staging and
+  committing, and a push that moves a remote branch forward or creates a branch or a tag;
+  a merge, a rebase or a forced push is not. Staging only copies changes
   into the index and back, never touching a file; a commit holds only what was staged, is
   made only by `c` then `Enter`, runs the repository's hooks and never skips one, and is
-  refused on a detached HEAD or during a merge or rebase. Deleting takes a row picked from a
-  list; moving the branch always takes a key press — only fetching may run
-  on a timer, and only when asked for in `settings.yml`.
+  refused on a detached HEAD or during a merge or rebase. A push names the one branch or
+  tag it sends, so no push setting can widen it, runs the `pre-push` hook, and is refused
+  by git, changing nothing, when the remote has commits the branch lacks or a tag of that
+  name elsewhere; a new name on the remote is asked about first. Deleting takes a row
+  picked from a list; moving the branch and pushing always take a key press — only
+  fetching may run on a timer, and only when asked for in `settings.yml`.
 
 ## Style
 

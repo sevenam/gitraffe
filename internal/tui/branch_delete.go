@@ -138,8 +138,8 @@ func (m model) updateDeletePicker(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 
 func (m model) startDelete(choice deleteChoice) (model, tea.Cmd) {
 	// Each of these moves refs, and a remote delete is a push: side by side
-	// with a fetch or a pull it would race them for the same ones.
-	if m.fetching || m.autoFetching || m.pulling || m.switching {
+	// with a fetch, a pull or a push it would race them for the same ones.
+	if m.fetching || m.autoFetching || m.pulling || m.pushing || m.switching {
 		m.notice = "Something else is running — delete again when it has finished"
 		return m, nil
 	}
