@@ -151,7 +151,16 @@ func styleDiffLine(line string) string {
 	case strings.HasPrefix(line, "diff "):
 		return lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color(theme.Current.DiffHeader)).Render(line)
 	}
-	return line
+	// The styled lines above had their tabs spelled out as they were rendered;
+	// this one has to be given the same, or it is measured for cutting with a
+	// tab counted as no width and then drawn four columns wider.
+	return expandTabs(line)
+}
+
+// expandTabs spells a tab out as the four spaces lipgloss draws it as, so a
+// line's width can be counted before it is drawn.
+func expandTabs(line string) string {
+	return strings.ReplaceAll(line, "\t", "    ")
 }
 
 // fitDetails applies the scroll offset and clips the panel's content to the
