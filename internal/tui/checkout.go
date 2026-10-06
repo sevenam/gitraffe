@@ -10,18 +10,17 @@ import (
 	"github.com/sevenam/gitraffe/internal/git"
 )
 
-// Checking out: "C" on the graph switches to the selected commit's branch.
-// With one place to go it switches at once: the key is a capital, the switch
-// is refused while there are uncommitted changes, and it is undone by
-// pressing "C" on the branch left behind, so a question first only cost a
-// key press. With several branches on the commit it asks which, on the
+// Checking out: "c" on the graph switches to the selected commit's branch.
+// With one place to go it switches at once: the switch is refused while there
+// are uncommitted changes, and it is undone by pressing "c" on the branch left
+// behind, so a question first only cost a key press. With several branches on the commit it asks which, on the
 // status line like the copy prompt.
 //
 // A commit with no branch is checked out detached, which the notice says
 // afterwards. One with branches is never offered detached: a detached HEAD
 // is where commits get lost, and anyone who wants one has a terminal.
 
-// checkoutPrompt is the question "C" asks, while it waits for its answer,
+// checkoutPrompt is the question "c" asks, while it waits for its answer,
 // about a commit with more than one branch.
 type checkoutPrompt struct {
 	open    bool
