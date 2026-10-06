@@ -166,7 +166,7 @@ func (m *model) renderCommitList(layout panelLayout, contentWidth int) string {
 			// Branch / tag / merged-branch label column
 			var segments []labelSegment
 			if isCommit {
-				segments = labelSegments(m.commits[row.CommitIdx])
+				segments = alignRemote(labelSegments(m.commits[row.CommitIdx]), m.localLabelWidth)
 			}
 
 			// write renders one piece of the row. On the selected row every piece,
@@ -216,12 +216,17 @@ func (m *model) renderCommitList(layout panelLayout, contentWidth int) string {
 				}
 				used := 0
 				for i, seg := range segments {
-					if i > 0 {
-						if used+2 > layout.branchCol {
+					sep := seg.lead
+					if sep == "" && i > 0 {
+						sep = ", "
+					}
+					if sep != "" {
+						w := utf8.RuneCountInString(sep)
+						if used+w > layout.branchCol {
 							break
 						}
-						write(plainStyle, ", ")
-						used += 2
+						write(plainStyle, sep)
+						used += w
 					}
 					// Truncate to runes, not bytes
 					text := seg.text
