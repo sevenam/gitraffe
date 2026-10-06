@@ -216,10 +216,7 @@ func (m *model) renderCommitList(layout panelLayout, contentWidth int) string {
 				}
 				used := 0
 				for i, seg := range segments {
-					sep := seg.lead
-					if sep == "" && i > 0 {
-						sep = ", "
-					}
+					sep := labelSeparator(segments, i)
 					if sep != "" {
 						w := utf8.RuneCountInString(sep)
 						if used+w > layout.branchCol {
