@@ -503,10 +503,13 @@ func (m model) renderFileDiff(c commit, width, rows int) (string, scrollMarks) {
 	case strings.TrimSpace(f.Body) == "":
 		sb.WriteString(helpStyle.Render("No textual change"))
 	default:
+		gutter := newDiffGutter(f.LineNumbers())
 		for i, line := range strings.Split(f.Body, "\n") {
 			if m.linePicked(i) {
-				sb.WriteString(pickedDiffLine(line, width))
+				sb.WriteString(gutter.renderPicked(i))
+				sb.WriteString(pickedDiffLine(line, width-gutter.width()))
 			} else {
+				sb.WriteString(gutter.render(i))
 				sb.WriteString(styleDiffLine(line))
 			}
 			sb.WriteString("\n")
