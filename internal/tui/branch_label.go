@@ -14,7 +14,7 @@ type labelSegment struct {
 	text   string
 	style  lipgloss.Style
 	remote bool
-	lead   string // written instead of the default ", " before this segment when set
+	lead   string // written before this segment, in place of the ", " that otherwise separates two
 }
 
 // refSegments lists a commit's refs: local branches, remote-tracking branches,
@@ -80,6 +80,12 @@ func localWidth(segs []labelSegment) (width int, hasRemote bool) {
 
 // alignRemote pads the part before the first remote branch to width columns,
 // so remote branches start in the same column on every row.
+//
+// The gap takes the place of the comma there rather than joining it: a comma
+// after the padding sits alone at the far end of the gap, belonging to no
+// name, and the gap and the two colours already tell a local branch from a
+// remote one. It is two columns wider than the padding, the comma's own
+// width, so the names are apart even on the row with the longest local name.
 func alignRemote(segs []labelSegment, width int) []labelSegment {
 	first := -1
 	for i, seg := range segs {
@@ -93,11 +99,7 @@ func alignRemote(segs []labelSegment, width int) []labelSegment {
 	}
 	own, _ := localWidth(segs[:first])
 	out := append([]labelSegment(nil), segs...)
-	if first == 0 {
-		out[0].lead = strings.Repeat(" ", width+2)
-	} else {
-		out[first].lead = strings.Repeat(" ", width-own) + ", "
-	}
+	out[first].lead = strings.Repeat(" ", width-own+2)
 	return out
 }
 
