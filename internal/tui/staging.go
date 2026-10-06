@@ -427,7 +427,7 @@ func pickedDiffLine(line string, width int) string {
 		colour = theme.Current.DiffHunk
 	}
 	// Tabs are spelled out so the band's width can be counted.
-	text := ansi.Truncate(strings.ReplaceAll(line, "\t", "    "), width, "")
+	text := ansi.Truncate(expandTabs(line), width, "")
 	if pad := width - ansi.StringWidth(text); pad > 0 {
 		text += strings.Repeat(" ", pad)
 	}
