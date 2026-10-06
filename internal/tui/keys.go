@@ -40,6 +40,12 @@ func (m model) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	if m.copying {
 		return m.answerCopyPrompt(msg)
 	}
+	if m.push.asking {
+		return m.answerPush(msg)
+	}
+	if m.push.naming {
+		return m.updatePushNaming(msg)
+	}
 	if m.checkout.open {
 		return m.answerCheckout(msg)
 	}
@@ -120,6 +126,11 @@ func (m model) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 			return m, nil
 		}
 		return m.startPull()
+	case "P":
+		// Capital: it is the one key here that sends your work somewhere it
+		// cannot be taken back from, which should take more than a slip of
+		// the finger. It asks before making a new branch or tag on the remote.
+		return m.openPush()
 	case "o":
 		// Lower case: it opens a page and changes nothing, here or in the
 		// repository.

@@ -28,6 +28,9 @@ func (m *model) renderStatusLine() string {
 	if m.checkout.open {
 		return truncateLines(noticeStyle.Render(m.checkoutQuestion()), m.windowWidth)
 	}
+	if m.push.asking {
+		return truncateLines(noticeStyle.Render(m.pushQuestion()), m.windowWidth)
+	}
 	if m.updateState == updateConfirming {
 		return truncateLines(noticeStyle.Render(
 			fmt.Sprintf("Update v%s → %s? This replaces the binary and quits. (y/n)", Version, m.latestVersion)),
@@ -36,10 +39,13 @@ func (m *model) renderStatusLine() string {
 	if m.updateMessage != "" {
 		return truncateLines(noticeStyle.Render(m.updateMessage), m.windowWidth)
 	}
-	// Ahead of the notice: a fetch or a pull keeps running after
+	// Ahead of the notice: a fetch, a pull or a push keeps running after
 	// the key that started it, so the line has to say it is still going.
 	if m.pulling {
 		return truncateLines(noticeStyle.Render("Pulling from the remote..."), m.windowWidth)
+	}
+	if m.pushing {
+		return truncateLines(noticeStyle.Render("Pushing to the remote..."), m.windowWidth)
 	}
 	if m.deleting {
 		return truncateLines(noticeStyle.Render("Deleting..."), m.windowWidth)

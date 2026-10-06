@@ -16,6 +16,7 @@ A text-based UI git graph command line tool built with Golang, Bubble Tea, go-gi
 - 🔍 A commit view on `Space`: what the commit is, every file it touched, and one file's diff at a time (see [The commit view](#the-commit-view))
 - ✍️ Stage files, hunks or single lines from the commit view and commit them with `c`, without leaving gitraffe (see [Staging and committing](#staging-and-committing))
 - ⬇️ `p` pulls: fetch, then fast-forward your branch — and nothing riskier than that (see [Pulling](#pulling))
+- ⬆️ `P` pushes your branch — never by force — and asks before creating a branch or a tag on the remote (see [Pushing](#pushing))
 - 🔀 `c` checks out the selected commit's branch, and refuses while you have uncommitted changes (see [Checking out](#checking-out))
 - 🗑️ `d` deletes the selected commit's branch — local, remote or both — and refuses when its commits are on no other branch (see [Deleting branches](#deleting-branches))
 - 🌐 `o` opens the commit's pull request in your browser, on GitHub or Azure DevOps, read from the merge subject and the remote (see [Opening a pull request](#opening-a-pull-request))
@@ -86,6 +87,7 @@ in `gitraffe ./update`.
 - `Enter` - Show one panel or both (see [One panel at a time](#one-panel-at-a-time))
 - `Space` - Open the commit view, `Esc` to come back (see [The commit view](#the-commit-view))
 - `p` - Pull: fetch, then fast-forward this branch (see [Pulling](#pulling))
+- `P` - Push this branch, or the selected commit's unpushed tag (see [Pushing](#pushing))
 - `c` - Check out this commit's branch (see [Checking out](#checking-out))
 - `d` - Delete this commit's branch: local, remote or both (see [Deleting branches](#deleting-branches))
 - `o` - Open this commit's pull request in a browser (see [Opening a pull request](#opening-a-pull-request))
@@ -514,6 +516,49 @@ It doesn't read `pull.rebase` or any other pull setting: what `p` does is the sa
 in every repository. And it is never done for you — [auto-fetch](#auto-refresh) can
 show that there is something to pull, but moving your branch always takes the key.
 
+### Pushing
+
+Press `P` to send your branch to the remote branch it tracks. It is the one key that
+puts your work somewhere it cannot be taken back from, so it is a capital — and it only
+ever moves the remote branch *forward*.
+
+That limit is the same one [pulling](#pulling) has, seen from the other side. If the
+remote branch has commits yours lacks, sending yours would mean overwriting them, and
+gitraffe never forces a push: git refuses, nothing changes at either end, and the bottom
+line says to pull first. The repository's `pre-push` hook runs as it would from a
+terminal, and is never skipped.
+
+Two things are asked about before anything is sent, because each puts a new name on the
+remote for everyone else to see:
+
+- **An unpushed tag on the selected commit.** If the commit carries a tag marked `↑`
+  (see [Tag sync](#tag-sync)), the bottom line offers it in place of the branch:
+  `Push: t tag v1.2 • b branch main • esc cancel`. `t` pushes the tag and nothing else,
+  `b` pushes the branch as usual, and any other key sends nothing. Several unpushed tags
+  are numbered, as the branches of a [checkout](#checking-out) are.
+- **A branch with no branch on the remote.** A branch that tracks nothing has no remote
+  branch to move, so a box asks what to call the one to create. Your branch's own name
+  is already filled in: `Enter` accepts it, or type another first. With more than one
+  remote, `Tab` moves between them; it starts on the one git itself would push to
+  (`branch.<name>.pushRemote`, `remote.pushDefault`, else `origin`). From then on the
+  branch tracks what was created, and `P` asks nothing.
+
+| The bottom line says | What happened |
+| --- | --- |
+| `Pushed 3 commits to origin/main` | the remote branch moved forward |
+| `Pushed feature to origin/feature, a new branch it now tracks` | the branch was created on the remote |
+| `Pushed tag v1.2 to origin` | the tag was created on the remote; the branch was not touched |
+| `Nothing to push — origin/main already has every commit of main` | there was nothing new to send |
+| `Not pushed: origin/main has commits main lacks — pull first (p), or merge or rebase in a terminal` | the push would have overwritten them; nothing was changed |
+| `Not pushed: origin already has a tag v1.2, on another commit` | moving a tag on the remote is a forced push; nothing was changed |
+| `Push failed: …` | git's own reason, or the hook's: no access, a protected branch, a remote that can't be reached |
+| `Nothing to push — …` | `HEAD` is not on a branch, or the repository has no remote |
+
+What `P` sends is exactly one branch to one branch, or one tag: `push.default`,
+`push.followTags` and the like are not read, so it does the same in every repository.
+Like every call to a remote it never prompts for a password. And it is never done for
+you: nothing is pushed without the key.
+
 ### Checking out
 
 Press `c` on a commit to switch to its branch. It switches straight away and says
@@ -849,7 +894,8 @@ upstream to compare with, but it is still ahead: `↑` then counts its commits t
 remote has yet. It never shows `↓`, since there is nothing to be behind.
 
 The counts compare against your remote-tracking branches as of your last fetch, so
-press `f` (see [Fetching](#fetching)) to bring them up to date.
+press `f` (see [Fetching](#fetching)) to bring them up to date, and `P` to push what is
+ahead (see [Pushing](#pushing)).
 Nothing is shown when the branch is in sync, on a detached HEAD, or in a repository
 with no remote.
 
@@ -866,6 +912,9 @@ mark is a symbol instead):
 
 Tags are compared by name *and* commit, so a tag that was moved shows at both ends:
 `↑` where it now points locally, `↓` where the remote still has it.
+
+Pressing `P` on a commit with a tag marked `↑` offers to push that tag (see
+[Pushing](#pushing)).
 
 Git keeps no remote-tracking copy of tags the way it does for branches, so this has
 to ask each remote with `git ls-remote`. That runs in the background on startup,

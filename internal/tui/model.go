@@ -72,6 +72,9 @@ type model struct {
 	commitPrompt commitPrompt     // the message box "c" opens
 	committing   bool             // a commit is running
 	committed    string           // full hash of the commit just made, until the reload finds it
+	// Pushing; see push.go.
+	push    pushPrompt // what "P" has to ask before it pushes
+	pushing bool       // a push is running
 
 	configDir    string // gitraffe's config directory; "" means a picked theme can't be saved
 	notice       string // one-off status line text, e.g. the theme just saved; cleared by the next key

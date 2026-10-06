@@ -177,6 +177,14 @@ func (m model) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 		return m.finishPull(msg)
 
+	case pushFinishedMsg:
+		// As for a pull: the remote it reached is the one of the repository
+		// it ran in.
+		if msg.repoPath != m.repoPath {
+			return m, nil
+		}
+		return m.finishPush(msg)
+
 	case autoRefreshTickMsg:
 		return m.onAutoRefreshTick()
 
