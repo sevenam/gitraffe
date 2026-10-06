@@ -163,9 +163,9 @@ file is chosen. `Esc` or `q` comes back to the graph, exactly as it was.
 ╭[1]-commit───────────╮╭[3]-diff─────────────────────────────────────╮
 │ SHA:     4a938a6... ││ parser.go                                   │
 │ Author:  sevenam    ││                                             │
-│ ─── Message ─────── ││ @@ -18,6 +18,9 @@                           │
-│ fix the sign flip   ││ +  if amount < 0 {                          │
-╰─────────────────────╯│ -  amount = -amount                         │
+│ ─── Message ─────── ││    @@ -18,6 +18,9 @@                        │
+│ fix the sign flip   ││ 21 +  if amount < 0 {                       │
+╰─────────────────────╯│ 24 -  amount = -amount                      │
 ╭[2]-files-(3)────────╮│                                             │
 │ > parser.go   +2 -2 ││                                             │
 │   …/helper.go +1 -0 ││                                             │
@@ -185,6 +185,11 @@ both the list and the diffs are split out of the same `git show`, so a file cann
 listed with a diff that belongs to somewhere else. A rename is named at both ends
 (`old.go → new.go`), a binary file says `binary` where its counts would be, and a
 path too long for the column is cut from the front, keeping the file's own name.
+
+Each line of a diff carries its line number, so a change can be found in the file:
+the line's number in the file as the commit left it, or for a removed line the number
+it had before. The details panel beside the graph numbers its diff the same way. The
+`@@` header stays, for the name of the function git found above the change.
 
 It works on uncommitted changes too: the working-tree row opens like any other
 commit, and untracked files are listed — marked `untracked`, since git has never seen

@@ -6,6 +6,7 @@ import (
 
 	"github.com/charmbracelet/lipgloss"
 
+	"github.com/sevenam/gitraffe/internal/git"
 	"github.com/sevenam/gitraffe/internal/theme"
 )
 
@@ -121,7 +122,9 @@ func (m *model) renderDiffSections(c commit) string {
 		sb.WriteString(lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color(theme.Current.SectionHeader)).Render("─── Diff ──────────────────────────"))
 		sb.WriteString("\n")
 
-		for _, line := range strings.Split(c.DiffBody, "\n") {
+		gutter := newDiffGutter(git.LineNumbers(c.DiffBody))
+		for i, line := range strings.Split(c.DiffBody, "\n") {
+			sb.WriteString(gutter.render(i))
 			sb.WriteString(styleDiffLine(line))
 			sb.WriteString("\n")
 		}
