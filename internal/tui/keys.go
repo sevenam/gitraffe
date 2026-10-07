@@ -47,7 +47,7 @@ func (m model) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		return m.updatePushNaming(msg)
 	}
 	if m.checkout.open {
-		return m.answerCheckout(msg)
+		return m.updateCheckout(msg)
 	}
 	if m.branchPrompt.open {
 		return m.updateBranchPrompt(msg)

@@ -24,7 +24,7 @@ import (
 // Two things are asked about first, because each puts a new name on the
 // remote for everyone else to see. A tag on the selected commit that no
 // remote has is offered in place of the branch, on the status line like the
-// checkout prompt. And a branch that tracks nothing has no remote branch to
+// copy prompt. And a branch that tracks nothing has no remote branch to
 // move, so a box asks what to call the one to create, offering its own name.
 
 // pushPrompt is what "P" is waiting to be told, when it has to ask.
@@ -109,7 +109,7 @@ func (m model) busyWithRefs() string {
 }
 
 // pushQuestion is the status line while the tag-or-branch prompt is open.
-// One tag is "t"; several are numbered, as the branches of a checkout are.
+// One tag is "t"; several are numbered.
 func (m model) pushQuestion() string {
 	p := m.push
 	parts := make([]string, 0, len(p.tags)+2)

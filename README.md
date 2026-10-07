@@ -569,9 +569,26 @@ you: nothing is pushed without the key.
 
 Press `c` on a commit to switch to its branch. It switches straight away and says
 where it went on the bottom line: `Switched to feature`. Only a commit with several
-branches asks which, with a numbered list —
-`Check out: 1 main • 2 origin/release • esc cancel` — where any key but a number
-cancels.
+branches asks which, in a list over the graph:
+
+```
+╭────────────────────────────────────────────────╮
+│                                                │
+│  Check out                                     │
+│                                                │
+│    main  checked out                           │
+│  > hotfix                                      │
+│    origin/release  new local branch release    │
+│                                                │
+│  ↑/↓: choose • enter: check out • esc: cancel  │
+│                                                │
+╰────────────────────────────────────────────────╯
+```
+
+`↑/↓` or `j/k` choose a row and `Enter` switches to it; `Esc`, `q` or `c` again
+closes the list, and no other key does anything. The branch you are already on is
+marked `checked out`, and the cursor starts on the first one that isn't. A long list
+scrolls, and names are cut short in a window too narrow for them.
 
 - A **local branch** is switched to as it is.
 - A **remote branch** with no local branch of the same name on that commit is
