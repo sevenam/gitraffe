@@ -2,34 +2,38 @@ package tui
 
 import (
 	"errors"
-	"fmt"
 	"strings"
 
 	tea "github.com/charmbracelet/bubbletea"
+	"github.com/charmbracelet/lipgloss"
+	"github.com/charmbracelet/x/ansi"
 
 	"github.com/sevenam/gitraffe/internal/git"
+	"github.com/sevenam/gitraffe/internal/theme"
 )
 
 // Checking out: "c" on the graph switches to the selected commit's branch.
 // With one place to go it switches at once: the switch is refused while there
 // are uncommitted changes, and it is undone by pressing "c" on the branch left
-// behind, so a question first only cost a key press. With several branches on the commit it asks which, on the
-// status line like the copy prompt.
+// behind, so a question first only cost a key press. With several branches on
+// the commit it asks which, in a list over the graph like the one "d" opens:
+// the names are the whole question, and a status line cut short at the
+// window's edge could hide the one that was wanted.
 //
 // A commit with no branch is checked out detached, which the notice says
 // afterwards. One with branches is never offered detached: a detached HEAD
 // is where commits get lost, and anyone who wants one has a terminal.
 
-// checkoutPrompt is the question "c" asks, while it waits for its answer,
-// about a commit with more than one branch.
+// checkoutPrompt is the list "c" opens, while it waits for its answer, on a
+// commit with more than one branch.
 type checkoutPrompt struct {
 	open    bool
 	targets []git.SwitchTarget
+	cursor  int
+	// current is the branch checked out, which the list marks: picking it
+	// would only be told "Already on".
+	current string
 }
-
-// The number keys pick from a list, so a list longer than this cannot be
-// answered; the rest are left to the terminal.
-const maxCheckoutChoices = 9
 
 type switchFinishedMsg struct {
 	repoPath string // the repository switched; see the handler
@@ -56,38 +60,118 @@ func (m model) openCheckout() (model, tea.Cmd) {
 	if len(targets) == 1 {
 		return m.startSwitch(targets[0])
 	}
-	if len(targets) > maxCheckoutChoices {
-		targets = targets[:maxCheckoutChoices]
+	m.checkout = checkoutPrompt{open: true, targets: targets, current: m.currentBranch}
+	// Start on the first branch a switch would go to: on the commit checked
+	// out, the top row is often the branch already on.
+	for i, t := range targets {
+		if t.Kind != git.SwitchBranch || t.Name != m.currentBranch {
+			m.checkout.cursor = i
+			break
+		}
 	}
-	m.checkout = checkoutPrompt{open: true, targets: targets}
 	return m, nil
 }
 
-// checkoutQuestion is the status line while the prompt is open.
-func (m model) checkoutQuestion() string {
-	t := m.checkout.targets
-	parts := make([]string, 0, len(t)+1)
-	for i, target := range t {
-		parts = append(parts, fmt.Sprintf("%d %s", i+1, target.Name))
+// updateCheckout handles keys while the list is open. Like the other lists
+// it owns the keyboard: it covers the graph, so the graph's keys would act
+// unseen. Only enter switches, so a stray key changes nothing.
+func (m model) updateCheckout(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+	p := &m.checkout
+	switch msg.String() {
+	case "ctrl+c":
+		return m, tea.Quit
+	case "esc", "q", "c":
+		m.checkout = checkoutPrompt{}
+	case "j", "down":
+		p.cursor = min(p.cursor+1, len(p.targets)-1)
+	case "k", "up":
+		p.cursor = max(p.cursor-1, 0)
+	case "g", "home":
+		p.cursor = 0
+	case "G", "end":
+		p.cursor = len(p.targets) - 1
+	case "enter":
+		target := p.targets[p.cursor]
+		m.checkout = checkoutPrompt{}
+		return m.startSwitch(target)
 	}
-	parts = append(parts, "esc cancel")
-	return "Check out: " + strings.Join(parts, " • ")
+	return m, nil
 }
 
-// answerCheckout switches to what the key picked. Any key it doesn't know
-// closes the prompt, so a stray key press changes nothing.
-func (m model) answerCheckout(msg tea.KeyMsg) (model, tea.Cmd) {
-	targets := m.checkout.targets
-	m.checkout = checkoutPrompt{}
-	key := msg.String()
-	if key == "ctrl+c" {
-		return m, tea.Quit
+// label is a row of the list as shown, and what follows the name in a
+// quieter voice. A remote branch says what picking it makes, since the name
+// that ends up checked out is not the one on the row.
+func (p checkoutPrompt) label(t git.SwitchTarget) (name, note string) {
+	switch {
+	case t.Kind == git.SwitchRemote:
+		_, branch, _ := strings.Cut(t.Name, "/")
+		return t.Name, "new local branch " + branch
+	case t.Kind == git.SwitchBranch && t.Name == p.current:
+		return t.Name, "checked out"
 	}
+	return t.Name, ""
+}
 
-	if len(key) != 1 || key[0] < '1' || int(key[0]-'0') > len(targets) {
-		return m, nil
+// render draws the list as a bordered box, like the delete list. maxRows caps
+// how many branches are listed at once, and the box is kept inside a window
+// windowWidth wide by cutting the names short.
+func (p checkoutPrompt) render(maxRows, windowWidth int) string {
+	footer := "↑/↓: choose • enter: check out • esc: cancel"
+	contentWidth := ansi.StringWidth(footer)
+	for _, t := range p.targets {
+		name, note := p.label(t)
+		w := 2 + ansi.StringWidth(name)
+		if note != "" {
+			w += 2 + ansi.StringWidth(note)
+		}
+		contentWidth = max(contentWidth, w)
 	}
-	return m.startSwitch(targets[key[0]-'1'])
+	// The border and the padding take six columns.
+	contentWidth = max(10, min(contentWidth, windowWidth-6))
+
+	selected := lipgloss.NewStyle().
+		Bold(true).
+		Foreground(lipgloss.Color(theme.Current.SelectedFg)).
+		Background(lipgloss.Color(theme.Current.SelectedBg))
+
+	maxRows = max(1, maxRows)
+	start := 0
+	if len(p.targets) > maxRows {
+		start = max(0, min(p.cursor-maxRows/2, len(p.targets)-maxRows))
+	}
+	end := min(len(p.targets), start+maxRows)
+
+	var sb strings.Builder
+	sb.WriteString(titleStyle.Padding(0).Render(ansi.Truncate("Check out", contentWidth, "…")))
+	sb.WriteString("\n")
+	for i := start; i < end; i++ {
+		sb.WriteString("\n")
+		name, note := p.label(p.targets[i])
+		name = ansi.Truncate(name, contentWidth-2, "…")
+		if room := contentWidth - 2 - ansi.StringWidth(name) - 2; note != "" && room > 1 {
+			note = "  " + ansi.Truncate(note, room, "…")
+		} else {
+			note = ""
+		}
+		if i == p.cursor {
+			row := "> " + name + note
+			sb.WriteString(selected.Render(row + strings.Repeat(" ", contentWidth-ansi.StringWidth(row))))
+			continue
+		}
+		style := localBranchStyle
+		if p.targets[i].Kind == git.SwitchRemote {
+			style = remoteBranchStyle
+		}
+		sb.WriteString("  " + style.Render(name) + helpStyle.Render(note))
+	}
+	sb.WriteString("\n\n")
+	sb.WriteString(helpStyle.Render(ansi.Truncate(footer, contentWidth, "…")))
+
+	return lipgloss.NewStyle().
+		BorderStyle(lipgloss.RoundedBorder()).
+		BorderForeground(lipgloss.Color(theme.Current.BorderActive)).
+		Padding(1, 2).
+		Render(sb.String())
 }
 
 // startSwitch begins the switch to target, unless there is nothing to do or

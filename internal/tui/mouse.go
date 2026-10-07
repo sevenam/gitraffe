@@ -25,7 +25,7 @@ const (
 func (m model) handleMouse(msg tea.MouseMsg) (model, tea.Cmd) {
 	// A box over the panels owns the screen; scrolling what is behind it would
 	// move things out of sight.
-	if m.showHelp || m.picker.open || m.deletePicker.open || m.commitPrompt.open || m.push.open() || m.branchPrompt.open || m.switcher.open || m.refs.open || m.files.open || m.updateState != updateIdle {
+	if m.showHelp || m.picker.open || m.deletePicker.open || m.checkout.open || m.commitPrompt.open || m.push.open() || m.branchPrompt.open || m.switcher.open || m.refs.open || m.files.open || m.updateState != updateIdle {
 		return m, nil
 	}
 	if !m.ready || m.err != nil || len(m.commits) == 0 {

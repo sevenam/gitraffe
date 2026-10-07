@@ -25,9 +25,6 @@ func (m *model) renderStatusLine() string {
 	if m.copying {
 		return truncateLines(noticeStyle.Render(copyPrompt), m.windowWidth)
 	}
-	if m.checkout.open {
-		return truncateLines(noticeStyle.Render(m.checkoutQuestion()), m.windowWidth)
-	}
 	if m.push.asking {
 		return truncateLines(noticeStyle.Render(m.pushQuestion()), m.windowWidth)
 	}
