@@ -229,6 +229,13 @@ func (m model) renderHelp() string {
 func renderHelpSections(sections []helpSection, scroll, windowWidth, windowHeight int) string {
 	lines := helpLines(sections)
 	footer := "? / esc / q: close"
+	// As wide as the widest line of the whole list, not of the part on
+	// screen: a box sized to what it shows would grow and shrink as the list
+	// was scrolled, and jump about the screen it is centred on.
+	width := 0
+	for _, line := range lines {
+		width = max(width, ansi.StringWidth(line))
+	}
 	var marks scrollMarks
 	if windowHeight > 0 && len(lines) > helpRows(windowHeight) {
 		rows := helpRows(windowHeight)
@@ -242,14 +249,18 @@ func renderHelpSections(sections []helpSection, scroll, windowWidth, windowHeigh
 
 	content := append([]string{titleStyle.Padding(0).Render("Keyboard shortcuts"), ""}, lines...)
 	content = append(content, "", helpStyle.Render(footer))
-	if room := windowWidth - helpChromeCols; windowWidth > 0 {
+	width = max(width, ansi.StringWidth(footer))
+	if room := max(1, windowWidth-helpChromeCols); windowWidth > 0 {
+		width = min(width, room)
 		for i, line := range content {
-			content[i] = ansi.Truncate(line, max(1, room), "…")
+			content[i] = ansi.Truncate(line, room, "…")
 		}
 	}
 
 	border := lipgloss.Color(theme.Current.BorderActive)
 	box := lipgloss.NewStyle().
+		// The width lipgloss is given takes in the padding on both sides.
+		Width(width+helpChromeCols-2).
 		BorderStyle(lipgloss.RoundedBorder()).
 		BorderForeground(border).
 		Padding(1, 2).
