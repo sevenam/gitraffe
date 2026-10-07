@@ -23,9 +23,20 @@ const (
 // reaching for the mouse. Focus is left alone, so the keyboard still drives
 // whatever it was driving.
 func (m model) handleMouse(msg tea.MouseMsg) (model, tea.Cmd) {
+	// The help is a box with more in it than a short window shows, so the
+	// wheel is its own while it is open, wherever the pointer is.
+	if m.showHelp {
+		switch msg.Button {
+		case tea.MouseButtonWheelUp:
+			return m.scrollHelp(-mouseScrollLines), nil
+		case tea.MouseButtonWheelDown:
+			return m.scrollHelp(mouseScrollLines), nil
+		}
+		return m, nil
+	}
 	// A box over the panels owns the screen; scrolling what is behind it would
 	// move things out of sight.
-	if m.showHelp || m.picker.open || m.deletePicker.open || m.checkout.open || m.commitPrompt.open || m.push.open() || m.branchPrompt.open || m.switcher.open || m.refs.open || m.files.open || m.updateState != updateIdle {
+	if m.picker.open || m.deletePicker.open || m.checkout.open || m.commitPrompt.open || m.push.open() || m.branchPrompt.open || m.switcher.open || m.refs.open || m.files.open || m.updateState != updateIdle {
 		return m, nil
 	}
 	if !m.ready || m.err != nil || len(m.commits) == 0 {

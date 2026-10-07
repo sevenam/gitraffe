@@ -84,6 +84,10 @@ func (m model) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 			m.showHelp = false
 		case "ctrl+c":
 			return m, tea.Quit
+		default:
+			// The keys that move through a box move through this one, for
+			// a window too short to show all of it.
+			m, _ = m.helpKey(msg.String())
 		}
 		return m, nil
 	}
@@ -100,7 +104,7 @@ func (m model) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	case "q", "ctrl+c":
 		return m, tea.Quit
 	case "?":
-		m.showHelp = true
+		m.showHelp, m.helpScroll = true, 0
 		return m, nil
 	case "t":
 		return m.openThemePicker(), nil
