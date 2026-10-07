@@ -282,3 +282,60 @@ func TestHelpInANarrowWindow(t *testing.T) {
 		}
 	}
 }
+
+// The box is as wide as the widest line of the whole list, wherever it is
+// scrolled to: sized to the lines on screen it would change width, and place,
+// at every step.
+func TestHelpKeepsItsWidthWhileScrolling(t *testing.T) {
+	boxWidth := func(box string) int {
+		w := 0
+		for _, line := range strings.Split(ansi.Strip(box), "\n") {
+			w = max(w, ansi.StringWidth(line))
+		}
+		return w
+	}
+	for name, sections := range map[string][]helpSection{
+		"graph": helpSections, "commit view": commitViewHelp, "uncommitted changes": stagingViewHelp,
+	} {
+		for _, window := range []struct{ w, h int }{{200, 12}, {200, 16}, {80, 16}, {50, 12}} {
+			// What it is with room for every line at once.
+			whole := boxWidth(renderHelpSections(sections, 0, window.w, 200))
+			last := max(0, len(helpLines(sections))-helpRows(window.h))
+			for scroll := 0; scroll <= last; scroll++ {
+				box := renderHelpSections(sections, scroll, window.w, window.h)
+				if got := boxWidth(box); got != whole {
+					t.Fatalf("%s in %dx%d, scrolled to %d: the box is %d wide, want %d as unscrolled",
+						name, window.w, window.h, scroll, got, whole)
+				}
+				for _, line := range strings.Split(ansi.Strip(box), "\n") {
+					if w := ansi.StringWidth(line); w != whole {
+						t.Fatalf("%s in %dx%d, scrolled to %d: a row is %d wide in a box of %d:\n%s",
+							name, window.w, window.h, scroll, w, whole, ansi.Strip(box))
+					}
+				}
+			}
+			if whole > window.w {
+				t.Errorf("%s in %dx%d: the box is %d wide", name, window.w, window.h, whole)
+			}
+		}
+	}
+
+	// On screen, the box's left edge stays in the same column.
+	m := shortHelp()
+	edge := func(m model) int {
+		for _, line := range strings.Split(helpScreen(m), "\n") {
+			if strings.Contains(line, "Keyboard shortcuts") {
+				return ansi.StringWidth(line[:strings.Index(line, "Keyboard shortcuts")])
+			}
+		}
+		t.Fatal("no help on screen")
+		return 0
+	}
+	at := edge(m)
+	for i := 0; i <= m.helpMaxScroll(); i++ {
+		if got := edge(m); got != at {
+			t.Fatalf("scrolled to %d, the box starts in column %d, was %d", m.helpScroll, got, at)
+		}
+		m = press(m, keyPress("j"))
+	}
+}
