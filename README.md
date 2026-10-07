@@ -618,6 +618,9 @@ closes the box with nothing made.
   selection is wherever reading the history last left it, and a branch started there
   would start somewhere you never chose. To branch from another commit, check it out
   with `c` first, then press `b`.
+- **The box fits what it shows.** It widens to show the commit's subject whole and
+  to hold a long name as you type it, up to a readable limit; in a narrow window it
+  cuts the subject short and never spills past the edge.
 - **Uncommitted changes come along.** Unlike [checking out](#checking-out), nothing
   is refused over them: no file is touched, staged or not, so they are exactly as
   they were, on a branch that is the old one under a new name. That makes `b` the way
