@@ -605,7 +605,7 @@ closes the box with nothing made.
 │                                                             │
 │  New branch  starts where you are, not at the selection     │
 │                                                             │
-│  From  main                                                 │
+│  From  main  4a938a6 fix the sign flip on refunds           │
 │  Name  feature/refunds                                      │
 │                                                             │
 │  enter: create it and switch to it • esc: cancel            │
@@ -613,16 +613,18 @@ closes the box with nothing made.
 ╰─────────────────────────────────────────────────────────────╯
 ```
 
-- **It starts where you are**: at the commit you have checked out, named in the box,
-  and not at the commit selected in the graph. The selection is wherever reading the
-  history last left it, and a branch started there would start somewhere you never
-  chose. To branch from another commit, check it out with `c` first, then press `b`.
+- **It starts where you are**: at the commit you have checked out, named in the box
+  by its branch, hash and subject, and not at the commit selected in the graph. The
+  selection is wherever reading the history last left it, and a branch started there
+  would start somewhere you never chose. To branch from another commit, check it out
+  with `c` first, then press `b`.
 - **Uncommitted changes come along.** Unlike [checking out](#checking-out), nothing
   is refused over them: no file is touched, staged or not, so they are exactly as
   they were, on a branch that is the old one under a new name. That makes `b` the way
   to move work you started on the wrong branch.
 - **On a detached HEAD** it is the way back onto a branch, keeping whatever was
-  committed there.
+  committed there. The box then reads `From  HEAD (detached)  4a938a6 …`, the commit
+  being all there is to say where the branch starts.
 - **The name is checked while the box is open**: one git would not accept, or one a
   branch already has, is said in the box, which stays open for another.
 - **The new branch tracks nothing**, whatever `branch.autoSetupMerge` says, so the

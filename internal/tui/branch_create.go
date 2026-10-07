@@ -29,6 +29,9 @@ type branchPrompt struct {
 	name    textinput.Model
 	from    string // what HEAD is on, as the top box shows it
 	failure string // why the name typed will not do
+	// The commit HEAD is at, which is where the branch starts: its short
+	// hash and its subject. On a detached HEAD they are all that says where.
+	commit, subject string
 }
 
 type branchCreatedMsg struct {
@@ -72,7 +75,14 @@ func (m model) openBranchPrompt() (model, tea.Cmd) {
 	name.CharLimit = 200
 	name.Cursor.SetMode(cursor.CursorStatic)
 	name.Focus()
-	m.branchPrompt = branchPrompt{open: true, name: name, from: m.currentBranch}
+	m.branchPrompt = branchPrompt{open: true, name: name, from: m.currentBranch, commit: shortHash(m.headHash)}
+	for _, c := range m.commits {
+		// Not there when HEAD is further back than the history loaded.
+		if c.FullHash == m.headHash && !c.WorkingTree {
+			m.branchPrompt.subject, _, _ = strings.Cut(c.Message, "\n")
+			break
+		}
+	}
 	return m, nil
 }
 
@@ -167,7 +177,15 @@ func (p branchPrompt) render(windowWidth int) string {
 	sb.WriteString(helpStyle.Render("  " + ansi.Truncate("starts where you are, not at the selection", width, "…")))
 	sb.WriteString("\n\n")
 
-	sb.WriteString(label.Render("From") + "  " + localBranchStyle.Render(ansi.Truncate(p.from, width, "…")))
+	from := ansi.Truncate(p.from, width, "…")
+	sb.WriteString(label.Render("From") + "  " + localBranchStyle.Render(from))
+	// The name comes first and is kept whole; the commit takes what is left.
+	if room := width - ansi.StringWidth(from) - 2; p.commit != "" && room >= len(p.commit) {
+		sb.WriteString("  " + commitHashStyle.Render(p.commit))
+		if room -= len(p.commit) + 1; p.subject != "" && room > 1 {
+			sb.WriteString(" " + helpStyle.Render(ansi.Truncate(p.subject, room, "…")))
+		}
+	}
 	sb.WriteString("\n")
 	sb.WriteString(label.Render("Name") + "  " + p.name.View())
 	sb.WriteString("\n\n")

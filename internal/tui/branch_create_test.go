@@ -51,7 +51,7 @@ func TestNewBranchIsMadeAtHeadAndSwitchedTo(t *testing.T) {
 		t.Fatalf("open=%v switching=%v; want the box, and nothing made yet", m.branchPrompt.open, m.switching)
 	}
 	screen := ansi.Strip(m.View())
-	for _, want := range []string{"New branch", "From  main", "enter: create it and switch to it"} {
+	for _, want := range []string{"New branch", "From  main  " + head[:7] + " second", "enter: create it and switch to it"} {
 		if !strings.Contains(screen, want) {
 			t.Errorf("the box does not say %q:\n%s", want, screen)
 		}
@@ -149,8 +149,10 @@ func TestNewBranchFromADetachedHead(t *testing.T) {
 	dir, run := branchRepo(t)
 	run("switch", "-q", "--detach", "taken")
 	m := press(loadedModel(t, dir), keyPress("b"))
-	if screen := ansi.Strip(m.View()); !strings.Contains(screen, "From  "+m.currentBranch) || !strings.Contains(m.currentBranch, "HEAD") {
-		t.Errorf("the box does not say HEAD is detached (%q):\n%s", m.currentBranch, screen)
+	at, _ := git.Run(dir, "rev-parse", "--short=7", "HEAD")
+	// With no branch to name, the commit is all that says where it starts.
+	if screen := ansi.Strip(m.View()); !strings.Contains(screen, "From  "+m.currentBranch+"  "+at+" first") || !strings.Contains(m.currentBranch, "HEAD") {
+		t.Errorf("the box does not say which commit the detached HEAD is at (%q, %s):\n%s", m.currentBranch, at, screen)
 	}
 	started, cmd := typed(m, "rescued").Update(tea.KeyMsg{Type: tea.KeyEnter})
 	if cmd == nil {
@@ -229,5 +231,26 @@ func TestNewBranchFailureSaysWhy(t *testing.T) {
 	m = res(started.(model).Update(cmd()))
 	if m.switching || !strings.Contains(m.notice, "A merge is in progress") {
 		t.Errorf("switching=%v notice=%q; want the merge named", m.switching, m.notice)
+	}
+}
+
+// The branch's name is kept whole and the commit takes what room is left, so
+// a long name or a long subject never widens the box or wraps a line.
+func TestNewBranchBoxKeepsItsShape(t *testing.T) {
+	short := branchPrompt{from: "main", commit: "4a938a6", subject: "x"}
+	want := strings.Count(short.render(60), "\n")
+	for _, p := range []branchPrompt{
+		{from: "main", commit: "4a938a6", subject: strings.Repeat("a long subject ", 20)},
+		{from: strings.Repeat("feature/", 12), commit: "4a938a6", subject: "fix"},
+		{from: strings.Repeat("f", 39), commit: "4a938a6", subject: "fix"},
+		{from: "main"},
+	} {
+		box := ansi.Strip(p.render(60))
+		if got := strings.Count(box, "\n"); got != want {
+			t.Errorf("from %q: the box is %d lines, want %d:\n%s", p.from, got+1, want+1, box)
+		}
+		if p.from == "main" && p.commit != "" && !strings.Contains(box, "From  main  4a938a6 a long subject") {
+			t.Errorf("the commit is missing beside a short name:\n%s", box)
+		}
 	}
 }
