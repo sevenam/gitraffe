@@ -45,6 +45,7 @@ type model struct {
 	updateMessage       string         // prompt, progress or error text for the status line
 	updatedTo           string         // tag installed this session; read by main after Run returns
 	colourLanes         bool           // tint each graph column differently; see lane_colours.go
+	showWhitespace      bool           // spell out spaces and tabs in a diff; see whitespace.go
 	showHelp            bool           // key reference overlay, toggled with "?"
 	helpScroll          int            // how far its list is scrolled, in a window too short for it
 	copying             bool           // the copy prompt opened with "y" waits for its answer; see copy.go
@@ -100,7 +101,10 @@ func initialModel(repoPath string) model {
 		repoPath:    repoPath,
 		focusedBox:  1,    // default focus on commit list
 		colourLanes: true, // lane colouring is the default; "L" turns it off
-		maximised:   true, // one panel fills the window; enter brings the other back
-		commitLimit: commitBatch,
+		// Marks for the whitespace in a diff are the default; "w" turns
+		// them off.
+		showWhitespace: true,
+		maximised:      true, // one panel fills the window; enter brings the other back
+		commitLimit:    commitBatch,
 	}
 }

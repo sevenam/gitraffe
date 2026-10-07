@@ -34,6 +34,9 @@ func testModel() model {
 	m.ready = true
 	m.windowWidth = 200
 	m.windowHeight = 40
+	// Off, though it is on for a user: the tests read diffs off the screen
+	// as git wrote them. The marks have tests of their own.
+	m.showWhitespace = false
 	return m
 }
 

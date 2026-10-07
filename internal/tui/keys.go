@@ -207,6 +207,8 @@ func (m model) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		// Lower case although it deletes: it only opens the list, and
 		// nothing goes until a row there is picked with enter.
 		return m.openDelete(), nil
+	case "w":
+		return m.toggleWhitespace(), nil
 	case "L":
 		// Global rather than per-box: the graph stays visible whichever
 		// box has focus, so the colours should be reachable from both.
