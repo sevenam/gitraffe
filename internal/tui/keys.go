@@ -49,6 +49,9 @@ func (m model) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	if m.checkout.open {
 		return m.answerCheckout(msg)
 	}
+	if m.branchPrompt.open {
+		return m.updateBranchPrompt(msg)
+	}
 	if m.commitPrompt.open {
 		return m.updateCommitPrompt(msg)
 	}
@@ -116,7 +119,7 @@ func (m model) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		// first press is the one that brings the details panel out.
 		m.maximised = !m.maximised
 		return m, nil
-	case "b":
+	case "B":
 		if !m.ready {
 			return m, nil
 		}
@@ -191,6 +194,10 @@ func (m model) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		// on the branch left behind undoes it. In the commit view "c"
 		// commits; that view never hands its keys on to the graph.
 		return m.openCheckout()
+	case "b":
+		// Lower case although it makes a branch: it only opens the box, and
+		// nothing is made until a name there is given with enter.
+		return m.openBranchPrompt()
 	case "d":
 		// Lower case although it deletes: it only opens the list, and
 		// nothing goes until a row there is picked with enter.

@@ -91,7 +91,8 @@ func (m model) canReloadUnasked() bool {
 		!m.files.open && !m.checkout.open && !m.switching &&
 		!m.deletePicker.open && !m.deleting &&
 		!m.commitPrompt.open && !m.staging && !m.committing &&
-		!m.push.open() && !m.pushing
+		!m.push.open() && !m.pushing &&
+		!m.branchPrompt.open
 }
 
 func (m model) onAutoRefreshTick() (model, tea.Cmd) {

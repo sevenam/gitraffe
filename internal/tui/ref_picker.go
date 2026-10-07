@@ -13,7 +13,7 @@ import (
 	"github.com/sevenam/gitraffe/internal/git"
 )
 
-// refPicker is the list opened with "b": every branch and tag, narrowed by
+// refPicker is the list opened with "B": every branch and tag, narrowed by
 // typing, to move the selection to a ref's commit.
 //
 // Scrolling to a commit works while the history is short enough to scroll.

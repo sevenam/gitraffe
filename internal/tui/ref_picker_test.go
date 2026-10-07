@@ -55,7 +55,7 @@ func openRefs(t *testing.T, dir string) model {
 	t.Helper()
 	m := loadedModel(t, dir)
 	m.windowWidth, m.windowHeight = 100, 30
-	m = press(m, keyPress("b"))
+	m = press(m, keyPress("B"))
 	if !m.refs.open {
 		t.Fatal("b did not open the ref picker")
 	}
@@ -139,7 +139,7 @@ func TestTypingFiltersTheList(t *testing.T) {
 		t.Errorf("filtering by \"v0.\" left %v, want the two tags", got)
 	}
 	// Anywhere in the name, ignoring case.
-	m = press(m, esc, keyPress("b"), keyPress("BRANCH"))
+	m = press(m, esc, keyPress("B"), keyPress("BRANCH"))
 	if got := refNames(m.refs); len(got) != 1 || got[0] != "side-branch" {
 		t.Errorf("filtering by \"BRANCH\" left %v, want side-branch", got)
 	}
@@ -232,7 +232,7 @@ func TestJumpingToARefOlderThanTheLoadedHistory(t *testing.T) {
 		t.Fatalf("loaded %d commits, want the 2 asked for", len(m.commits))
 	}
 
-	m = press(m, keyPress("b"))
+	m = press(m, keyPress("B"))
 	tag := findRef(t, m.refs, "v0.1.0")
 	for _, c := range m.commits {
 		if c.FullHash == tag.Commit {

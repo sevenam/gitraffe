@@ -193,6 +193,9 @@ func (m model) View() (result string) {
 	if m.push.naming {
 		output = overlayCentre(output, m.push.render(m.windowWidth), m.windowWidth, m.windowHeight)
 	}
+	if m.branchPrompt.open {
+		output = overlayCentre(output, m.branchPrompt.render(m.windowWidth), m.windowWidth, m.windowHeight)
+	}
 	if m.deletePicker.open {
 		output = overlayCentre(output, m.deletePicker.render(m.windowHeight-10), m.windowWidth, m.windowHeight)
 	}
