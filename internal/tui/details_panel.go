@@ -105,6 +105,13 @@ func commitIdentity(c commit) string {
 // renderDiffSections renders the stats and the diff itself, the part of the
 // details panel that reads the same for a commit and for uncommitted changes.
 func (m *model) renderDiffSections(c commit) string {
+	// A graph filtered to a file is that file's history, and the commit's
+	// part in it is what it did to that file. A commit that has no such file
+	// to show — a merge, whose diff is not split by file — is shown whole.
+	if only := m.filteredFiles(c.DiffFiles); c.DiffLoaded && len(only) > 0 {
+		return m.renderFilteredDiff(c, only)
+	}
+
 	var sb strings.Builder
 
 	// Diff stats
@@ -134,6 +141,50 @@ func (m *model) renderDiffSections(c commit) string {
 		sb.WriteString("\n")
 	}
 
+	return sb.String()
+}
+
+// renderFilteredDiff is renderDiffSections for a graph filtered to a path:
+// only the files the filter is about, each under its own name, with a line
+// for how much else the commit changed so that the rest is not taken for
+// absent. The commit view still lists every file.
+func (m *model) renderFilteredDiff(c commit, only []fileDiff) string {
+	section := lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color(theme.Current.SectionHeader))
+	name := lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color(theme.Current.DiffHeader))
+
+	var sb strings.Builder
+	sb.WriteString("\n")
+	sb.WriteString(section.Render("─── Stats ─────────────────────────"))
+	sb.WriteString("\n")
+	for _, f := range only {
+		sb.WriteString(f.Path + "  " + fileCounts(f) + "\n")
+	}
+	if others := len(c.DiffFiles) - len(only); others > 0 {
+		sb.WriteString(helpStyle.Render(plural(others, "other file") + " in this commit — space lists them all"))
+		sb.WriteString("\n")
+	}
+
+	sb.WriteString("\n")
+	sb.WriteString(section.Render("─── Diff ──────────────────────────"))
+	sb.WriteString("\n")
+	for i, f := range only {
+		if i > 0 {
+			sb.WriteString("\n")
+		}
+		sb.WriteString(name.Render(f.Path))
+		sb.WriteString("\n")
+		if strings.TrimSpace(f.Body) == "" {
+			sb.WriteString(helpStyle.Render("No textual change"))
+			sb.WriteString("\n")
+			continue
+		}
+		gutter := newDiffGutter(f.LineNumbers())
+		for j, line := range strings.Split(f.Body, "\n") {
+			sb.WriteString(gutter.render(j))
+			sb.WriteString(styleDiffLine(line))
+			sb.WriteString("\n")
+		}
+	}
 	return sb.String()
 }
 

@@ -358,3 +358,101 @@ func TestAutoRefreshWaitsForTheFilePicker(t *testing.T) {
 		t.Error("an unasked reload may run while the file list is open")
 	}
 }
+
+// detailsOf is the stats and diff the details panel shows for the selected
+// commit.
+func detailsOf(m model) string {
+	return stripANSI(m.renderDiffSections(m.commits[m.selected]))
+}
+
+// A graph filtered to a file is that file's history, so the diff beside a
+// commit is what the commit did to that file and nothing else it touched.
+func TestFilteredGraphShowsOnlyTheFilesDiff(t *testing.T) {
+	dir := filterRepo(t)
+
+	// Unfiltered, the commit is shown whole.
+	whole := detailsOf(withDiff(t, selectMessage(t, loadedModel(t, dir), "notes and more")))
+	for _, want := range []string{"a-first.txt", "+a", "notes.txt", "+two"} {
+		if !strings.Contains(whole, want) {
+			t.Fatalf("the unfiltered diff does not show %q:\n%s", want, whole)
+		}
+	}
+
+	m := withDiff(t, selectMessage(t, filterTo(t, loadedModel(t, dir), "notes.txt"), "notes and more"))
+	got := detailsOf(m)
+	for _, want := range []string{"notes.txt  +1 -1", "-one", "+two", "1 other file in this commit"} {
+		if !strings.Contains(got, want) {
+			t.Errorf("the filtered diff does not show %q:\n%s", want, got)
+		}
+	}
+	for _, not := range []string{"a-first.txt", "+a"} {
+		if strings.Contains(got, not) {
+			t.Errorf("the filtered diff shows %q, which is another file's:\n%s", not, got)
+		}
+	}
+	// The panel itself draws it, at the size of the window.
+	m.maximised = false
+	screen := stripANSI(m.View())
+	if !strings.Contains(screen, "+two") || strings.Contains(screen, "a-first.txt") {
+		t.Errorf("the details panel does not show the one file:\n%s", screen)
+	}
+	if lines := strings.Count(screen, "\n") + 1; lines != m.windowHeight {
+		t.Errorf("the screen is %d lines, want %d", lines, m.windowHeight)
+	}
+
+	// A commit that changed only that file has nothing else to mention.
+	alone := detailsOf(withDiff(t, selectMessage(t, m, "start notes")))
+	if !strings.Contains(alone, "+one") || strings.Contains(alone, "other file") {
+		t.Errorf("a commit of the one file reads:\n%s", alone)
+	}
+
+	// With the filter cleared the commit is whole again.
+	m, _ = m.clearFilter()
+	m = withDiff(t, selectMessage(t, finishReload(t, m), "notes and more"))
+	if back := detailsOf(m); !strings.Contains(back, "a-first.txt") {
+		t.Errorf("the diff is still cut to one file after the filter was cleared:\n%s", back)
+	}
+}
+
+// Filtered to a directory, every file under it is shown and the rest left out.
+func TestFilteredGraphShowsEveryFileUnderADirectory(t *testing.T) {
+	dir, run, commit := gittest.Fixture(t)
+	run("init", "-q", "-b", "main")
+	commit("first")
+	writeFile(t, filepath.Join(dir, "docs", "a.md"), "alpha")
+	writeFile(t, filepath.Join(dir, "docs", "deep", "b.md"), "beta")
+	writeFile(t, filepath.Join(dir, "docs.txt"), "not under docs")
+	writeFile(t, filepath.Join(dir, "src", "x.go"), "package x")
+	run("add", "-A")
+	run("commit", "-qm", "docs and code")
+
+	m := loadedModel(t, dir)
+	m, _ = m.setFilter(git.Filter{Path: "docs"})
+	got := detailsOf(withDiff(t, selectMessage(t, finishReload(t, m), "docs and code")))
+	for _, want := range []string{"docs/a.md", "+alpha", "docs/deep/b.md", "+beta", "2 other files in this commit"} {
+		if !strings.Contains(got, want) {
+			t.Errorf("the filtered diff does not show %q:\n%s", want, got)
+		}
+	}
+	for _, not := range []string{"docs.txt", "src/x.go", "package x"} {
+		if strings.Contains(got, not) {
+			t.Errorf("the filtered diff shows %q, which is not under docs:\n%s", not, got)
+		}
+	}
+}
+
+// A commit with no file of its own to show for the filter, as a merge has
+// none, is shown as it would be unfiltered rather than as nothing.
+func TestFilteredGraphShowsACommitWithoutTheFileWhole(t *testing.T) {
+	m := testModel()
+	m.filter = git.Filter{Path: "notes.txt"}
+	m.commits = []commit{{DiffLoaded: true, DiffStat: "the stat", DiffBody: "the whole diff"}}
+	if got := detailsOf(m); !strings.Contains(got, "the stat") || !strings.Contains(got, "the whole diff") {
+		t.Errorf("a commit with no matching file reads:\n%s", got)
+	}
+
+	m.commits[0].DiffFiles = []fileDiff{{Path: "other.txt", Body: "@@ -1 +1 @@\n-a\n+b"}}
+	if got := detailsOf(m); !strings.Contains(got, "the whole diff") {
+		t.Errorf("a commit of other files only reads:\n%s", got)
+	}
+}
