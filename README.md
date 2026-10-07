@@ -531,8 +531,14 @@ other.
 
 The top box says what the graph is filtered to, and `Esc` on the graph brings every
 commit back, with the one you were on still selected. Reloading, fetching and `m`
-keep the filter; opening another repository drops it. Opening a commit while
-filtered starts its file list on the filtered file.
+keep the filter; opening another repository drops it.
+
+While filtered, the details panel (`Enter`) shows what each commit did to that file
+and nothing else it touched: the file's own counts and diff, or those of every file
+under a directory. A line under the counts says how much more the commit changed —
+`2 other files in this commit — space lists them all` — and `Space` opens the commit
+whole, its file list starting on the filtered file. A merge, whose diff is not split
+by file, is shown as it always is.
 
 The row of uncommitted changes is left out while filtered, since it counts every
 change in the working tree, not just the file's. A rename is not followed: the

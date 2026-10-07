@@ -337,12 +337,34 @@ func (m model) filteredFile(files []fileDiff) int {
 		return -1
 	}
 	for i, f := range files {
-		path := currentPath(f.Path)
-		if path == p || strings.HasPrefix(path, p+"/") {
+		if m.filterCovers(f) {
 			return i
 		}
 	}
 	return -1
+}
+
+// filterCovers reports whether a file is what the graph is filtered to: the
+// file itself, or one under the directory.
+func (m model) filterCovers(f fileDiff) bool {
+	p := m.filter.Path
+	if p == "" {
+		return false
+	}
+	path := currentPath(f.Path)
+	return path == p || strings.HasPrefix(path, p+"/")
+}
+
+// filteredFiles are the files of a commit the filter is about, in the order
+// the commit lists them; none when there is no filter.
+func (m model) filteredFiles(files []fileDiff) []fileDiff {
+	var out []fileDiff
+	for _, f := range files {
+		if m.filterCovers(f) {
+			out = append(out, f)
+		}
+	}
+	return out
 }
 
 // noteEmptyFilter says why the graph is empty, when the filter is the reason.
