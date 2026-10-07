@@ -714,15 +714,17 @@ func TestCommitWhatIsStaged(t *testing.T) {
 	write(t, dir, "notes.txt", "a note, changed\n")
 	m := openedView(t, dir)
 
-	// Nothing staged: c says so rather than committing everything.
-	m = press(m, keyPress("c"))
-	if m.commitPrompt.open || !strings.Contains(m.notice, "Nothing staged") {
-		t.Fatalf("open=%v notice=%q, want c to say nothing is staged", m.commitPrompt.open, m.notice)
-	}
-
+	// With something staged, c commits that and stages nothing more.
 	m = do(t, m, keyPress("s")) // notes.txt
-	m = press(m, keyPress("c"))
+	next, cmd := m.Update(keyPress("c"))
+	m = next.(model)
+	if cmd != nil || m.staging || !m.commitPrompt.open || m.commitPrompt.autoStaged != 0 {
+		t.Fatalf("staging=%v open=%v auto=%d; want the box at once, on what was staged", m.staging, m.commitPrompt.open, m.commitPrompt.autoStaged)
+	}
 	screen := ansi.Strip(m.View())
+	if strings.Contains(screen, "Nothing was staged") {
+		t.Errorf("the status line says files were staged for a commit of what was already staged:\n%s", screen)
+	}
 	for _, want := range []string{"Commit", "1 staged file to main", "Subject", "Body", "enter: commit"} {
 		if !strings.Contains(screen, want) {
 			t.Errorf("the message box does not show %q:\n%s", want, screen)
@@ -746,7 +748,7 @@ func TestCommitWhatIsStaged(t *testing.T) {
 	if m.ready {
 		t.Fatal("the repository was not read again after the commit")
 	}
-	next, cmd := m.Update(loadRepo(dir)())
+	next, cmd = m.Update(loadRepo(dir)())
 	m = next.(model)
 	if cmd != nil {
 		next, _ = m.Update(cmd())
@@ -1054,5 +1056,124 @@ func TestCapitalSInTheDiffTakesOnlyTheFileShown(t *testing.T) {
 	m = do(t, press(m, keyPress("2")), keyPress("S"))
 	if got := listed(m); got != "new.txt:staged notes.txt:staged numbered.txt:staged" {
 		t.Errorf("after S on the list, files = %q, want everything staged", got)
+	}
+}
+
+// c with changes and none of them staged means all of them: it stages them,
+// opens the message box, and says what it did for as long as the box is open.
+func TestCommitWithNothingStagedStagesEverything(t *testing.T) {
+	dir, _ := stagingRepo(t)
+	twoHunks(t, dir)
+	write(t, dir, "notes.txt", "a note, changed\n")
+	write(t, dir, "new.txt", "fresh\n")
+	m := openedView(t, dir)
+
+	started, cmd := m.Update(keyPress("c"))
+	m = started.(model)
+	if cmd == nil || !m.staging || m.commitPrompt.open {
+		t.Fatalf("staging=%v open=%v; want everything being staged, and the box not yet", m.staging, m.commitPrompt.open)
+	}
+	m = res(m.Update(cmd()))
+	if got := listed(m); got != "new.txt:staged notes.txt:staged numbered.txt:staged" {
+		t.Fatalf("files = %q, want everything staged", got)
+	}
+	if !m.commitPrompt.open || m.commitPrompt.autoStaged != 3 {
+		t.Fatalf("open=%v auto=%d; want the message box, on three files", m.commitPrompt.open, m.commitPrompt.autoStaged)
+	}
+	const said = "Nothing was staged, so all changes were: 3 files in this commit"
+	screen := ansi.Strip(m.View())
+	for _, want := range []string{"3 staged files to main", "Subject", said} {
+		if !strings.Contains(screen, want) {
+			t.Errorf("the screen does not show %q:\n%s", want, screen)
+		}
+	}
+	if got := strings.Count(screen, "\n") + 1; got != m.windowHeight {
+		t.Errorf("the screen is %d lines, want %d", got, m.windowHeight)
+	}
+
+	// Typing takes a notice away; this has to outlast the message.
+	m = typeText(m, "Everything")
+	if !strings.Contains(ansi.Strip(m.View()), said) {
+		t.Error("the status line stopped saying what was staged once typing began")
+	}
+
+	// Nothing is committed by any of that, and esc leaves the files staged.
+	m = press(m, esc)
+	if m.commitPrompt.open || strings.Contains(ansi.Strip(m.View()), said) {
+		t.Error("esc did not close the box and the line about it")
+	}
+	if got, _ := git.Run(dir, "log", "--format=%s"); strings.Contains(got, "Everything") {
+		t.Fatal("a commit was made without enter")
+	}
+	if got := listed(m); got != "new.txt:staged notes.txt:staged numbered.txt:staged" {
+		t.Errorf("after esc, files = %q, want them left staged", got)
+	}
+
+	// c again is a commit of what is staged, like any other, with the message
+	// as it was left.
+	next, cmd := m.Update(keyPress("c"))
+	m = next.(model)
+	if cmd != nil || !m.commitPrompt.open || m.commitPrompt.autoStaged != 0 || m.commitPrompt.subject.Value() != "Everything" {
+		t.Fatalf("open=%v auto=%d subject=%q; want the box back as it was left", m.commitPrompt.open, m.commitPrompt.autoStaged, m.commitPrompt.subject.Value())
+	}
+	started, cmd = m.Update(tea.KeyMsg{Type: tea.KeyEnter})
+	if cmd == nil {
+		t.Fatal("enter started no commit")
+	}
+	m = res(started.(model).Update(cmd()))
+	if !strings.Contains(m.notice, "Committed") {
+		t.Fatalf("notice = %q, want the commit made", m.notice)
+	}
+	if got, _ := git.Run(dir, "show", "--format=", "--name-only", "HEAD"); got != "new.txt\nnotes.txt\nnumbered.txt" {
+		t.Errorf("the commit holds %q, want every file", got)
+	}
+}
+
+// One file is one file, and the count says so.
+func TestAutoStagedNoticeCounts(t *testing.T) {
+	if got := autoStagedNotice(1); !strings.Contains(got, "1 file in this commit") {
+		t.Errorf("notice = %q", got)
+	}
+}
+
+// Where a commit would be refused anyway, c stages nothing on the way to
+// being told so.
+func TestCommitWithNothingStagedStagesNothingWhenItCannotCommit(t *testing.T) {
+	dir, run := stagingRepo(t)
+	run("switch", "-q", "--detach")
+	twoHunks(t, dir)
+	m := openedView(t, dir)
+	got, cmd := m.Update(keyPress("c"))
+	if cmd != nil || got.(model).staging || !strings.Contains(got.(model).notice, "HEAD is on no branch") {
+		t.Errorf("staging=%v notice=%q; want the refusal and nothing staged", got.(model).staging, got.(model).notice)
+	}
+	if out, _ := git.Run(dir, "diff", "--cached", "--name-only"); out != "" {
+		t.Errorf("the index holds %q", out)
+	}
+}
+
+// The staging failed, or the view was left before it finished: no box.
+func TestCommitBoxDoesNotOpenAfterStagingThatFailedOrWasLeft(t *testing.T) {
+	dir, _ := stagingRepo(t)
+	twoHunks(t, dir)
+	m := openedView(t, dir)
+	started, cmd := m.Update(keyPress("c"))
+	if cmd == nil {
+		t.Fatal("c started nothing")
+	}
+	msg := cmd().(stageFinishedMsg)
+
+	failed := msg
+	failed.err = os.ErrInvalid
+	if got := res(started.(model).Update(failed)); got.commitPrompt.open || !strings.Contains(got.notice, "Not staged") {
+		t.Errorf("open=%v notice=%q after a failed staging", got.commitPrompt.open, got.notice)
+	}
+
+	left := press(started.(model), esc)
+	if left.commitView.open {
+		t.Fatal("esc did not leave the view")
+	}
+	if got := res(left.Update(msg)); got.commitPrompt.open {
+		t.Error("the message box opened over the graph")
 	}
 }

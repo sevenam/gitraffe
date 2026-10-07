@@ -105,7 +105,7 @@ var stagingViewHelp = []helpSection{
 		{"s", "diff: on a hunk's @@ line the hunk, below it the line"},
 		{"v", "diff: pick lines for s, from here to where you move; esc lets go"},
 		{"S", "files: stage or unstage everything; diff: this file"},
-		{"c", "commit what is staged: type a message, enter commits"},
+		{"c", "commit what is staged, or everything when nothing is"},
 		{"1 / 2 / 3  tab", "focus commit / files / diff, or cycle"},
 		{"↑ / ↓  k / j", "move in the focused box"},
 		{"pgup/pgdn  g / G", "move by ten; first / last"},

@@ -111,7 +111,8 @@ func (m model) stagingKey(msg tea.KeyMsg) (model, tea.Cmd, bool) {
 		next, cmd := m.stageEverything()
 		return next, cmd, true
 	case "c":
-		return m.openCommitPrompt(), nil, true
+		next, cmd := m.openCommitPrompt()
+		return next, cmd, true
 	}
 	return m, nil, false
 }
@@ -274,7 +275,22 @@ func (m model) finishStage(msg stageFinishedMsg) model {
 		m.commits[0].Message = msg.summary
 	}
 	m.setWorkingDiff(msg.diff)
+
+	// "c" with nothing staged staged everything so as to commit it, and
+	// this is that staging done: on to the message.
+	if v := &m.commitView; v.commitNext {
+		v.commitNext = false
+		if n := stagedCount(m.viewedFiles()); msg.err == nil && n > 0 {
+			m = m.showCommitPrompt(n)
+		}
+	}
 	return m
+}
+
+// autoStagedNotice is the status line while the message box is open on files
+// "c" staged itself.
+func autoStagedNotice(files int) string {
+	return "Nothing was staged, so all changes were: " + plural(files, "file") + " in this commit — esc leaves them staged"
 }
 
 func stageFailedNotice(msg stageFinishedMsg) string {

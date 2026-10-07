@@ -39,6 +39,9 @@ type commitView struct {
 	diffCursor int  // the line of the diff the cursor is on
 	selecting  bool // "v" was pressed: the lines from diffAnchor to the cursor are picked
 	diffAnchor int  // where the selection started
+	// commitNext says the staging under way was started by "c" with nothing
+	// staged, and the message box is to open when it has finished.
+	commitNext bool
 	// follow is where to put the cursor once the diff has been read again
 	// after "s" in the diff box; see cursorFollow.
 	follow *cursorFollow
@@ -543,6 +546,13 @@ func (m model) commitViewStatusLine() string {
 	if m.notice != "" {
 		return truncateLines(lipgloss.NewStyle().Bold(true).
 			Foreground(lipgloss.Color(theme.Current.Tag)).Render(m.notice), m.windowWidth)
+	}
+	// For as long as the box is open, since the first letter typed into it
+	// would take a notice away: what is about to be committed is more than
+	// was asked for by name.
+	if p := m.commitPrompt; p.open && p.autoStaged > 0 {
+		return truncateLines(lipgloss.NewStyle().Bold(true).
+			Foreground(lipgloss.Color(theme.Current.Tag)).Render(autoStagedNotice(p.autoStaged)), m.windowWidth)
 	}
 	// Ahead of the hints: this outlives the key that started it.
 	if m.committing {
