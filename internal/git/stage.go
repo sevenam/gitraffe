@@ -378,6 +378,19 @@ func splitFilePatch(raw string) (patchHead, []string) {
 	return head, nil
 }
 
+// HunkStart reads where a hunk starts from its header: the line in the old
+// file and the line in the new. It fails for anything that is not one file's
+// hunk header, a merge's "@@@" among them.
+func HunkStart(header string) (old, new int, ok bool) {
+	m := hunkHeader.FindStringSubmatch(header)
+	if m == nil {
+		return 0, 0, false
+	}
+	old, _ = hunkRange(m[1], m[2])
+	new, _ = hunkRange(m[3], m[4])
+	return old, new, true
+}
+
 var hunkHeader = regexp.MustCompile(`^@@ -(\d+)(?:,(\d+))? \+(\d+)(?:,(\d+))? @@(.*)$`)
 
 // buildPatch writes the patch that stages the picked lines of a file's diff

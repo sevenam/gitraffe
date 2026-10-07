@@ -104,18 +104,62 @@ func selectedEntry(t *testing.T, m model) string {
 	return f.Path + ":unstaged"
 }
 
-// cursorOn moves the diff's cursor to the line that reads text.
+// cursorOn moves the diff's cursor to the first line of the box that reads
+// text.
 func cursorOn(t *testing.T, m model, text string) model {
 	t.Helper()
-	f, _ := m.selectedFile()
-	for i, line := range strings.Split(f.Body, "\n") {
-		if line == text {
+	d := m.stagingDiff()
+	for i, line := range d.lines {
+		if line.text == text {
 			m.commitView.diffCursor = i
 			return m
 		}
 	}
-	t.Fatalf("no line %q in:\n%s", text, f.Body)
+	t.Fatalf("no line %q in the diff box:\n%s", text, shown(d))
 	return m
+}
+
+// onHunk moves the diff's cursor to the header of the hunk holding the first
+// line of the box that reads text.
+func onHunk(t *testing.T, m model, text string) model {
+	t.Helper()
+	m = cursorOn(t, m, text)
+	d := m.stagingDiff()
+	for i := m.commitView.diffCursor; i >= 0; i-- {
+		if strings.HasPrefix(d.lines[i].text, "@@") {
+			m.commitView.diffCursor = i
+			return m
+		}
+	}
+	t.Fatalf("no hunk header above %q:\n%s", text, shown(d))
+	return m
+}
+
+// shown is the diff box's lines with their marks, as "● +text".
+func shown(d stagingDiff) string {
+	var out []string
+	for _, l := range d.lines {
+		mark := " "
+		if l.marked() {
+			mark = unstagedMarker
+			if l.staged {
+				mark = stagedMarker
+			}
+		}
+		out = append(out, mark+" "+l.text)
+	}
+	return strings.Join(out, "\n")
+}
+
+// underCursor is the line of the diff box the cursor is on, with its mark.
+func underCursor(t *testing.T, m model) string {
+	t.Helper()
+	d := m.stagingDiff()
+	l, ok := m.cursorLine(d)
+	if !ok {
+		t.Fatal("the diff box has no lines")
+	}
+	return shown(stagingDiff{lines: []stagingLine{l}})
 }
 
 func TestStagingAFileFromTheList(t *testing.T) {
@@ -210,36 +254,164 @@ func TestStagingAHunkFromTheDiff(t *testing.T) {
 		t.Error("the status line does not say s stages a hunk here")
 	}
 
-	// The cursor starts on the first hunk's header.
+	firstOnly := strings.Replace(numberedLines(30), "line 2\n", "line two\n", 1)
+	rows := len(m.stagingDiff().lines)
+
+	// The cursor starts on the first hunk's header, which stands for the hunk.
+	if l, _ := m.cursorLine(m.stagingDiff()); !strings.HasPrefix(l.text, "@@") {
+		t.Fatalf("the cursor starts on %q, want the first hunk's header", l.text)
+	}
 	m = do(t, m, keyPress("s"))
-	if got, want := indexed(t, dir, "numbered.txt"), strings.Replace(numberedLines(30), "line 2\n", "line two\n", 1); got != want {
+	if got := indexed(t, dir, "numbered.txt"); got != firstOnly {
 		t.Fatalf("the index holds:\n%s\nwant only the first hunk", got)
 	}
 	if got := listed(m); got != "numbered.txt:staged numbered.txt:unstaged" {
 		t.Fatalf("files = %q, want the file listed on both sides", got)
 	}
-	// Still on what is left of it, with the next hunk now under the cursor.
-	if got := selectedEntry(t, m); got != "numbered.txt:unstaged" {
-		t.Fatalf("selected %q, want what is left unstaged", got)
+	// The hunk has not gone anywhere: it is under the cursor still, with
+	// the staged mark, above the one that is left.
+	if got := underCursor(t, m); !strings.HasPrefix(got, stagedMarker+" @@") {
+		t.Errorf("under the cursor: %q, want the header of the hunk just staged, marked so", got)
 	}
-	if body := diffBoxOf(t, m); !strings.Contains(body, "+line twenty-nine") || strings.Contains(body, "+line two") {
-		t.Errorf("the diff box does not show only the hunk that is left:\n%s", body)
+	d := m.stagingDiff()
+	if len(d.lines) != rows || !strings.Contains(shown(d), stagedMarker+" +line two") ||
+		!strings.Contains(shown(d), unstagedMarker+" +line twenty-nine") {
+		t.Errorf("the diff box does not show both hunks, each with its mark:\n%s", shown(d))
+	}
+	body := diffBoxOf(t, m)
+	for _, want := range []string{"partly staged", stagedMarker + "  2 +line two", unstagedMarker + " 29 +line twenty-nine"} {
+		if !strings.Contains(body, want) {
+			t.Errorf("the diff box does not draw %q:\n%s", want, body)
+		}
+	}
+	if !strings.Contains(ansi.Strip(m.View()), "s: unstage hunk") {
+		t.Error("the status line does not say s would take the hunk back")
 	}
 
+	// s again on the same hunk is its undo.
+	m = do(t, m, keyPress("s"))
+	if got := indexed(t, dir, "numbered.txt"); got != numberedLines(30) {
+		t.Fatalf("the index holds:\n%s\nwant the hunk taken back", got)
+	}
+	if got := underCursor(t, m); !strings.HasPrefix(got, unstagedMarker+" @@") || listed(m) != "numbered.txt:unstaged" {
+		t.Errorf("under the cursor: %q of %q, want the hunk back where it was", got, listed(m))
+	}
+
+	// Both hunks, one after the other.
+	m = do(t, m, keyPress("s"))
+	m = onHunk(t, m, "+line twenty-nine")
 	m = do(t, m, keyPress("s"))
 	if got := indexed(t, dir, "numbered.txt"); got != changed {
 		t.Fatal("after both hunks the index is not the file")
 	}
-	// Nothing is left on this side, so the selection follows the file across.
+	// Nothing is left on the unstaged side, so the selection is on the file's
+	// staged row; the box and the cursor in it are as they were.
 	if got := selectedEntry(t, m); got != "numbered.txt:staged" || listed(m) != "numbered.txt:staged" {
 		t.Errorf("selected %q of %q, want the staged file", got, listed(m))
 	}
+	if got := underCursor(t, m); !strings.HasPrefix(got, stagedMarker+" @@") {
+		t.Errorf("under the cursor: %q, want the header of the hunk just staged", got)
+	}
+	if strings.Contains(shown(m.stagingDiff()), unstagedMarker) {
+		t.Errorf("something is still marked as not staged:\n%s", shown(m.stagingDiff()))
+	}
 
-	// And back: s on a staged hunk unstages it.
-	m = cursorOn(t, m, "+line twenty-nine")
+	// And back: s on a staged hunk unstages it, and only it.
 	m = do(t, m, keyPress("s"))
-	if got, want := indexed(t, dir, "numbered.txt"), strings.Replace(numberedLines(30), "line 2\n", "line two\n", 1); got != want {
+	if got := indexed(t, dir, "numbered.txt"); got != firstOnly {
 		t.Fatalf("the index holds:\n%s\nwant the second hunk unstaged again", got)
+	}
+	if got := underCursor(t, m); !strings.HasPrefix(got, unstagedMarker+" @@") {
+		t.Errorf("under the cursor: %q, want the header of the hunk taken back", got)
+	}
+}
+
+// Below a hunk's header, s takes the one line the cursor is on: the header
+// is for the hunk, and a line is for itself.
+func TestStagingOneLineFromTheDiff(t *testing.T) {
+	dir, _ := stagingRepo(t)
+	// One hunk of three changed lines.
+	write(t, dir, "numbered.txt", strings.Replace(numberedLines(30), "line 15\n", "line fifteen\nand a half\n", 1))
+	m := press(openedView(t, dir), keyPress("3"))
+	if !strings.Contains(ansi.Strip(m.View()), "s: stage hunk") {
+		t.Error("on the header, the status line does not say s stages the hunk")
+	}
+
+	changed := strings.Replace(numberedLines(30), "line 15\n", "line fifteen\nand a half\n", 1)
+
+	// The hunk a line at a time, the cursor never leaving it: after each s
+	// it is on the line below the one that went, which is the next to take.
+	m = cursorOn(t, m, "-line 15")
+	if !strings.Contains(ansi.Strip(m.View()), "s: stage line") {
+		t.Error("on a line, the status line does not say s stages the line")
+	}
+	for _, step := range []struct{ index, next string }{
+		{strings.Replace(numberedLines(30), "line 15\n", "", 1), unstagedMarker + " +line fifteen"},
+		{strings.Replace(numberedLines(30), "line 15\n", "line fifteen\n", 1), unstagedMarker + " +and a half"},
+	} {
+		m = do(t, m, keyPress("s"))
+		if got := indexed(t, dir, "numbered.txt"); got != step.index {
+			t.Fatalf("the index holds:\n%s\nwant:\n%s", got, step.index)
+		}
+		if got := underCursor(t, m); got != step.next {
+			t.Fatalf("under the cursor: %q, want the line below the one staged, %q", got, step.next)
+		}
+	}
+	// What went is still in the box, marked staged, with what is left.
+	d := m.stagingDiff()
+	for _, want := range []string{stagedMarker + " -line 15", stagedMarker + " +line fifteen", unstagedMarker + " +and a half"} {
+		if !strings.Contains(shown(d), want) {
+			t.Errorf("the diff box does not show %q:\n%s", want, shown(d))
+		}
+	}
+	m = do(t, m, keyPress("s"))
+	if got := indexed(t, dir, "numbered.txt"); got != changed {
+		t.Fatalf("the index holds:\n%s\nwant the whole change, a line at a time", got)
+	}
+
+	// Taking lines back works down a staged hunk the same way.
+	m = cursorOn(t, m, "-line 15")
+	if !strings.Contains(ansi.Strip(m.View()), "s: unstage line") {
+		t.Error("the status line does not say s would take the line back")
+	}
+	m = do(t, m, keyPress("s"))
+	if got, want := indexed(t, dir, "numbered.txt"), strings.Replace(numberedLines(30), "line 15\n", "line 15\nline fifteen\nand a half\n", 1); got != want {
+		t.Fatalf("the index holds:\n%s\nwant the removal taken back", got)
+	}
+	if got := underCursor(t, m); got != stagedMarker+" +line fifteen" {
+		t.Errorf("under the cursor: %q, want the next staged line", got)
+	}
+
+	// A line that changes nothing has nothing to stage, and says so; the
+	// cursor stays on it.
+	m = do(t, cursorOn(t, m, " line 14"), keyPress("s"))
+	if !strings.Contains(m.notice, "No changed lines") {
+		t.Errorf("notice = %q, want it to say nothing there can be staged", m.notice)
+	}
+	if got := underCursor(t, m); got != "   line 14" {
+		t.Errorf("under the cursor: %q after a key that moved nothing", got)
+	}
+}
+
+// An untracked file is drawn as its contents, with no header to press for
+// all of it, so s anywhere in it still takes the file.
+func TestStagingAnUntrackedFileFromTheDiffTakesItWhole(t *testing.T) {
+	dir, _ := stagingRepo(t)
+	write(t, dir, "new.txt", "one\ntwo\nthree\n")
+	m := openedView(t, dir)
+	for i, f := range m.viewedFiles() {
+		if f.Path == "new.txt" {
+			m.commitView.file = i
+			m.showFile()
+		}
+	}
+	m = cursorOn(t, press(m, keyPress("3")), "+two")
+	if !strings.Contains(ansi.Strip(m.View()), "s: stage hunk") {
+		t.Error("the status line does not say s takes more than the line")
+	}
+	m = do(t, m, keyPress("s"))
+	if got := indexed(t, dir, "new.txt"); got != "one\ntwo\nthree\n" {
+		t.Fatalf("the index holds %q, want the whole file", got)
 	}
 }
 
@@ -257,7 +429,7 @@ func TestStagingPickedLines(t *testing.T) {
 
 	m = cursorOn(t, press(m, keyPress("3")), "+line fifteen")
 	m = press(m, keyPress("v"), keyPress("j"))
-	if !m.commitView.selecting || !m.linePicked(m.commitView.diffCursor) || !m.linePicked(m.commitView.diffCursor-1) {
+	if !m.commitView.selecting || !m.linePicked(m.stagingDiff(), m.commitView.diffCursor) || !m.linePicked(m.stagingDiff(), m.commitView.diffCursor-1) {
 		t.Fatal("v then j did not pick two lines")
 	}
 	if !strings.Contains(ansi.Strip(m.View()), "s: stage these lines") {
@@ -279,6 +451,128 @@ func TestStagingPickedLines(t *testing.T) {
 	}
 	if m.commitView.selecting {
 		t.Error("the selection outlived the lines it picked")
+	}
+
+	// The line is still in the box, marked staged, beside the one that was
+	// left; the cursor has not been sent back to the top.
+	d := m.stagingDiff()
+	for _, want := range []string{stagedMarker + " +and a half", unstagedMarker + " +line fifteen", unstagedMarker + " -line 15"} {
+		if !strings.Contains(shown(d), want) {
+			t.Errorf("the diff box does not show %q:\n%s", want, shown(d))
+		}
+	}
+	// The cursor is still in the hunk the line left, on the line below it;
+	// the line itself can be taken back from where it is now.
+	if got := underCursor(t, m); got != "   line 16" {
+		t.Fatalf("under the cursor: %q, want the line below the one staged", got)
+	}
+	m = cursorOn(t, m, "+and a half")
+	m = do(t, press(m, keyPress("v")), keyPress("s"))
+	if got := indexed(t, dir, "numbered.txt"); got != numberedLines(30) {
+		t.Fatalf("the index holds:\n%s\nwant the line taken back", got)
+	}
+}
+
+// Lines picked across a staged hunk and one that is not cannot go both ways
+// at once: the side the selection was started on is the one that moves.
+func TestStagingPickedLinesKeepsToOneSide(t *testing.T) {
+	dir, _ := stagingRepo(t)
+	changed := twoHunks(t, dir)
+	m := press(openedView(t, dir), keyPress("3"))
+	m = do(t, onHunk(t, m, "+line two"), keyPress("s"))
+
+	// From a line of the hunk that is left, up over the staged one to the top.
+	m = cursorOn(t, m, "+line twenty-nine")
+	m = press(m, keyPress("v"), keyPress("g"))
+	d := m.stagingDiff()
+	for i, l := range d.lines {
+		if got := m.linePicked(d, i); got != (!l.staged && i <= m.commitView.diffAnchor) {
+			t.Fatalf("line %d (%q, staged=%v): picked=%v, want only the side the selection started on", i, l.text, l.staged, got)
+		}
+	}
+	if !strings.Contains(ansi.Strip(m.View()), "s: stage these lines") {
+		t.Error("the status line does not go by the side the selection started on")
+	}
+	m = do(t, m, keyPress("s"))
+	if got := indexed(t, dir, "numbered.txt"); got != changed {
+		t.Fatalf("the index holds:\n%s\nwant the second hunk staged and the first left staged", got)
+	}
+}
+
+func hunk(header string, lines ...string) string {
+	return strings.Join(append([]string{header}, lines...), "\n")
+}
+
+// The two diffs' hunks are laid out by where they are in the index, which is
+// the one file both are counted in.
+func TestMergeSidesOrdersHunksAsTheFileDoes(t *testing.T) {
+	staged := &fileDiff{Path: "a", Staged: true, Body: strings.Join([]string{
+		hunk("@@ -2 +2 @@", "-two", "+TWO"),
+		hunk("@@ -20,0 +21 @@", "+twenty and a half"),
+	}, "\n")}
+	unstaged := &fileDiff{Path: "a", Body: strings.Join([]string{
+		hunk("@@ -10 +10 @@", "-ten", "+TEN"),
+		hunk("@@ -21 +21,2 @@", " twenty and a half", "+and three quarters"),
+		hunk("@@ -40 +41 @@", "-forty", "+FORTY"),
+	}, "\n")}
+
+	var got []string
+	for _, l := range mergeSides(staged, unstaged) {
+		if strings.HasPrefix(l.text, "@@") {
+			side := "unstaged"
+			if l.staged {
+				side = "staged"
+			}
+			got = append(got, fmt.Sprintf("%s %s at %d", side, l.text, l.at))
+		}
+	}
+	want := []string{
+		"staged @@ -2 +2 @@ at 0",
+		"unstaged @@ -10 +10 @@ at 0",
+		// Both start on line 21 of the index: what is staged comes first.
+		"staged @@ -20,0 +21 @@ at 3",
+		"unstaged @@ -21 +21,2 @@ at 3",
+		"unstaged @@ -40 +41 @@ at 6",
+	}
+	if strings.Join(got, "\n") != strings.Join(want, "\n") {
+		t.Errorf("hunks:\n%s\nwant:\n%s", strings.Join(got, "\n"), strings.Join(want, "\n"))
+	}
+
+	// Each line remembers its place in the diff it came from, which is how
+	// it is staged.
+	for _, l := range mergeSides(staged, unstaged) {
+		from := unstaged
+		if l.staged {
+			from = staged
+		}
+		if lines := strings.Split(from.Body, "\n"); lines[l.at] != l.text {
+			t.Fatalf("%q says it is line %d of its diff, which reads %q", l.text, l.at, lines[l.at])
+		}
+	}
+}
+
+// One side alone is drawn as git wrote it, whatever its headers say, and a
+// side with nothing textual adds nothing.
+func TestMergeSidesLeavesOneSideAlone(t *testing.T) {
+	odd := strings.Join([]string{
+		hunk("@@ -30 +30 @@", "-b", "+B"),
+		hunk("@@@ -1,2 -1,2 +1,3 @@@", "  a", "++b"),
+		hunk("@@ -3 +3 @@", "-a", "+A"),
+	}, "\n")
+	for _, lines := range [][]stagingLine{
+		mergeSides(nil, &fileDiff{Path: "a", Body: odd}),
+		mergeSides(&fileDiff{Path: "a", Staged: true, Body: "  \n"}, &fileDiff{Path: "a", Body: odd}),
+	} {
+		var got []string
+		for _, l := range lines {
+			got = append(got, l.text)
+		}
+		if strings.Join(got, "\n") != odd {
+			t.Errorf("drawn as:\n%s\nwant it as written:\n%s", strings.Join(got, "\n"), odd)
+		}
+	}
+	if lines := mergeSides(nil, nil); len(lines) != 0 {
+		t.Errorf("no sides drew %d lines", len(lines))
 	}
 }
 
@@ -693,7 +987,7 @@ func TestHelpOnUncommittedChangesFitsAndListsTheKeys(t *testing.T) {
 	m.windowWidth, m.windowHeight = 80, 24
 	screen := ansi.Strip(press(m, keyPress("?")).View())
 
-	for _, want := range []string{"stage or unstage the file", "the hunk under the cursor", "pick lines", "stage everything", "commit what is staged", "back to the graph", "quit"} {
+	for _, want := range []string{"stage or unstage the file", "on a hunk's @@ line the hunk, below it the line", "pick lines", "stage or unstage everything; diff: this file", "commit what is staged", "back to the graph", "quit"} {
 		if !strings.Contains(screen, want) {
 			t.Errorf("the help does not show %q on an 80x24 terminal:\n%s", want, screen)
 		}
@@ -701,5 +995,64 @@ func TestHelpOnUncommittedChangesFitsAndListsTheKeys(t *testing.T) {
 	// A commit's help is the one without them.
 	if on := ansi.Strip(press(openedView(t, threeFileRepo(t)), keyPress("?")).View()); strings.Contains(on, "stage") {
 		t.Error("the help on a commit lists staging keys")
+	}
+}
+
+// In the diff box S reaches as far as the box does: the one file shown, all
+// of it, and no other.
+func TestCapitalSInTheDiffTakesOnlyTheFileShown(t *testing.T) {
+	dir, _ := stagingRepo(t)
+	changed := twoHunks(t, dir)
+	write(t, dir, "notes.txt", "a note, changed\n")
+	write(t, dir, "new.txt", "fresh\n")
+	m := openedView(t, dir)
+	for i, f := range m.viewedFiles() {
+		if f.Path == "numbered.txt" {
+			m.commitView.file = i
+			m.showFile()
+		}
+	}
+	const others = "new.txt:untracked notes.txt:unstaged "
+
+	// With one hunk staged already, S takes the rest of the file.
+	m = do(t, press(m, keyPress("3")), keyPress("s"))
+	if got := listed(m); got != others+"numbered.txt:staged numbered.txt:unstaged" {
+		t.Fatalf("files = %q, want numbered.txt on both sides", got)
+	}
+	if !strings.Contains(ansi.Strip(m.View()), "S: file") {
+		t.Error("the status line does not say S is the file's here")
+	}
+	cursor := m.commitView.diffCursor
+	m = do(t, m, keyPress("S"))
+	if got := indexed(t, dir, "numbered.txt"); got != changed {
+		t.Fatalf("the index holds:\n%s\nwant all of the file", got)
+	}
+	if got := listed(m); got != others+"numbered.txt:staged" {
+		t.Fatalf("after S, files = %q, want only numbered.txt staged", got)
+	}
+	// Nothing jumped: the same file, the same row of its diff.
+	if got := selectedEntry(t, m); got != "numbered.txt:staged" || m.commitView.diffCursor != cursor {
+		t.Errorf("selected %q, cursor %d; want the file shown and the cursor on row %d", got, m.commitView.diffCursor, cursor)
+	}
+	if !strings.Contains(ansi.Strip(m.View()), "S: unstage file") {
+		t.Error("the status line does not say S would take the file back")
+	}
+
+	// With none of it left to stage, S takes all of it back, and only it.
+	m = do(t, m, keyPress("S"))
+	if got := indexed(t, dir, "numbered.txt"); got != numberedLines(30) {
+		t.Fatalf("the index holds:\n%s\nwant none of the file", got)
+	}
+	if got := listed(m); got != others+"numbered.txt:unstaged" {
+		t.Fatalf("after S again, files = %q", got)
+	}
+	if got := selectedEntry(t, m); got != "numbered.txt:unstaged" {
+		t.Errorf("selected %q, want the file shown", got)
+	}
+
+	// From the file list the same key is still every file.
+	m = do(t, press(m, keyPress("2")), keyPress("S"))
+	if got := listed(m); got != "new.txt:staged notes.txt:staged numbered.txt:staged" {
+		t.Errorf("after S on the list, files = %q, want everything staged", got)
 	}
 }

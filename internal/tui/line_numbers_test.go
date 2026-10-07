@@ -73,7 +73,7 @@ func TestPickedLineBandIncludesTheGutter(t *testing.T) {
 	if got := ansi.StringWidth(line); got != width {
 		t.Errorf("the band is %d wide, the box %d", got, width)
 	}
-	if got := ansi.Strip(line); !strings.HasPrefix(got, " 99 -old") {
+	if got := ansi.Strip(line); !strings.HasPrefix(got, unstagedMarker+"  99 -old") {
 		t.Errorf("the picked line lost its number: %q", got)
 	}
 }

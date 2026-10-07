@@ -15,13 +15,16 @@ import (
 
 // Staging: in the commit view of the uncommitted changes, "s" moves what is
 // selected into the index or back out of it. On the file list that is a whole
-// file; in the diff box it is the hunk under the cursor, or the lines picked
-// with "v". "S" does every file at once, and "c" commits what is staged (see
-// commit_prompt.go).
+// file; in the diff box it is the hunk whose header the cursor is on, the one
+// line it is on further down, or the lines picked with "v". "S" is the same
+// key a size up: every file from the file list, the whole of the file shown
+// from the diff box. "c" commits what is staged (see commit_prompt.go).
 //
 // A file with staged and unstaged changes is listed twice, once for each, so
-// the diff beside an entry is exactly what "s" on it would move, and which
-// way is never a question.
+// "s" on a row of the list moves exactly that half. The diff box shows the
+// file whole beside either row, each hunk marked for its side, and "s" there
+// moves what the cursor is on whichever way its mark says; see
+// staging_diff.go.
 //
 // None of it can lose work: staging copies changes into the index and
 // unstaging takes them out again, and the files themselves are not touched.
@@ -99,6 +102,12 @@ func (m model) stagingKey(msg tea.KeyMsg) (model, tea.Cmd, bool) {
 		next, cmd := m.stageSelected()
 		return next, cmd, true
 	case "S":
+		// As far as the box it is pressed in reaches: the list is every
+		// file, the diff is one.
+		if v.focus == commitBoxDiff {
+			next, cmd := m.stageShownFile()
+			return next, cmd, true
+		}
 		next, cmd := m.stageEverything()
 		return next, cmd, true
 	case "c":
@@ -140,10 +149,14 @@ func (m model) stageSelected() (model, tea.Cmd) {
 		})
 	}
 
-	first, last := m.pickedLines(f)
+	// The entry the lines under the cursor came from, which may be the
+	// file's other row: the box shows both.
+	d := m.stagingDiff()
+	entry, first, last := m.pickedLines(d, f)
+	v.follow = m.followAfter(d, entry, first, last)
 	v.selecting = false
 	return m, stageCmd(m.repoPath, m.diffStatWidth(), func(dir string) (string, error) {
-		return git.StageLines(dir, f, first, last)
+		return git.StageLines(dir, entry, first, last)
 	})
 }
 
@@ -167,6 +180,35 @@ func (m model) stageEverything() (model, tea.Cmd) {
 			return git.StageAll(dir)
 		}
 		return git.UnstageAll(dir)
+	})
+}
+
+// stageShownFile stages all of the file the diff box shows, or, when none of
+// it is left to stage, takes all of it back: what "S" does to every file,
+// done to one.
+func (m model) stageShownFile() (model, tea.Cmd) {
+	if !m.canStage() {
+		return m, nil
+	}
+	f, ok := m.selectedFile()
+	if !ok {
+		return m, nil
+	}
+	// The file may be two rows, and the one selected may be its staged half
+	// while the other still has something to stage.
+	_, unstaged := m.stagingDiff().entry(false)
+	m.staging = true
+	v := &m.commitView
+	v.selecting = false
+	// Whichever row of the file is left is the one to be on.
+	v.want = []fileKey{{f.Path, unstaged}, {f.Path, !unstaged}}
+	v.want = append(v.want, neighbours(m.viewedFiles(), v.file)...)
+	path := f.Path
+	return m, stageCmd(m.repoPath, m.diffStatWidth(), func(dir string) (string, error) {
+		if unstaged {
+			return git.StageFile(dir, path)
+		}
+		return git.UnstageFile(dir, path)
 	})
 }
 
@@ -225,6 +267,8 @@ func (m model) finishStage(msg stageFinishedMsg) model {
 	}
 	if msg.err != nil {
 		m.notice = stageFailedNotice(msg)
+		// Nothing moved, so there is nothing for the cursor to follow.
+		m.commitView.follow = nil
 	}
 	if len(m.commits) > 0 && m.commits[0].WorkingTree && msg.summary != "" {
 		m.commits[0].Message = msg.summary
@@ -258,9 +302,9 @@ func (m *model) setWorkingDiff(d git.Diff) {
 	c := &m.commits[0]
 	// What the diff box was showing, to tell a reading that changed it from
 	// one that did not.
-	before := ""
-	if f, ok := m.selectedFile(); ok && m.commitView.open {
-		before = f.Body
+	var before stagingDiff
+	if m.commitView.open {
+		before = m.stagingDiff()
 	}
 	c.DiffLoaded = true
 	c.DiffStat, c.DiffBody, c.DiffFiles = d.Stat, d.Body, d.Files
@@ -293,17 +337,142 @@ func (m *model) setWorkingDiff(d git.Diff) {
 		v.shown, v.diffCursor, v.selecting = fileKey{}, 0, false
 		return
 	}
-	if key := keyOf(d.Files[v.file]); key != v.shown {
-		// A different entry: the line the cursor was on is another file's.
-		v.shown, v.diffCursor, v.diffScroll = key, 0, 0
+	key := keyOf(d.Files[v.file])
+	if key.path != v.shown.path {
+		// A different file: the line the cursor was on is another file's.
+		v.diffCursor, v.diffScroll = 0, 0
 		v.selecting = false
-	} else if d.Files[v.file].Body != before {
-		// The same entry with other lines in it: the ones picked were picked
+	} else if !m.stagingDiff().same(before) {
+		// The same file with other lines in it: the ones picked were picked
 		// by number, and the numbers have moved. A reload that found nothing
 		// new here — it may have been for a fetch — leaves them picked.
+		//
+		// The cursor is left where it is, on the same file's other row too:
+		// the box shows both sides, so what was just staged is still under
+		// it, with another mark.
 		v.selecting = false
 	}
-	v.diffCursor = max(0, min(v.diffCursor, lineCount(d.Files[v.file].Body)-1))
+	v.shown = key
+	v.diffCursor = max(0, min(v.diffCursor, m.diffLineCount()-1))
+	m.followCursor()
+}
+
+// cursorFollow is where the diff's cursor belongs after "s" has moved what
+// it was on, the diff having been read again in between.
+//
+// A hunk moved from its header changes its mark where it stands, and the
+// cursor stays on that header: across is true, and line is the header as it
+// will be on the other side. Lines moved from inside a hunk leave it for a
+// hunk of their own some rows away, and following them there would take the
+// cursor out of what is still being worked through. So it stays in the hunk
+// they left, on the line that came after them: pressing "s" again takes the
+// next line, and a hunk is staged a line at a time without moving a finger.
+type cursorFollow struct {
+	line   stagingLine
+	across bool
+}
+
+// followAfter says where the cursor should be after "s" on first..last of
+// entry's diff, given the box as it is now.
+func (m model) followAfter(d stagingDiff, entry fileDiff, first, last int) *cursorFollow {
+	l, ok := m.cursorLine(d)
+	if !ok || l.staged != entry.Staged {
+		return nil
+	}
+	if !m.commitView.selecting && m.cursorTakesHunk(d) {
+		l.staged = !l.staged
+		return &cursorFollow{line: l, across: true}
+	}
+	// The line after the last one moved, in the same entry's diff. With none
+	// there, the last one moved is the nearest thing to aim for.
+	var after *stagingLine
+	for i := range d.lines {
+		c := &d.lines[i]
+		if c.staged != entry.Staged {
+			continue
+		}
+		if c.at == last+1 {
+			return &cursorFollow{line: *c}
+		}
+		if c.at == last {
+			after = c
+		}
+	}
+	if after == nil {
+		return nil
+	}
+	return &cursorFollow{line: *after}
+}
+
+// followCursor puts the cursor where cursorFollow says, in the diff as it is
+// now.
+//
+// A line on the side it was on is found by what staging cannot have changed:
+// its number in the file that side is counted against which staging does not
+// touch — the working tree for an unstaged line, HEAD for a staged one — and
+// failing that its text, nearest to where it was in its diff. A hunk's header
+// on the other side is found by its text, nearest to where the cursor is.
+func (m *model) followCursor() {
+	v := &m.commitView
+	follow := v.follow
+	v.follow = nil
+	if follow == nil {
+		return
+	}
+	want := follow.line
+	lines := m.stagingDiff().lines
+
+	best, bestScore := -1, 0
+	consider := func(i, score int) {
+		if best < 0 || score < bestScore {
+			best, bestScore = i, score
+		}
+	}
+	for i, l := range lines {
+		if l.staged != want.staged {
+			continue
+		}
+		switch {
+		case follow.across:
+			if l.text == want.text {
+				consider(i, abs(i-v.diffCursor))
+			}
+		case stableNumber(l) != 0 && stableNumber(l) == stableNumber(want) && l.text == want.text:
+			// The very line: nothing else can score this low.
+			consider(i, -1)
+		case l.text == want.text:
+			consider(i, abs(l.at-want.at))
+		}
+	}
+	if best < 0 && !follow.across {
+		// It reads differently now, as a header does once the lines under
+		// it are counted again: whatever is where it was.
+		for i, l := range lines {
+			if l.staged == want.staged {
+				consider(i, abs(l.at-want.at))
+			}
+		}
+	}
+	if best >= 0 {
+		v.diffCursor = best
+	}
+}
+
+// stableNumber is a line's number in the file staging leaves alone, or 0 when
+// it has none there: an unstaged line's place in the working tree, a staged
+// line's place in HEAD.
+func stableNumber(l stagingLine) int {
+	if l.staged {
+		return l.num.Old
+	}
+	return l.num.New
+}
+
+func abs(n int) int {
+	if n < 0 {
+		return -n
+	}
+	return n
 }
 
 // selectedFile is the entry the file list has selected, if any.
@@ -327,37 +496,92 @@ func (m *model) showFile() {
 	}
 }
 
-// pickedLines is the range of the diff "s" acts on: the lines picked with
-// "v", or else the hunk the cursor is in, header to last line.
-func (m model) pickedLines(f fileDiff) (first, last int) {
-	v := m.commitView
-	if v.selecting {
-		return min(v.diffAnchor, v.diffCursor), max(v.diffAnchor, v.diffCursor)
+// pickedLines is what "s" in the diff box acts on: the entry of the file list
+// the lines belong to, and the range of that entry's diff. That is the lines
+// picked with "v"; or else, by where the cursor is, a whole hunk from its
+// header or the one line under it. See cursorTakesHunk.
+//
+// The box may show two entries' hunks, and a range picked across both cannot
+// be staged and unstaged at once; it means the side it was started on, and
+// the other side's lines in between are left alone. selected is the entry to
+// fall back on when the box has no lines.
+func (m model) pickedLines(d stagingDiff, selected fileDiff) (entry fileDiff, first, last int) {
+	if len(d.lines) == 0 {
+		return selected, 0, 0
 	}
-	lines := strings.Split(f.Body, "\n")
-	cursor := max(0, min(v.diffCursor, len(lines)-1))
-	first, last = cursor, len(lines)-1
+	v := m.commitView
+	clamp := func(i int) int { return max(0, min(i, len(d.lines)-1)) }
+	if v.selecting {
+		lo, hi := clamp(min(v.diffAnchor, v.diffCursor)), clamp(max(v.diffAnchor, v.diffCursor))
+		side := d.lines[clamp(v.diffAnchor)].staged
+		first, last = -1, -1
+		for _, l := range d.lines[lo : hi+1] {
+			if l.staged != side {
+				continue
+			}
+			if first < 0 {
+				first = l.at
+			}
+			last = l.at
+		}
+		entry, _ = d.entry(side)
+		return entry, first, last
+	}
+
+	cursor := d.lines[clamp(v.diffCursor)]
+	entry, _ = d.entry(cursor.staged)
+	if !m.cursorTakesHunk(d) {
+		return entry, cursor.at, cursor.at
+	}
+	lines := strings.Split(entry.Body, "\n")
+	first, last = min(cursor.at, len(lines)-1), len(lines)-1
 	for first > 0 && !strings.HasPrefix(lines[first], "@@") {
 		first--
 	}
-	for i := cursor + 1; i < len(lines); i++ {
+	for i := cursor.at + 1; i < len(lines); i++ {
 		if strings.HasPrefix(lines[i], "@@") {
 			last = i - 1
 			break
 		}
 	}
-	return first, last
+	return entry, first, last
 }
 
-// linePicked reports whether a line of the diff is under the cursor or in
-// the selection, and so drawn as a band.
-func (m model) linePicked(i int) bool {
+// cursorTakesHunk reports whether "s", with nothing picked, would move a
+// whole hunk and not just the line under the cursor. A hunk's header stands
+// for the hunk: on it the key takes all of it, and on a line below it that
+// line alone, so one key reaches both sizes without a mode to enter.
+//
+// Lines that are under no header — an untracked file is drawn as its
+// contents, a binary one as a note — go together as before: there is no
+// header to press for all of them.
+func (m model) cursorTakesHunk(d stagingDiff) bool {
+	l, ok := m.cursorLine(d)
+	if !ok || strings.HasPrefix(l.text, "@@") {
+		return true
+	}
+	entry, _ := d.entry(l.staged)
+	lines := strings.Split(entry.Body, "\n")
+	for i := min(l.at, len(lines)-1); i >= 0; i-- {
+		if strings.HasPrefix(lines[i], "@@") {
+			return false
+		}
+	}
+	return true
+}
+
+// linePicked reports whether line i of the diff box is under the cursor or
+// in the selection, and so drawn as a band. A selection only takes the lines
+// of the side it was started on, which are the ones "s" would move.
+func (m model) linePicked(d stagingDiff, i int) bool {
 	v := m.commitView
-	if !v.workingTree || v.focus != commitBoxDiff {
+	if !v.workingTree || v.focus != commitBoxDiff || i >= len(d.lines) {
 		return false
 	}
 	if v.selecting {
-		return i >= min(v.diffAnchor, v.diffCursor) && i <= max(v.diffAnchor, v.diffCursor)
+		anchor := max(0, min(v.diffAnchor, len(d.lines)-1))
+		return i >= min(v.diffAnchor, v.diffCursor) && i <= max(v.diffAnchor, v.diffCursor) &&
+			d.lines[i].staged == d.lines[anchor].staged
 	}
 	return i == v.diffCursor
 }
@@ -365,12 +589,11 @@ func (m model) linePicked(i int) bool {
 // moveDiffCursor walks the cursor through the diff with the keys that scroll
 // it on a commit. The window follows the cursor; see diffTop.
 func (m model) moveDiffCursor(msg tea.KeyMsg) model {
-	f, ok := m.selectedFile()
-	if !ok {
+	if _, ok := m.selectedFile(); !ok {
 		return m
 	}
 	v := &m.commitView
-	last := lineCount(f.Body) - 1
+	last := m.diffLineCount() - 1
 	switch msg.String() {
 	case "j", "down":
 		v.diffCursor++
@@ -399,18 +622,16 @@ const diffHeaderLines = 2
 // the mouse both ask here.
 func (m model) diffTop(rows int) int {
 	v := m.commitView
-	f, ok := m.selectedFile()
-	if !v.workingTree || !ok {
+	if _, ok := m.selectedFile(); !v.workingTree || !ok {
 		return v.diffScroll
 	}
-	return followWindow(v.diffScroll, v.diffCursor+diffHeaderLines, lineCount(f.Body)+diffHeaderLines, rows)
+	return followWindow(v.diffScroll, v.diffCursor+diffHeaderLines, m.diffLineCount()+diffHeaderLines, rows)
 }
 
 // diffLineAt is the line of the diff drawn on screen row y, or -1 when the
 // row holds the path, the blank under it, or nothing.
 func (m model) diffLineAt(y int) int {
-	f, ok := m.selectedFile()
-	if !ok {
+	if _, ok := m.selectedFile(); !ok {
 		return -1
 	}
 	l := m.currentCommitViewLayout()
@@ -419,7 +640,7 @@ func (m model) diffLineAt(y int) int {
 		return -1
 	}
 	i := m.diffTop(l.rows-2) + row - diffHeaderLines
-	if i < 0 || i >= lineCount(f.Body) {
+	if i < 0 || i >= m.diffLineCount() {
 		return -1
 	}
 	return i

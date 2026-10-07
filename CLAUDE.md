@@ -91,7 +91,7 @@ release build and the release version check all depend on it being there.
 | Loading | `load.go` (repository into model), `diff_load.go`, `reload.go`, `auto_refresh.go` (the refresh and fetch timers), `more_commits.go`, `fetch.go`, `pull.go`, `push.go` (`P`, its tag-or-branch question and the new-branch box), `checkout.go`, `branch_create.go` (`b` and its name box), `branch_delete.go` (the `d` list and the delete), `remote_tags.go`, `working_tree.go` |
 | Screen assembly | `view.go` (`View`), `layout.go` (`currentLayout`: how the width is shared), `boxes.go` (clipping, labels, overlays, `trimToHeight`), `scroll_marks.go`, `background.go` (`paintBackground`) |
 | Main screen | `repo_info.go` (top box), `graph_panel.go` (commit list and `graphWindow`), `branch_label.go`, `details_panel.go` (`fitDetails`), `line_numbers.go` (the number column in front of a diff, here and in the commit view), `status_line.go` |
-| Other screens and overlays | `commit_view.go`, `staging.go` (`s`, `S`, `v` and the diff box's cursor on uncommitted changes), `commit_prompt.go` (the `c` message box and the commit), `ref_picker.go`, `repo_switcher.go`, `theme_picker.go`, `search.go`, `filter.go` (the file-history filter and its `h` picker), `help.go`, `pull_request.go` (also opens the browser), `copy.go` (the `y` prompt and the clipboard) |
+| Other screens and overlays | `commit_view.go`, `staging.go` (`s`, `S`, `v` and the diff box's cursor on uncommitted changes), `staging_diff.go` (the diff box's lines there: a file's staged and unstaged hunks together, each marked), `commit_prompt.go` (the `c` message box and the commit), `ref_picker.go`, `repo_switcher.go`, `theme_picker.go`, `search.go`, `filter.go` (the file-history filter and its `h` picker), `help.go`, `pull_request.go` (also opens the browser), `copy.go` (the `y` prompt and the clipboard) |
 | Looks | `styles.go` (package-level styles built from the theme), `lane_colours.go` |
 | Session | `preferences.go` (what is remembered between runs), `selfupdate_tui.go` (the in-app update prompt), `terminal.go` |
 
@@ -153,7 +153,10 @@ new helpers.
   command, pinned against user config. A file with staged and unstaged changes is two
   entries, found again after each reload by path and side (`fileKey`), never by index.
   The list is in path order, so staging a file changes its mark and not its row, and
-  the selection stays on it.
+  the selection stays on it. The diff box draws both entries' hunks together
+  (`stagingDiff`), so its cursor is a row of that, not of either diff: each row knows
+  the entry and the line it came from, and the renderer, the keys and the mouse all
+  ask `stagingDiff` rather than counting an entry's `Body`.
 - **A commit has more than one marker.** `●` for a commit and `◆` for a merge, each with a
   ringed form when selected. Code looking for "the commit on this row" asks
   `git.IsCommitMarker`, not for a particular character.
