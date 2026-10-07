@@ -130,6 +130,8 @@ func (m model) updateCommitView(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		return m, nil
 	case "o":
 		return m.openPullRequest()
+	case "w":
+		return m.toggleWhitespace(), nil
 	case "y":
 		return m.openCopyPrompt(), nil
 	case "h":
@@ -527,10 +529,10 @@ func (m model) renderFileDiff(c commit, width, rows int) (string, scrollMarks) {
 			}
 			if picked {
 				sb.WriteString(gutter.renderPicked(i))
-				sb.WriteString(pickedDiffLine(l.text, width-gutter.width()-marks))
+				sb.WriteString(pickedDiffLine(l.text, width-gutter.width()-marks, m.showWhitespace))
 			} else {
 				sb.WriteString(gutter.render(i))
-				sb.WriteString(styleDiffLine(l.text))
+				sb.WriteString(styleDiffLine(l.text, m.showWhitespace))
 			}
 			sb.WriteString("\n")
 		}

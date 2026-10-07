@@ -92,7 +92,7 @@ release build and the release version check all depend on it being there.
 | Screen assembly | `view.go` (`View`), `layout.go` (`currentLayout`: how the width is shared), `boxes.go` (clipping, labels, overlays, `trimToHeight`), `scroll_marks.go`, `background.go` (`paintBackground`) |
 | Main screen | `repo_info.go` (top box), `graph_panel.go` (commit list and `graphWindow`), `branch_label.go`, `details_panel.go` (`fitDetails`), `line_numbers.go` (the number column in front of a diff, here and in the commit view), `status_line.go` |
 | Other screens and overlays | `commit_view.go`, `staging.go` (`s`, `S`, `v` and the diff box's cursor on uncommitted changes), `staging_diff.go` (the diff box's lines there: a file's staged and unstaged hunks together, each marked), `commit_prompt.go` (the `c` message box and the commit), `ref_picker.go`, `repo_switcher.go`, `theme_picker.go`, `search.go`, `filter.go` (the file-history filter and its `h` picker), `help.go`, `pull_request.go` (also opens the browser), `copy.go` (the `y` prompt and the clipboard) |
-| Looks | `styles.go` (package-level styles built from the theme), `lane_colours.go` |
+| Looks | `styles.go` (package-level styles built from the theme), `lane_colours.go`, `whitespace.go` (`w`: marks for the spaces and tabs of a diff, drawn by `styleDiffLine`) |
 | Session | `preferences.go` (what is remembered between runs), `selfupdate_tui.go` (the in-app update prompt), `terminal.go` |
 
 ### Common changes touch more than one place

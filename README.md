@@ -103,6 +103,7 @@ in `gitraffe ./update`.
 - `O` - Open another repository (see [Switching repository](#switching-repository))
 - `t` - Pick a colour theme (see [Picking a theme](#picking-a-theme))
 - `L` - Toggle lane colours in the graph (see [Graph lane colours](#graph-lane-colours))
+- `w` - Show or hide whitespace in diffs (see [Whitespace in diffs](#whitespace-in-diffs))
 - `U` - Update to the latest release (shown in the help line when one is available)
 - `q` or `Ctrl+C` - Quit
 
@@ -213,6 +214,30 @@ Why a screen of its own, rather than more boxes beside the graph? The graph is w
 gitraffe is for, and splitting the details panel three ways would have taken room
 from it on every screen to answer a question you ask on some of them. Here the commit
 has the window, and `Esc` gives the graph back untouched.
+
+### Whitespace in diffs
+
+A diff is sometimes about nothing you can see: a tab that became spaces, a space left
+at the end of a line. So both places that draw a diff — the details panel and the
+commit view — spell whitespace out, `·` for a space and `→` for a tab, in the quiet
+colour of the hints so the text still reads as text:
+
+```
+   @@ -1,3 +1,3 @@
+ 1  func·f()·{
+ 2 -→   return·one
+ 2 +····return·one·
+ 3  }
+```
+
+Press `w` on either screen to turn the marks off, and again to bring them back; the
+bottom line says which. The choice is remembered (see
+[Remembered preferences](#remembered-preferences)).
+
+The marks are only drawn. A copied diff is the diff as git wrote it, lines are
+staged as they are in the file, and a mark is exactly as wide as what it stands for,
+so nothing moves when they are switched. The blank column git puts in front of an
+unchanged line is not part of the file and is left blank.
 
 ### Staging and committing
 
@@ -871,14 +896,15 @@ next run starts where the last one left off:
 | `lane_colours` | whether the graph is coloured per branch (`L`) |
 | `focused_box` | the panel that had focus, `1` or `2` |
 | `maximised` | whether that panel filled the window (`Enter`) |
+| `whitespace` | whether diffs spell out spaces and tabs (`w`) |
 
 `auto_refresh` and `auto_fetch` live in the same file but are yours to write: see
 [Auto-refresh](#auto-refresh).
 
-`lane_colours`, `focused_box` and `maximised` are written when gitraffe exits, not as you press the keys, since `L`
+`lane_colours`, `focused_box`, `maximised` and `whitespace` are written when gitraffe exits, not as you press the keys, since `L`
 and `tab` are pressed often and the file is only read at startup. Delete the file,
-or any single key in it, to go back to the defaults: fullscreen, lane colours on, the
-graph focused. A `focused_box` naming a panel that doesn't exist is ignored.
+or any single key in it, to go back to the defaults: fullscreen, lane colours on, whitespace
+shown, the graph focused. A `focused_box` naming a panel that doesn't exist is ignored.
 
 ## Uncommitted changes
 

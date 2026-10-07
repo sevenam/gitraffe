@@ -16,6 +16,9 @@ func applyPreferences(m model) model {
 	if s.Maximised != nil {
 		m.maximised = *s.Maximised
 	}
+	if s.Whitespace != nil {
+		m.showWhitespace = *s.Whitespace
+	}
 	m.autoRefresh = defaultAutoRefresh
 	if s.AutoRefresh != nil {
 		m.autoRefresh = interval(*s.AutoRefresh, minAutoRefresh)
@@ -38,5 +41,6 @@ func savePreferences(m model) error {
 	s.LaneColours = &m.colourLanes
 	s.FocusedBox = m.focusedBox
 	s.Maximised = &m.maximised
+	s.Whitespace = &m.showWhitespace
 	return config.Save(m.configDir, s)
 }

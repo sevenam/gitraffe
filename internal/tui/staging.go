@@ -663,8 +663,10 @@ func (m model) diffLineAt(y int) int {
 }
 
 // pickedDiffLine draws a line of the diff under the cursor or in the
-// selection: a band the width of the box, in the line's own colour.
-func pickedDiffLine(line string, width int) string {
+// selection: a band the width of the box, in the line's own colour. With
+// whitespace its spaces and tabs are spelled out, in that colour too: the band
+// is one style from edge to edge.
+func pickedDiffLine(line string, width int, whitespace bool) string {
 	colour := theme.Current.SelectedFg
 	switch {
 	case strings.HasPrefix(line, "+"):
@@ -675,7 +677,11 @@ func pickedDiffLine(line string, width int) string {
 		colour = theme.Current.DiffHunk
 	}
 	// Tabs are spelled out so the band's width can be counted.
-	text := ansi.Truncate(expandTabs(line), width, "")
+	shown := expandTabs(line)
+	if prefix, content, ok := diffContent(line); ok && whitespace {
+		shown = prefix + markWhitespace(content)
+	}
+	text := ansi.Truncate(shown, width, "")
 	if pad := width - ansi.StringWidth(text); pad > 0 {
 		text += strings.Repeat(" ", pad)
 	}

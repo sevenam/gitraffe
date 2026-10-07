@@ -55,6 +55,9 @@ type Settings struct {
 	LaneColours *bool `yaml:"lane_colours,omitempty"`
 	FocusedBox  int   `yaml:"focused_box,omitempty"`
 	Maximised   *bool `yaml:"maximised,omitempty"`
+	// Whitespace carries the "w" toggle the same way: marks for spaces and
+	// tabs in a diff are on by default, so off has to be a saved false.
+	Whitespace *bool `yaml:"whitespace,omitempty"`
 	// AutoRefresh is how often, in seconds, the open repository is checked for
 	// changes. It is a pointer for the same reason as the toggles above: absent
 	// means the default interval, and 0 means never.

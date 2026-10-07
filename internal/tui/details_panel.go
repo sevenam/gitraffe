@@ -132,7 +132,7 @@ func (m *model) renderDiffSections(c commit) string {
 		gutter := newDiffGutter(git.LineNumbers(c.DiffBody))
 		for i, line := range strings.Split(c.DiffBody, "\n") {
 			sb.WriteString(gutter.render(i))
-			sb.WriteString(styleDiffLine(line))
+			sb.WriteString(styleDiffLine(line, m.showWhitespace))
 			sb.WriteString("\n")
 		}
 	} else if !c.DiffLoaded {
@@ -181,7 +181,7 @@ func (m *model) renderFilteredDiff(c commit, only []fileDiff) string {
 		gutter := newDiffGutter(f.LineNumbers())
 		for j, line := range strings.Split(f.Body, "\n") {
 			sb.WriteString(gutter.render(j))
-			sb.WriteString(styleDiffLine(line))
+			sb.WriteString(styleDiffLine(line, m.showWhitespace))
 			sb.WriteString("\n")
 		}
 	}
@@ -191,7 +191,22 @@ func (m *model) renderFilteredDiff(c commit, only []fileDiff) string {
 // styleDiffLine colours one line of a diff by what git meant it to be. The
 // "+++"/"---" headers start with the same characters as an added and a removed
 // line and are neither, so they are told apart before the colouring.
-func styleDiffLine(line string) string {
+//
+// whitespace spells out the spaces and tabs of a line of the file, in the
+// line's own colour between them; see whitespace.go. The column git puts in
+// front of the line is left as it is: on a line that did not change it is a
+// space, and is no part of the file.
+func styleDiffLine(line string, whitespace bool) string {
+	if prefix, content, ok := diffContent(line); ok && whitespace {
+		style := lipgloss.NewStyle()
+		switch prefix {
+		case "+":
+			style = style.Foreground(lipgloss.Color(theme.Current.DiffAdd))
+		case "-":
+			style = style.Foreground(lipgloss.Color(theme.Current.DiffDel))
+		}
+		return style.Render(prefix) + renderWhitespace(content, style)
+	}
 	switch {
 	case strings.HasPrefix(line, "+") && !strings.HasPrefix(line, "+++"):
 		return lipgloss.NewStyle().Foreground(lipgloss.Color(theme.Current.DiffAdd)).Render(line)
