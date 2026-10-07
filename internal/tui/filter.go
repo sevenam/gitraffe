@@ -29,7 +29,7 @@ import (
 
 // filePicker is the list opened with "h" on the graph: every file in the
 // repository, narrowed by typing, to show one file's history. It is a box like
-// the branch list on "b" rather than a line of its own, because the point of
+// the branch list on "B" rather than a line of its own, because the point of
 // it is the list: nobody remembers where a file lives, only roughly what it is
 // called.
 type filePicker struct {

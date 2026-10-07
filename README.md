@@ -18,10 +18,11 @@ A text-based UI git graph command line tool built with Golang, Bubble Tea, go-gi
 - ⬇️ `p` pulls: fetch, then fast-forward your branch — and nothing riskier than that (see [Pulling](#pulling))
 - ⬆️ `P` pushes your branch — never by force — and asks before creating a branch or a tag on the remote (see [Pushing](#pushing))
 - 🔀 `c` checks out the selected commit's branch, and refuses while you have uncommitted changes (see [Checking out](#checking-out))
+- 🌱 `b` starts a new branch where you are and switches to it (see [Creating a branch](#creating-a-branch))
 - 🗑️ `d` deletes the selected commit's branch — local, remote or both — and refuses when its commits are on no other branch (see [Deleting branches](#deleting-branches))
 - 🌐 `o` opens the commit's pull request in your browser, on GitHub or Azure DevOps, read from the merge subject and the remote (see [Opening a pull request](#opening-a-pull-request))
 - 📋 `y` copies the commit's hash, subject or whole diff (see [Copying](#copying))
-- 🔖 `b` jumps to any branch or tag, typing to narrow the list (see [Jumping to a branch or tag](#jumping-to-a-branch-or-tag))
+- 🔖 `B` jumps to any branch or tag, typing to narrow the list (see [Jumping to a branch or tag](#jumping-to-a-branch-or-tag))
 - 🔄 Keeps itself up to date: changes on your machine appear without a keypress, and it can fetch on a timer too (see [Auto-refresh](#auto-refresh))
 - 🎨 Beautiful styling with Lip Gloss
 - ⌨️  Keyboard navigation (arrow keys, vim-style)
@@ -89,6 +90,7 @@ in `gitraffe ./update`.
 - `p` - Pull: fetch, then fast-forward this branch (see [Pulling](#pulling))
 - `P` - Push this branch, or the selected commit's unpushed tag (see [Pushing](#pushing))
 - `c` - Check out this commit's branch (see [Checking out](#checking-out))
+- `b` - New branch from where you are, switched to (see [Creating a branch](#creating-a-branch))
 - `d` - Delete this commit's branch: local, remote or both (see [Deleting branches](#deleting-branches))
 - `o` - Open this commit's pull request in a browser (see [Opening a pull request](#opening-a-pull-request))
 - `y` - Copy this commit's hash (`y` again), subject (`s`) or diff (`d`) (see [Copying](#copying))
@@ -97,7 +99,7 @@ in `gitraffe ./update`.
 - `/` - Search commits, then `n` / `N` for next and previous (see [Searching](#searching))
 - `h` - Show only the commits that changed a file or directory, picked from a list; `Esc` for all of them again (see [A file's history](#a-files-history))
 - `m` - Read more of a long history (see [Long histories](#long-histories))
-- `b` - Jump to a branch or tag (see [Jumping to a branch or tag](#jumping-to-a-branch-or-tag))
+- `B` - Jump to a branch or tag (see [Jumping to a branch or tag](#jumping-to-a-branch-or-tag))
 - `O` - Open another repository (see [Switching repository](#switching-repository))
 - `t` - Pick a colour theme (see [Picking a theme](#picking-a-theme))
 - `L` - Toggle lane colours in the graph (see [Graph lane colours](#graph-lane-colours))
@@ -313,7 +315,7 @@ A diff longer than 800 lines is cut on screen, and only the lines shown can be p
 
 ### Jumping to a branch or tag
 
-Press `b` for a list of every branch and tag in the repository, and `Enter` to put the
+Press `B` for a list of every branch and tag in the repository, and `Enter` to put the
 selection on the one you pick. Typing narrows the list — the match is anywhere in the
 name and ignores case, so `fix` finds `bugfix` as well as `fix-the-parser` — and the
 arrow keys move through what is left. `Esc` closes it and keeps the commit you had.
@@ -591,6 +593,45 @@ would carry such changes over to the other branch, which is how work gets commit
 in the wrong place. Untracked files don't count: they belong to no branch, and git
 refuses on its own if the switch would overwrite one. If git refuses for any other
 reason, the bottom line gives git's reason after `Checkout failed:`.
+
+### Creating a branch
+
+Press `b` to start a new branch. A box asks for its name; `Enter` makes the branch and
+switches to it, and the bottom line says `Created feature and switched to it`. `Esc`
+closes the box with nothing made.
+
+```
+╭─────────────────────────────────────────────────────────────╮
+│                                                             │
+│  New branch  starts where you are, not at the selection     │
+│                                                             │
+│  From  main                                                 │
+│  Name  feature/refunds                                      │
+│                                                             │
+│  enter: create it and switch to it • esc: cancel            │
+│                                                             │
+╰─────────────────────────────────────────────────────────────╯
+```
+
+- **It starts where you are**: at the commit you have checked out, named in the box,
+  and not at the commit selected in the graph. The selection is wherever reading the
+  history last left it, and a branch started there would start somewhere you never
+  chose. To branch from another commit, check it out with `c` first, then press `b`.
+- **Uncommitted changes come along.** Unlike [checking out](#checking-out), nothing
+  is refused over them: no file is touched, staged or not, so they are exactly as
+  they were, on a branch that is the old one under a new name. That makes `b` the way
+  to move work you started on the wrong branch.
+- **On a detached HEAD** it is the way back onto a branch, keeping whatever was
+  committed there.
+- **The name is checked while the box is open**: one git would not accept, or one a
+  branch already has, is said in the box, which stays open for another.
+- **The new branch tracks nothing**, whatever `branch.autoSetupMerge` says, so the
+  first `P` asks where to create it on the remote (see [Pushing](#pushing)) rather
+  than pushing to the old branch's upstream.
+- **Not during a merge or a rebase**: the operation belongs to the branch it was
+  started on, so the bottom line says to finish it first.
+
+It is `git switch --no-track -c <name>`.
 
 ### Deleting branches
 

@@ -132,6 +132,13 @@ func (m model) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 		return m.finishCopyDiff(msg), nil
 
+	case branchCreatedMsg:
+		// As a switch: it is HEAD of the repository it ran in that moved.
+		if msg.repoPath != m.repoPath {
+			return m, nil
+		}
+		return m.finishBranch(msg)
+
 	case switchFinishedMsg:
 		// A switch is answered by the repository it ran in; the one on
 		// screen now has its own HEAD, which this says nothing about.

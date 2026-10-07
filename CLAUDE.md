@@ -72,6 +72,7 @@ release build and the release version check all depend on it being there.
 | `pull.go` | `Pull`: fetch, then fast-forward or nothing |
 | `push.go` | `Push`, `PushNewBranch`, `PushTag`: one branch or one tag, moved forward or created, never forced; `ReadPushPlan` (what the branch tracks and where a new one would go) |
 | `switch.go` | `Switch`, `SwitchTargets`: checking out a branch, refused while there are uncommitted changes |
+| `branch.go` | `CreateBranch`: a new branch at HEAD, switched to, tracking nothing; `BranchExists` |
 | `stage.go` | `StageFile`, `UnstageFile`, `StageAll`, `StageLines` (a patch of picked lines for `git apply --cached`; see `buildPatch`), `CommitStaged`, `WorkingState` (a merge or rebase in progress, a detached HEAD) |
 | `delete.go` | `DeleteBranch`, `DeleteTargets`: deleting a local or remote branch, refused when its commits are on no other branch |
 | `remote_tags.go` | which tags the remotes hold |
@@ -86,7 +87,7 @@ release build and the release version check all depend on it being there.
 | --- | --- |
 | Entry and state | `run.go` (`Run`, `Version`, `LogPath`), `model.go` (all state), `types.go` (aliases for the git types), `messages.go` |
 | Event loop | `update.go` (`Init`, `Update`, message handling), `keys.go` (`handleKey`: who owns the keyboard, and every key binding), `mouse.go` |
-| Loading | `load.go` (repository into model), `diff_load.go`, `reload.go`, `auto_refresh.go` (the refresh and fetch timers), `more_commits.go`, `fetch.go`, `pull.go`, `push.go` (`P`, its tag-or-branch question and the new-branch box), `checkout.go`, `branch_delete.go` (the `d` list and the delete), `remote_tags.go`, `working_tree.go` |
+| Loading | `load.go` (repository into model), `diff_load.go`, `reload.go`, `auto_refresh.go` (the refresh and fetch timers), `more_commits.go`, `fetch.go`, `pull.go`, `push.go` (`P`, its tag-or-branch question and the new-branch box), `checkout.go`, `branch_create.go` (`b` and its name box), `branch_delete.go` (the `d` list and the delete), `remote_tags.go`, `working_tree.go` |
 | Screen assembly | `view.go` (`View`), `layout.go` (`currentLayout`: how the width is shared), `boxes.go` (clipping, labels, overlays, `trimToHeight`), `scroll_marks.go`, `background.go` (`paintBackground`) |
 | Main screen | `repo_info.go` (top box), `graph_panel.go` (commit list and `graphWindow`), `branch_label.go`, `details_panel.go` (`fitDetails`), `line_numbers.go` (the number column in front of a diff, here and in the commit view), `status_line.go` |
 | Other screens and overlays | `commit_view.go`, `staging.go` (`s`, `S`, `v` and the diff box's cursor on uncommitted changes), `commit_prompt.go` (the `c` message box and the commit), `ref_picker.go`, `repo_switcher.go`, `theme_picker.go`, `search.go`, `filter.go` (the file-history filter and its `h` picker), `help.go`, `pull_request.go` (also opens the browser), `copy.go` (the `y` prompt and the clipboard) |
@@ -160,7 +161,9 @@ new helpers.
   `config.Save`), so one setting never drops another.
 - **Gitraffe only does to a repository what cannot lose work or need resolving.** That is a
   fetch, a fast-forward of the current branch, a switch of branch with a clean working tree
-  (`git switch`, never `git checkout`, and refused while tracked files have changes), the
+  (`git switch`, never `git checkout`, and refused while tracked files have changes), a
+  new branch where HEAD already is (which touches no file, so nothing is refused over
+  uncommitted changes), the
   deletion of a branch whose commits stay on another branch or tag, staging and
   committing, and a push that moves a remote branch forward or creates a branch or a tag;
   a merge, a rebase or a forced push is not. Staging only copies changes

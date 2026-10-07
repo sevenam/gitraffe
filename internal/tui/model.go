@@ -52,7 +52,7 @@ type model struct {
 	deletePicker        deletePicker   // the list "d" opens; see branch_delete.go
 	deleting            bool           // a branch delete is running
 	picker              themePicker
-	refs                refPicker // the branch and tag list opened with "b"
+	refs                refPicker // the branch and tag list opened with "B"
 	switcher            repoSwitcher
 	repoRoot            string // absolute root of the open repository; "" until it has loaded
 	reselect            string // full hash to reselect once a reload finishes; see reloadRepo
@@ -75,6 +75,8 @@ type model struct {
 	// Pushing; see push.go.
 	push    pushPrompt // what "P" has to ask before it pushes
 	pushing bool       // a push is running
+
+	branchPrompt branchPrompt // the name "b" asks for; see branch_create.go
 
 	configDir    string // gitraffe's config directory; "" means a picked theme can't be saved
 	notice       string // one-off status line text, e.g. the theme just saved; cleared by the next key
