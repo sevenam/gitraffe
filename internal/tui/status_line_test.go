@@ -77,3 +77,68 @@ func TestStatusLinePinsPositionRight(t *testing.T) {
 		}
 	}
 }
+
+// fileListModel is a commit view open on a commit of n files.
+func fileListModel(n int) model {
+	m := testModel()
+	m.commits = []commit{{DiffLoaded: true, DiffFiles: make([]fileDiff, n)}}
+	m.commitView = commitView{open: true, focus: commitBoxFiles}
+	return m
+}
+
+func TestFilePosition(t *testing.T) {
+	for _, tc := range []struct {
+		name        string
+		files, file int
+		want        string
+	}{
+		{"first file", 12, 0, "1/12 · 8%"},
+		{"a quarter in", 12, 2, "3/12 · 25%"},
+		{"last file", 12, 11, "12/12 · 100%"},
+		{"only file", 1, 0, "1/1 · 100%"},
+		// A selection left over from a longer list is drawn on the last file.
+		{"selection past the end", 3, 9, "3/3 · 100%"},
+		{"no files", 0, 0, ""},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			m := fileListModel(tc.files)
+			m.commitView.file = tc.file
+			if got := m.filePosition(); got != tc.want {
+				t.Errorf("position = %q, want %q", got, tc.want)
+			}
+		})
+	}
+}
+
+// Before the diff arrives there is no list to be anywhere in.
+func TestFilePositionWaitsForTheDiff(t *testing.T) {
+	m := fileListModel(3)
+	m.commits[0].DiffLoaded = false
+	if got := m.filePosition(); got != "" {
+		t.Errorf("position before the diff loaded = %q, want nothing", got)
+	}
+}
+
+// The position holds the bottom right corner on every form of the line that
+// shows key hints, however narrow the window, and gives it up to a notice.
+func TestCommitViewStatusLineEndsInTheFilePosition(t *testing.T) {
+	for _, width := range []int{200, 60, 30} {
+		for _, working := range []bool{false, true} {
+			m := fileListModel(12)
+			m.commits[0].WorkingTree = working
+			m.commitView.workingTree = working
+			m.commitView.file = 2
+			m.windowWidth = width
+			line := ansi.Strip(m.commitViewStatusLine())
+			if !strings.HasSuffix(line, "3/12 · 25%") || ansi.StringWidth(line) != width {
+				t.Errorf("width %d, working tree %v: line = %q", width, working, line)
+			}
+		}
+	}
+
+	m := fileListModel(12)
+	m.notice = "Copied"
+	if line := ansi.Strip(m.commitViewStatusLine()); strings.Contains(line, "/12") {
+		t.Errorf("a notice shares the line with the position: %q", line)
+	}
+}

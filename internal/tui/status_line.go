@@ -72,15 +72,19 @@ func (m *model) renderStatusLine() string {
 		help = "esc: clear filter • " + help
 	}
 
-	// The position is pinned to the right edge and the key help gives way to
-	// it: help is there once, while the position changes with every keypress.
-	pos := m.graphPosition()
-	if pos == "" || m.windowWidth <= 0 || ansi.StringWidth(pos)+2 > m.windowWidth {
-		return truncateLines(helpStyle.Render(help), m.windowWidth)
+	return pinRight(help, m.graphPosition(), m.windowWidth)
+}
+
+// pinRight is a status line of key help with a position against the right
+// edge. The help gives way to the position: help is there once, while the
+// position changes with every keypress.
+func pinRight(help, pos string, width int) string {
+	if pos == "" || width <= 0 || ansi.StringWidth(pos)+2 > width {
+		return truncateLines(helpStyle.Render(help), width)
 	}
-	room := m.windowWidth - ansi.StringWidth(pos) - 2
+	room := width - ansi.StringWidth(pos) - 2
 	help = ansi.Truncate(help, room, "")
-	gap := m.windowWidth - ansi.StringWidth(help) - ansi.StringWidth(pos)
+	gap := width - ansi.StringWidth(help) - ansi.StringWidth(pos)
 	return helpStyle.Render(help + strings.Repeat(" ", gap) + pos)
 }
 
