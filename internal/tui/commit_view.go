@@ -543,10 +543,26 @@ func (m model) commitViewStatusLine() string {
 		if f, ok := m.selectedFile(); ok && f.Staged {
 			hints = strings.ReplaceAll(hints, "s: stage", "s: unstage")
 		}
-		return truncateLines(helpStyle.Render(hints), m.windowWidth)
+		return pinRight(hints, m.filePosition(), m.windowWidth)
 	}
-	return truncateLines(helpStyle.Render(
-		"esc: back • 1/2/3: focus box • tab: cycle • ↑/↓/j/k: move • h: file history • ?: help"), m.windowWidth)
+	return pinRight("esc: back • 1/2/3: focus box • tab: cycle • ↑/↓/j/k: move • h: file history • ?: help",
+		m.filePosition(), m.windowWidth)
+}
+
+// filePosition says which file of the list is selected, e.g. "3/12 · 25%", in
+// the corner where the graph screen says which commit is. The box's label has
+// the total; in a list longer than the box, this is how far down it you are.
+func (m model) filePosition() string {
+	c, ok := m.viewedCommit()
+	if !ok || !c.DiffLoaded {
+		return ""
+	}
+	total := len(c.DiffFiles)
+	if total == 0 {
+		return ""
+	}
+	pos := max(0, min(m.commitView.file, total-1)) + 1
+	return fmt.Sprintf("%s/%s · %d%%", thousands(pos), thousands(total), pos*100/total)
 }
 
 // fileTop is the first file drawn in a list of this many rows. It follows the

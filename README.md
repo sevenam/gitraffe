@@ -173,7 +173,7 @@ file is chosen. `Esc` or `q` comes back to the graph, exactly as it was.
 │   …/helper.go +1 -0 ││                                             │
 │   README.md   +2 -0 ││                                             │
 ╰─────────────────────╯╰─────────────────────────────────────────────╯
-esc: back • 1/2/3: focus box • tab: cycle • ↑/↓/j/k: move • ?: help
+esc: back • 1/2/3: focus box • tab: cycle • ↑/↓/j/k: move      1/3 · 33%
 ```
 
 `1`, `2` and `3` choose a box and `tab` cycles them; `↑/↓` or `j/k` then move in the
@@ -181,6 +181,10 @@ one that has focus — down the file list, or through the details and the diff. 
 to another file puts its diff at the top, since a line count from the file before it
 would mean nothing. Clicking a file selects it, and the wheel scrolls whichever box
 the pointer is over.
+
+The right end of the bottom line says which file of the list is chosen, as in
+`3/12 · 25%` — the same corner that says where you are in the history on the graph
+screen, so a list longer than its box still shows how far down it you are.
 
 The file list is git's own account of the commit rather than a second reading of it:
 both the list and the diffs are split out of the same `git show`, so a file cannot be
