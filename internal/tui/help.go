@@ -102,9 +102,9 @@ var commitViewHelp = []helpSection{
 var stagingViewHelp = []helpSection{
 	{"Uncommitted changes", []keyBinding{
 		{"s", "files: stage or unstage the file"},
-		{"s", "diff: stage or unstage the hunk under the cursor"},
+		{"s", "diff: on a hunk's @@ line the hunk, below it the line"},
 		{"v", "diff: pick lines for s, from here to where you move; esc lets go"},
-		{"S", "stage everything, or unstage it all when nothing is left"},
+		{"S", "files: stage or unstage everything; diff: this file"},
 		{"c", "commit what is staged: type a message, enter commits"},
 		{"1 / 2 / 3  tab", "focus commit / files / diff, or cycle"},
 		{"↑ / ↓  k / j", "move in the focused box"},

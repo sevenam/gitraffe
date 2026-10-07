@@ -236,26 +236,68 @@ esc: back • s: stage file • S: all • c: commit • 3: diff, for hunks and 
 Each row of the file list says which side it is on: `●` is staged — what the next
 commit will hold — and `○` is not. The files are listed by path whichever side they
 are on, so staging one changes its mark and leaves it where it is. A file with some
-changes staged and some not is listed twice, the staged half first, so the diff
-beside a row is exactly what `s` on that row would move.
+changes staged and some not is listed twice, the staged half first, and `s` on a row
+moves that half.
+
+The diff box shows the file whole beside either row, with the same marks in front
+of every hunk and every line it changes:
+
+```
+parser.go  partly staged
+
+●    @@ -18,5 +18,5 @@ func parse(
+  18  	for _, tok := range toks {
+● 19 -		amount = -amount
+● 19 +		amount = abs(amount)
+  20  	}
+○    @@ -40,3 +40,4 @@ func report(
+  40  	total := sum(rows)
+○ 41 +	log.Println(total)
+  42  	return total
+```
+
+So staging a hunk does not make it disappear: its mark turns from `○` to `●` and it
+stays under the cursor, in its place in the file, and what is left to stage is still
+in view around it.
 
 | Where | Key | Does |
 | --- | --- | --- |
 | files | `s` | stage the selected file, or unstage it if it is staged |
-| diff | `s` | stage or unstage the hunk under the cursor |
+| diff | `s` on a hunk's `@@` line | stage or unstage that whole hunk |
+| diff | `s` on a line below it | stage or unstage just that line |
 | diff | `v`, move, `s` | pick lines, then stage or unstage just those; `Esc` lets go of them |
-| any | `S` | stage everything; when everything is staged already, unstage it all |
+| files | `S` | stage everything; when everything is staged already, unstage it all |
+| diff | `S` | stage all of the file shown; when all of it is staged already, unstage it |
 | any | `c` | commit what is staged |
 
 Here the diff box has a cursor, which `↑/↓`, `j/k`, the wheel and a click all move; the
-box follows it. With nothing picked, `s` takes the hunk the cursor is in, from its
-`@@` line to the next. For less than a hunk, press `v` on a line and move: the lines
-from there to the cursor are picked, and `s` stages the changed ones among them — so
-`v` `s` on one line stages that line. After `s` the cursor stays put and the next hunk
-moves up under it, so pressing it again works down the file. On the file list the
-selection stays on the file too: `s` again takes it back, and moving on to the next
-file is yours to do. When the last of a file's changes is staged from the diff, the
-selection goes to its staged half rather than to another file.
+box follows it. Where the cursor is says how much `s` takes: on a hunk's `@@` line,
+the whole hunk down to the next `@@`; on a `+` or `-` line below it, that line alone.
+On a line that changes nothing it says there is nothing there to stage. For several
+lines at once, press `v` on a line and move: the lines from there to the cursor are
+picked, and `s` stages the changed ones among them. A new file git has not seen
+before has no `@@` line, so `s` anywhere in it takes the file.
+
+`s` goes whichever way the mark under the cursor says: on a `○` hunk or line it
+stages, on a `●` one it unstages, and the bottom line says which. Lines picked with
+`v` across a staged hunk and one that is not keep to the side they were started on,
+and the band is only drawn on those.
+
+Where the cursor is afterwards depends on what was moved:
+
+- **A file or a whole hunk** stays under the cursor, with its new mark. Nothing
+  jumps: `s` again takes it back, and moving on to the next is yours to do.
+- **A line** leaves the cursor in the hunk it was staged from, on the line below
+  it. So `s` pressed again takes the next line, and a hunk can be staged a line at
+  a time without moving; step over a line with `↓` to leave it out.
+
+Lines staged out of the middle of a hunk are drawn as a hunk of their own, a few
+rows from where they were, because that is what they are to git: the box shows the
+two diffs git keeps — the index against the last commit, your files against the
+index — interleaved in file order, and the unchanged lines around a change appear
+with each. To take such a line back, move to it there and press `s`. When the last of a file's changes is
+staged, the selection in the file list goes to its staged row rather than to another
+file, and the diff stays as it was.
 
 `c` opens a box for the message, with a subject line and a body:
 
