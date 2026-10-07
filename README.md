@@ -333,8 +333,12 @@ with the new commit selected.
 
 What it will and won't do:
 
-- **Only what is staged is committed.** With nothing staged, `c` says
-  `Nothing staged` rather than committing everything.
+- **Only what is staged is committed.** With nothing staged, `c` takes that to mean
+  all of it: it stages every change, opens the message box, and says so on the
+  bottom line for as long as the box is open —
+  `Nothing was staged, so all changes were: 3 files in this commit`. Nothing is
+  committed until `Enter`. `Esc` closes the box and leaves the files staged; `S`
+  takes them back. Once anything is staged, `c` commits that and no more.
 - **Staging never touches your files.** It copies changes into git's index, and
   unstaging takes them out again; the files on disk stay as they are either way.
 - **Hooks run, and are obeyed.** A `pre-commit` or `commit-msg` hook that refuses

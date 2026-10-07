@@ -20,6 +20,13 @@ import (
 // message and commits what is staged — only that, and only on enter. See
 // git.CommitStaged for what the commit itself does and refuses.
 //
+// With nothing staged, "c" stages everything first and says so for as long
+// as the box is open: someone who staged nothing and asks to commit means all
+// of it, and being sent back to press "S" first was a step that taught
+// nothing. It is still only staging, which copies changes into the index and
+// loses none; nothing is committed until enter, and esc leaves a list of
+// staged files that "S" takes back.
+//
 // The message is two fields, a subject line and a body, because that is what
 // a commit message is; and because it lets enter mean "commit" where one line
 // is being typed and "new line" where several are, with tab between the two.
@@ -36,6 +43,9 @@ type commitPrompt struct {
 	// failure is why the last try did not commit: nothing typed, or what git
 	// or a hook of the repository's said.
 	failure string
+	// autoStaged is how many files "c" staged itself, nothing having been
+	// staged when it was pressed; 0 when the box holds what the user staged.
+	autoStaged int
 }
 
 type commitFinishedMsg struct {
@@ -85,24 +95,34 @@ func (p commitPrompt) bodyRoom() int {
 }
 
 // openCommitPrompt asks for the message, or says why there is nothing to
-// commit yet.
-func (m model) openCommitPrompt() model {
+// commit yet. With changes and none of them staged it stages them all first,
+// and the box opens when that is done; see finishStage.
+func (m model) openCommitPrompt() (model, tea.Cmd) {
 	if !m.commitView.workingTree || m.staging || m.committing {
-		return m
+		return m, nil
 	}
 	switch {
 	case m.workingState.Operation != "":
 		m.notice = inProgressNotice(m.workingState.Operation)
-		return m
+		return m, nil
 	case m.workingState.Detached:
 		m.notice = "HEAD is on no branch — check one out before committing, or the commit is easy to lose"
-		return m
+		return m, nil
+	case len(m.viewedFiles()) == 0:
+		m.notice = "Nothing to commit — there are no changes"
+		return m, nil
 	case stagedCount(m.viewedFiles()) == 0:
-		// Not "commit everything": what goes in is what was put there.
-		m.notice = "Nothing staged — press s on a file or a hunk to stage it"
-		return m
+		m.staging = true
+		m.commitView.selecting = false
+		m.commitView.commitNext = true
+		return m, stageCmd(m.repoPath, m.diffStatWidth(), git.StageAll)
 	}
+	return m.showCommitPrompt(0), nil
+}
 
+// showCommitPrompt opens the box. autoStaged is how many files were staged
+// to make a commit of, when "c" did that itself.
+func (m model) showCommitPrompt(autoStaged int) model {
 	p := &m.commitPrompt
 	if !p.started {
 		p.subject = textinput.New()
@@ -126,7 +146,7 @@ func (m model) openCommitPrompt() model {
 		}
 		p.started = true
 	}
-	p.open, p.failure = true, ""
+	p.open, p.failure, p.autoStaged = true, "", autoStaged
 	p.focusField(false)
 	p.resize(m.windowWidth)
 	return m

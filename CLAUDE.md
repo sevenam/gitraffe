@@ -174,8 +174,8 @@ new helpers.
   deletion of a branch whose commits stay on another branch or tag, staging and
   committing, and a push that moves a remote branch forward or creates a branch or a tag;
   a merge, a rebase or a forced push is not. Staging only copies changes
-  into the index and back, never touching a file; a commit holds only what was staged, is
-  made only by `c` then `Enter`, runs the repository's hooks and never skips one, and is
+  into the index and back, never touching a file; a commit holds only what was staged (`c` with nothing staged stages everything
+  first, and says so), is made only by `c` then `Enter`, runs the repository's hooks and never skips one, and is
   refused on a detached HEAD or during a merge or rebase. A push names the one branch or
   tag it sends, so no push setting can widen it, runs the `pre-push` hook, and is refused
   by git, changing nothing, when the remote has commits the branch lacks or a tag of that
