@@ -20,7 +20,7 @@ A text-based git command line tool built with Golang, Bubble Tea, go-git, and Li
 - 🔀 `c` checks out the selected commit's branch, and refuses while you have uncommitted changes (see [Checking out](#checking-out))
 - 🌱 `b` starts a new branch at the selected commit and switches to it (see [Creating a branch](#creating-a-branch))
 - 🗑️ `d` deletes the selected commit's branch — local, remote or both — and refuses when its commits are on no other branch (see [Deleting branches](#deleting-branches))
-- 🌐 `o` opens the commit's pull request in your browser, on GitHub or Azure DevOps, read from the merge subject and the remote (see [Opening a pull request](#opening-a-pull-request))
+- 🌐 `o` opens the commit's pull request in your browser, on GitHub or Azure DevOps, read from the merge subject and the remote — or the page that starts one, for a branch that has none yet (see [Opening a pull request](#opening-a-pull-request))
 - 📋 `y` copies the commit's hash, subject or whole diff (see [Copying](#copying))
 - 🔖 `B` jumps to any branch or tag, typing to narrow the list (see [Jumping to a branch or tag](#jumping-to-a-branch-or-tag))
 - 🔄 Keeps itself up to date: changes on your machine appear without a keypress, and it can fetch on a timer too (see [Auto-refresh](#auto-refresh))
@@ -92,7 +92,7 @@ in `gitraffe ./update`.
 - `c` - Check out this commit's branch (see [Checking out](#checking-out))
 - `b` - New branch at this commit, switched to (see [Creating a branch](#creating-a-branch))
 - `d` - Delete this commit's branch: local, remote or both (see [Deleting branches](#deleting-branches))
-- `o` - Open this commit's pull request in a browser (see [Opening a pull request](#opening-a-pull-request))
+- `o` - Open this commit's pull request in a browser, or start one from its branch (see [Opening a pull request](#opening-a-pull-request))
 - `y` - Copy this commit's hash (`y` again), subject (`s`) or diff (`d`) (see [Copying](#copying))
 - `r` or `F5` - Reload the repository (see [Reloading](#reloading))
 - `f` - Fetch from the remote, then reload (see [Fetching](#fetching))
@@ -414,10 +414,40 @@ subjects are only read on that host's remotes: a repository moved from GitHub to
 Azure DevOps keeps its old merge commits, and their numbers would be someone else's
 pull request there.
 
-Some commits leave nothing behind to find, and gitraffe says so on the bottom line
+Some commits leave nothing behind to find: a rebase merge on either host, a commit
+not yet merged, or an Azure DevOps pull request whose commit message was rewritten
+without the `Merged PR 59:` at the front. Gitraffe then looks for a pull request to
+start (below), and when there is none of those either it says so on the bottom line
 rather than appearing to ignore the key, as it does when the repository has no
-remote: a rebase merge on either host, a commit not yet merged, or an Azure DevOps pull request whose commit
-message was rewritten without the `Merged PR 59:` at the front.
+remote.
+
+#### Starting a pull request
+
+On a commit that came from no pull request, `o` opens the page that starts one from
+the branch on that commit, and the bottom line says
+`Opening a new pull request for fix/sign-flip in your browser`:
+
+```
+https://github.com/sevenam/gitraffe/compare/fix/sign-flip?expand=1                  ← GitHub
+https://dev.azure.com/sevenam/tools/_git/gitraffe/pullrequestcreate?sourceRef=…     ← Azure DevOps
+```
+
+Nothing is created by the key: the page opens ready to fill in, into the
+repository's default branch unless you choose another there. Gitraffe cannot see
+pull requests that are open but not merged — those exist only on the host — so on a
+branch that already has one, GitHub's page is where you find it.
+
+- **The branch has to be on the remote**, as far as the last fetch knows. One that
+  isn't gets `… is not on the remote yet — push it (P) to open one`. A branch with
+  commits you have not pushed since still counts: the page is the branch's.
+- **Press it on the commit the branch's label is on.** A commit further down a
+  branch has no branch on it to start from.
+- **With several branches on the commit**, the one you have checked out is used,
+  otherwise the first by name.
+- **Never from the default branch**, nor from a commit the default branch already
+  holds: there is nothing left there to pull. The default is what the remote
+  records as its `HEAD` (a clone has that); without the record, `main` and `master`
+  are taken for it.
 
 ### Searching
 

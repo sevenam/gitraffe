@@ -79,6 +79,7 @@ release build and the release version check all depend on it being there.
 | `files.go` | `ListFiles`: every tracked file, for the file-history picker |
 | `fingerprint.go` | one string for "would a reload draw anything different", for auto-refresh |
 | `remote.go` | `PullRequestNumber`, `PullRequestURL`: from commit subjects and remotes, for GitHub and Azure DevOps |
+| `new_pull_request.go` | `NewPullRequestFor`, `NewPullRequestURL`: the branch on a commit a pull request could start from, and the page that starts it |
 | `line_numbers.go` | `LineNumbers`: each line of a diff given its number in the old file and the new, counted from the hunk headers |
 
 ### internal/tui

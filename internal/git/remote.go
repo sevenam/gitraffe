@@ -307,20 +307,28 @@ func PullRequestURL(remote string, number int) string {
 // else whichever git lists first. Origin is where a clone came from, which is
 // the repository whose numbering a merge subject counts in.
 func BrowserRemote(dir string) string {
-	remotes := Remotes(dir)
-	if len(remotes) == 0 {
+	name := browserRemoteName(dir)
+	if name == "" {
 		return ""
-	}
-	name := remotes[0]
-	for _, r := range remotes {
-		if r == "origin" {
-			name = r
-			break
-		}
 	}
 	url, err := Run(dir, "remote", "get-url", name)
 	if err != nil {
 		return ""
 	}
 	return url
+}
+
+// browserRemoteName is the name of the remote BrowserRemote reads, or "" in a
+// repository with none.
+func browserRemoteName(dir string) string {
+	remotes := Remotes(dir)
+	if len(remotes) == 0 {
+		return ""
+	}
+	for _, r := range remotes {
+		if r == "origin" {
+			return r
+		}
+	}
+	return remotes[0]
 }

@@ -1,6 +1,7 @@
 package tui
 
 import (
+	"path/filepath"
 	"strings"
 	"testing"
 
@@ -160,5 +161,90 @@ func TestPullRequestFollowsTheCommitView(t *testing.T) {
 	m.notice = "Opening pull request #59 in your browser"
 	if !strings.Contains(ansi.Strip(m.commitViewStatusLine()), "#59") {
 		t.Error("the commit view's status line does not carry the notice")
+	}
+}
+
+// unmergedRepo is main with a branch of two commits no pull request has
+// merged, and a GitHub remote that, as far as the repository knows, has main.
+// pushed says whether it has the branch too.
+func unmergedRepo(t *testing.T, pushed bool) string {
+	t.Helper()
+	dir, git, commit := gittest.Fixture(t)
+	git("init", "-q", "-b", "main")
+	commit("first")
+	git("remote", "add", "origin", "https://github.com/sevenam/gitraffe.git")
+	git("update-ref", "refs/remotes/origin/main", "main")
+	git("switch", "-q", "-c", "fix/sign-flip")
+	commit("start the fix")
+	commit("finish the fix")
+	if pushed {
+		git("update-ref", "refs/remotes/origin/fix/sign-flip", "fix/sign-flip")
+	}
+	return dir
+}
+
+// With no pull request to open, o on the end of a branch the remote has
+// opens the page that starts one.
+func TestPullRequestKeyStartsOneFromAPushedBranch(t *testing.T) {
+	dir := unmergedRepo(t, true)
+	m, opened := pullRequest(t, selectMessage(t, loadedModel(t, dir), "finish the fix"))
+	if want := "https://github.com/sevenam/gitraffe/compare/fix/sign-flip?expand=1"; opened != want {
+		t.Errorf("opened %q, want %q (notice %q)", opened, want, m.notice)
+	}
+	if m.notice != "Opening a new pull request for fix/sign-flip in your browser" {
+		t.Errorf("notice = %q", m.notice)
+	}
+
+	// The commit view is about the same commit, and its key does the same.
+	m, _ = selectMessage(t, loadedModel(t, dir), "finish the fix").openCommitView()
+	if _, opened := pullRequest(t, m); !strings.HasSuffix(opened, "/compare/fix/sign-flip?expand=1") {
+		t.Errorf("from the commit view: opened %q", opened)
+	}
+}
+
+// A branch the remote has never seen cannot start one, and the way to change
+// that is a key away.
+func TestPullRequestKeyOnAnUnpushedBranchSaysToPush(t *testing.T) {
+	m, opened := pullRequest(t, selectMessage(t, loadedModel(t, unmergedRepo(t, false)), "finish the fix"))
+	if opened != "" {
+		t.Errorf("opened %q for a branch that is not on the remote", opened)
+	}
+	if want := "fix/sign-flip is not on the remote yet — push it (P)"; !strings.Contains(m.notice, want) {
+		t.Errorf("notice = %q, want %q", m.notice, want)
+	}
+}
+
+// Nothing opens from a commit with no branch on it, nor from what the
+// default branch already holds, nor from the uncommitted changes.
+func TestPullRequestKeyWithNothingToStartFrom(t *testing.T) {
+	dir := unmergedRepo(t, true)
+	for _, subject := range []string{"start the fix", "first"} {
+		m, opened := pullRequest(t, selectMessage(t, loadedModel(t, dir), subject))
+		if opened != "" || !strings.Contains(m.notice, "No pull request on this commit, and no branch on it") {
+			t.Errorf("%q: opened=%q notice=%q; want nothing to open", subject, opened, m.notice)
+		}
+	}
+
+	writeFile(t, filepath.Join(dir, "first"), "edited")
+	m := loadedModel(t, dir)
+	if !m.commits[0].WorkingTree {
+		t.Fatal("no uncommitted changes row")
+	}
+	m.selected = 0
+	got, cmd := m.Update(keyPress("o"))
+	if cmd != nil || !strings.Contains(got.(model).notice, "uncommitted changes") {
+		t.Errorf("notice = %q; want the uncommitted changes to have no pull request", got.(model).notice)
+	}
+}
+
+// On Azure DevOps the page that starts one is at another address.
+func TestPullRequestKeyStartsOneOnAzure(t *testing.T) {
+	dir := unmergedRepo(t, true)
+	if _, err := git.Run(dir, "remote", "set-url", "origin", "git@ssh.dev.azure.com:v3/sevenam/tools/gitraffe"); err != nil {
+		t.Fatal(err)
+	}
+	_, opened := pullRequest(t, selectMessage(t, loadedModel(t, dir), "finish the fix"))
+	if want := "https://dev.azure.com/sevenam/tools/_git/gitraffe/pullrequestcreate?sourceRef=fix%2Fsign-flip"; opened != want {
+		t.Errorf("opened %q, want %q", opened, want)
 	}
 }
