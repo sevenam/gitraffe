@@ -29,6 +29,9 @@ type branchPrompt struct {
 	name    textinput.Model
 	from    string // what HEAD is on, as the top box shows it
 	failure string // why the name typed will not do
+	// The commit HEAD is at, which is where the branch starts: its short
+	// hash and its subject. On a detached HEAD they are all that says where.
+	commit, subject string
 }
 
 type branchCreatedMsg struct {
@@ -72,7 +75,14 @@ func (m model) openBranchPrompt() (model, tea.Cmd) {
 	name.CharLimit = 200
 	name.Cursor.SetMode(cursor.CursorStatic)
 	name.Focus()
-	m.branchPrompt = branchPrompt{open: true, name: name, from: m.currentBranch}
+	m.branchPrompt = branchPrompt{open: true, name: name, from: m.currentBranch, commit: shortHash(m.headHash)}
+	for _, c := range m.commits {
+		// Not there when HEAD is further back than the history loaded.
+		if c.FullHash == m.headHash && !c.WorkingTree {
+			m.branchPrompt.subject, _, _ = strings.Cut(c.Message, "\n")
+			break
+		}
+	}
 	return m, nil
 }
 
@@ -153,31 +163,73 @@ func branchFailedNotice(msg branchCreatedMsg) string {
 	return "No branch made: " + reason
 }
 
+// The box is at least branchBoxMinWidth columns of content where the window
+// allows, so it looks the same from one branch to the next, and no more than
+// branchBoxMaxWidth, past which a line is too long to read at a glance.
+const (
+	branchBoxMinWidth = 50
+	branchBoxMaxWidth = 100
+	// What the box adds around its content: the "Name  " label, the cursor's
+	// column, the padding and the border, and a column of the graph left
+	// showing on each side.
+	branchBoxChrome = len("Name  ") + 1 + 2*commitPromptPadding + 2 + 2
+)
+
+// width is the room for the name and for the line saying where the branch
+// starts. It grows to show that line whole — the commit's subject is what
+// tells one commit from another — and to hold the name as it is typed, and
+// gives way to the window, so a narrow one cuts the subject short and never
+// the box.
+func (p branchPrompt) width(windowWidth int) int {
+	want := ansi.StringWidth(p.name.Value())
+	if p.commit != "" {
+		from := ansi.StringWidth(p.from) + 2 + len(p.commit)
+		if p.subject != "" {
+			from += 1 + ansi.StringWidth(p.subject)
+		}
+		want = max(want, from)
+	}
+	want = min(max(want, branchBoxMinWidth), branchBoxMaxWidth)
+	return max(20, min(want, windowWidth-branchBoxChrome))
+}
+
 // render draws the box: where the branch will start, the name it is to have,
 // and why the last name typed would not do.
 func (p branchPrompt) render(windowWidth int) string {
-	width := pushNameWidth(windowWidth)
+	width := p.width(windowWidth)
 	p.name.Width = width
 	// The width decides which part of a long name is on show.
 	p.name.SetCursor(p.name.Position())
 
+	// What a line can hold before it wraps and makes the box a row taller.
+	inner := width + len("Name  ") + 1
+
 	label := lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color(theme.Current.Title))
 	var sb strings.Builder
 	sb.WriteString(titleStyle.Padding(0).Render("New branch"))
-	sb.WriteString(helpStyle.Render("  " + ansi.Truncate("starts where you are, not at the selection", width, "…")))
+	sb.WriteString(helpStyle.Render("  " + ansi.Truncate("starts where you are, not at the selection",
+		inner-len("New branch  "), "…")))
 	sb.WriteString("\n\n")
 
-	sb.WriteString(label.Render("From") + "  " + localBranchStyle.Render(ansi.Truncate(p.from, width, "…")))
+	from := ansi.Truncate(p.from, width, "…")
+	sb.WriteString(label.Render("From") + "  " + localBranchStyle.Render(from))
+	// The name comes first and is kept whole; the commit takes what is left.
+	if room := width - ansi.StringWidth(from) - 2; p.commit != "" && room >= len(p.commit) {
+		sb.WriteString("  " + commitHashStyle.Render(p.commit))
+		if room -= len(p.commit) + 1; p.subject != "" && room > 1 {
+			sb.WriteString(" " + helpStyle.Render(ansi.Truncate(p.subject, room, "…")))
+		}
+	}
 	sb.WriteString("\n")
 	sb.WriteString(label.Render("Name") + "  " + p.name.View())
 	sb.WriteString("\n\n")
 
 	if p.failure != "" {
 		sb.WriteString(lipgloss.NewStyle().Foreground(lipgloss.Color(theme.Current.Error)).Render(
-			ansi.Truncate(p.failure, width+6, "…")))
+			ansi.Truncate(p.failure, inner, "…")))
 		sb.WriteString("\n\n")
 	}
-	sb.WriteString(helpStyle.Render("enter: create it and switch to it • esc: cancel"))
+	sb.WriteString(helpStyle.Render(ansi.Truncate("enter: create it and switch to it • esc: cancel", inner, "…")))
 
 	return lipgloss.NewStyle().
 		Width(width+len("Name  ")+2*commitPromptPadding+1).

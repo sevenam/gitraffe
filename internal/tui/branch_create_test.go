@@ -51,7 +51,7 @@ func TestNewBranchIsMadeAtHeadAndSwitchedTo(t *testing.T) {
 		t.Fatalf("open=%v switching=%v; want the box, and nothing made yet", m.branchPrompt.open, m.switching)
 	}
 	screen := ansi.Strip(m.View())
-	for _, want := range []string{"New branch", "From  main", "enter: create it and switch to it"} {
+	for _, want := range []string{"New branch", "From  main  " + head[:7] + " second", "enter: create it and switch to it"} {
 		if !strings.Contains(screen, want) {
 			t.Errorf("the box does not say %q:\n%s", want, screen)
 		}
@@ -149,8 +149,10 @@ func TestNewBranchFromADetachedHead(t *testing.T) {
 	dir, run := branchRepo(t)
 	run("switch", "-q", "--detach", "taken")
 	m := press(loadedModel(t, dir), keyPress("b"))
-	if screen := ansi.Strip(m.View()); !strings.Contains(screen, "From  "+m.currentBranch) || !strings.Contains(m.currentBranch, "HEAD") {
-		t.Errorf("the box does not say HEAD is detached (%q):\n%s", m.currentBranch, screen)
+	at, _ := git.Run(dir, "rev-parse", "--short=7", "HEAD")
+	// With no branch to name, the commit is all that says where it starts.
+	if screen := ansi.Strip(m.View()); !strings.Contains(screen, "From  "+m.currentBranch+"  "+at+" first") || !strings.Contains(m.currentBranch, "HEAD") {
+		t.Errorf("the box does not say which commit the detached HEAD is at (%q, %s):\n%s", m.currentBranch, at, screen)
 	}
 	started, cmd := typed(m, "rescued").Update(tea.KeyMsg{Type: tea.KeyEnter})
 	if cmd == nil {
@@ -229,5 +231,85 @@ func TestNewBranchFailureSaysWhy(t *testing.T) {
 	m = res(started.(model).Update(cmd()))
 	if m.switching || !strings.Contains(m.notice, "A merge is in progress") {
 		t.Errorf("switching=%v notice=%q; want the merge named", m.switching, m.notice)
+	}
+}
+
+// The branch's name is kept whole and the commit takes what room is left, so
+// a long name or a long subject never widens the box or wraps a line.
+func TestNewBranchBoxKeepsItsShape(t *testing.T) {
+	short := branchPrompt{from: "main", commit: "4a938a6", subject: "x"}
+	want := strings.Count(short.render(60), "\n")
+	for _, p := range []branchPrompt{
+		{from: "main", commit: "4a938a6", subject: strings.Repeat("a long subject ", 20)},
+		{from: strings.Repeat("feature/", 12), commit: "4a938a6", subject: "fix"},
+		{from: strings.Repeat("f", 39), commit: "4a938a6", subject: "fix"},
+		{from: "main"},
+		{from: "main", failure: strings.Repeat("no ", 60)},
+	} {
+		box := ansi.Strip(p.render(60))
+		if p.failure != "" {
+			want += 2
+		}
+		if got := strings.Count(box, "\n"); got != want {
+			t.Errorf("from %q: the box is %d lines, want %d:\n%s", p.from, got+1, want+1, box)
+		}
+		if p.from == "main" && p.commit != "" && !strings.Contains(box, "From  main  4a938a6 a long subject") {
+			t.Errorf("the commit is missing beside a short name:\n%s", box)
+		}
+	}
+}
+
+// The box grows to show the commit's subject whole where the window has the
+// room, and in a narrow window gives up the subject before its own shape.
+func TestNewBranchBoxFollowsTheWindow(t *testing.T) {
+	subject := "create a branch with b; the branch finder moves to B (#171)"
+	p := branchPrompt{from: "new-branch-171", commit: "8d94fb3", subject: subject}
+	widest := func(box string) int {
+		w := 0
+		for _, line := range strings.Split(box, "\n") {
+			w = max(w, ansi.StringWidth(line))
+		}
+		return w
+	}
+
+	rows := strings.Count(p.render(200), "\n")
+	for window := 36; window <= 240; window++ {
+		box := ansi.Strip(p.render(window))
+		if got := widest(box); got > window {
+			t.Fatalf("window %d: the box is %d wide:\n%s", window, got, box)
+		}
+		if got := strings.Count(box, "\n"); got != rows {
+			t.Fatalf("window %d: the box is %d lines, want %d:\n%s", window, got+1, rows+1, box)
+		}
+		if !strings.Contains(box, "From  new-branch-171") {
+			t.Fatalf("window %d: the branch is not named:\n%s", window, box)
+		}
+	}
+
+	if box := ansi.Strip(p.render(120)); !strings.Contains(box, "8d94fb3 "+subject) {
+		t.Errorf("a wide window does not show the subject whole:\n%s", box)
+	}
+	if box := ansi.Strip(p.render(70)); !strings.Contains(box, "8d94fb3 create a branch") || strings.Contains(box, subject) {
+		t.Errorf("a narrow window should show the subject cut short:\n%s", box)
+	}
+
+	// No wider than its content asks for, nor than is readable.
+	short := branchPrompt{from: "main", commit: "8d94fb3", subject: "fix"}
+	if a, b := widest(short.render(100)), widest(short.render(240)); a != b {
+		t.Errorf("a short line's box is %d wide in one window and %d in a wider one", a, b)
+	}
+	long := branchPrompt{from: "main", commit: "8d94fb3", subject: strings.Repeat("word ", 80)}
+	if got := widest(long.render(240)); got > branchBoxMaxWidth+branchBoxChrome {
+		t.Errorf("the box is %d wide, past its limit", got)
+	}
+
+	// A name longer than the line above it widens the box as it is typed.
+	dir, _ := branchRepo(t)
+	m := press(loadedModel(t, dir), keyPress("b"))
+	empty := widest(m.branchPrompt.render(200))
+	m = typed(m, strings.Repeat("n", 70))
+	box := ansi.Strip(m.branchPrompt.render(200))
+	if widest(box) <= empty || !strings.Contains(box, strings.Repeat("n", 70)) {
+		t.Errorf("the box did not widen for a long name (%d, was %d):\n%s", widest(box), empty, box)
 	}
 }
