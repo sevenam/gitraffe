@@ -16,29 +16,41 @@ type pullRequestFoundMsg struct {
 	repoPath string // the repository asked; see the handler
 	remote   string
 	number   int // 0 when the commit names no pull request
+	// What starting one would take, looked into only when there is none.
+	start git.NewPullRequest
 }
 
-// openPullRequest looks for the pull request the commit on screen came from.
-// Finding it means asking the history which merge brought the commit in, so
-// it runs in the background and finishPullRequest opens the page.
+// openPullRequest looks for the pull request the commit on screen came from,
+// and failing that for the branch one could be started from. Finding either
+// means asking the history — which merge brought the commit in, whether the
+// default branch already holds it — so it runs in the background and
+// finishPullRequest opens the page.
 func (m model) openPullRequest() (model, tea.Cmd) {
 	c, ok := m.commitOnScreen()
 	if !ok {
 		return m, nil
 	}
-	return m, findPullRequestCmd(m.repoPath, c.FullHash, c.Message)
+	if c.WorkingTree {
+		m.notice = "These are your uncommitted changes — pick a commit to open its pull request"
+		return m, nil
+	}
+	return m, findPullRequestCmd(m.repoPath, c, m.currentBranch)
 }
 
-func findPullRequestCmd(repoPath, hash, subject string) tea.Cmd {
+func findPullRequestCmd(repoPath string, c commit, currentBranch string) tea.Cmd {
 	return func() tea.Msg {
 		// The remote comes first because it says how to read a subject:
 		// GitHub and Azure DevOps each write a merge their own way.
 		remote := git.BrowserRemote(repoPath)
-		return pullRequestFoundMsg{
+		msg := pullRequestFoundMsg{
 			repoPath: repoPath,
 			remote:   remote,
-			number:   git.PullRequestFor(repoPath, hash, subject, remote),
+			number:   git.PullRequestFor(repoPath, c.FullHash, c.Message, remote),
 		}
+		if msg.number == 0 {
+			msg.start = git.NewPullRequestFor(repoPath, c.FullHash, c.Refs, currentBranch)
+		}
+		return msg
 	}
 }
 
@@ -50,8 +62,7 @@ var openBrowser = openURL
 // page to open.
 func (m model) finishPullRequest(msg pullRequestFoundMsg) model {
 	if msg.number == 0 {
-		m.notice = "No pull request on this commit — neither its message nor a merge names one"
-		return m
+		return m.startPullRequest(msg)
 	}
 	if msg.remote == "" {
 		m.notice = "No remote to build a pull request address from"
@@ -67,6 +78,33 @@ func (m model) finishPullRequest(msg pullRequestFoundMsg) model {
 		return m
 	}
 	m.notice = fmt.Sprintf("Opening pull request #%d in your browser", msg.number)
+	return m
+}
+
+// startPullRequest opens the page that starts a pull request from the
+// commit's branch, for a commit that came from none. Only a branch the remote
+// has can start one, and a commit with no such branch says which of the
+// ordinary reasons applies.
+func (m model) startPullRequest(msg pullRequestFoundMsg) model {
+	switch {
+	case msg.start.Unpushed != "":
+		m.notice = "No pull request on this commit, and " + msg.start.Unpushed +
+			" is not on the remote yet — push it (P) to open one"
+		return m
+	case msg.start.Branch == "":
+		m.notice = "No pull request on this commit, and no branch on it to open one from"
+		return m
+	}
+	address := git.NewPullRequestURL(msg.remote, msg.start.Branch)
+	if address == "" {
+		m.notice = "The remote " + msg.remote + " has no page on the web"
+		return m
+	}
+	if err := openBrowser(address); err != nil {
+		m.notice = "Could not open a browser: " + err.Error()
+		return m
+	}
+	m.notice = "Opening a new pull request for " + msg.start.Branch + " in your browser"
 	return m
 }
 
