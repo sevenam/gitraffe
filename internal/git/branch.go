@@ -18,23 +18,25 @@ func BranchExists(dir, name string) bool {
 	return err == nil
 }
 
-// CreateBranch makes a branch where HEAD is and switches to it, the way
-// "git switch -c" does.
+// CreateBranch makes a branch at the commit start (a full hash) and switches
+// to it, the way "git switch -c" does. An empty start is HEAD.
 //
-// It starts at HEAD and nowhere else. No file changes, in the working tree
-// or the index, so unlike Switch it has nothing to refuse while there are
-// uncommitted changes: they are as they were, on a branch that is the old one
-// under another name. A branch started anywhere else would be a switch as
-// well, with everything Switch has to be careful of.
+// Started where HEAD is, no file changes, in the working tree or the index,
+// so there is nothing to refuse while there are uncommitted changes: they are
+// as they were, on a branch that is the old one under another name. On a
+// detached HEAD that is the way back onto a branch.
 //
-// On a detached HEAD it is the way back onto a branch. During a merge, a
-// rebase or the like it is refused, as git itself would: the operation
-// belongs to the branch it was started on.
+// Started anywhere else it is a switch as well, and is refused as Switch is,
+// with nothing made, while tracked files have uncommitted changes: git would
+// carry them across to a branch they were not written for.
+//
+// During a merge, a rebase or the like it is refused, as git itself would:
+// the operation belongs to the branch it was started on.
 //
 // The branch tracks nothing. branch.autoSetupMerge=inherit in someone's
 // config would otherwise hand it the old branch's upstream, and a push from
 // the new branch would then move that one.
-func CreateBranch(dir, name string) (detail string, err error) {
+func CreateBranch(dir, name, start string) (detail string, err error) {
 	if !ValidBranchName(dir, name) {
 		return "", ErrBadBranchName
 	}
@@ -45,7 +47,21 @@ func CreateBranch(dir, name string) (detail string, err error) {
 		return "", ErrBranchExists
 	}
 
-	cmd := exec.Command("git", "switch", "--quiet", "--no-track", "-c", name)
+	args := []string{"switch", "--quiet", "--no-track", "-c", name}
+	// HEAD's own commit is asked for as HEAD, so that it is read here, where
+	// it is acted on, and not from what a caller last saw of it.
+	if head, _ := Run(dir, "rev-parse", "--verify", "--quiet", "HEAD"); start != "" && start != head {
+		dirty, err := LocalChanges(dir)
+		if err != nil {
+			return "", err
+		}
+		if dirty {
+			return "", ErrLocalChanges
+		}
+		args = append(args, start)
+	}
+
+	cmd := exec.Command("git", args...)
 	cmd.Dir = dir
 	var errOut bytes.Buffer
 	cmd.Stderr = &errOut

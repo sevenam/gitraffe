@@ -38,12 +38,113 @@ func headBranch(t *testing.T, dir string) string {
 	return out
 }
 
-func TestNewBranchIsMadeAtHeadAndSwitchedTo(t *testing.T) {
+// onCommit puts the selection on the commit rev names.
+func onCommit(t *testing.T, m model, dir, rev string) model {
+	t.Helper()
+	full, _ := git.Run(dir, "rev-parse", rev)
+	for i, c := range m.commits {
+		if c.FullHash == full && !c.WorkingTree {
+			m.selected = i
+			return m
+		}
+	}
+	t.Fatalf("%s (%s) is not in the graph", rev, full)
+	return m
+}
+
+// The branch starts at the selected commit, which the box names, and HEAD
+// and the files go there with it.
+func TestNewBranchIsMadeAtTheSelectedCommit(t *testing.T) {
 	dir, _ := branchRepo(t)
-	m := loadedModel(t, dir)
+	first, _ := git.Run(dir, "rev-parse", "taken")
+	main, _ := git.Run(dir, "rev-parse", "main")
+	m := onCommit(t, loadedModel(t, dir), dir, "taken")
+
+	m = press(m, keyPress("b"))
+	if !m.branchPrompt.open {
+		t.Fatalf("notice=%q; want the box", m.notice)
+	}
+	screen := ansi.Strip(m.View())
+	for _, want := range []string{"starts at the selected commit", "From  " + first[:7] + " first"} {
+		if !strings.Contains(screen, want) {
+			t.Errorf("the box does not say %q:\n%s", want, screen)
+		}
+	}
+
+	started, cmd := typed(m, "from-first").Update(tea.KeyMsg{Type: tea.KeyEnter})
+	if cmd == nil {
+		t.Fatalf("notice=%q; want the branch being made", started.(model).notice)
+	}
+	m = res(started.(model).Update(cmd()))
+	if m.notice != "Created from-first and switched to it" {
+		t.Errorf("notice = %q", m.notice)
+	}
+	if got := headBranch(t, dir); got != "from-first" {
+		t.Errorf("on %q, want from-first", got)
+	}
+	if got, _ := git.Run(dir, "rev-parse", "HEAD"); got != first {
+		t.Errorf("HEAD = %s, want the selected commit %s", got, first)
+	}
+	if got, _ := git.Run(dir, "rev-parse", "main"); got != main {
+		t.Errorf("main = %s, want it left at %s", got, main)
+	}
+	if _, err := os.Stat(filepath.Join(dir, "second")); !os.IsNotExist(err) {
+		t.Error("the later commit's file is still in the working tree")
+	}
+}
+
+// Anywhere but where you stand it is a checkout as well, and uncommitted
+// changes turn it down as they do "c": before the box opens, and again by
+// git if they appear while it is open.
+func TestNewBranchElsewhereRefusesUncommittedChanges(t *testing.T) {
+	dir, _ := branchRepo(t)
+	edit := func() {
+		t.Helper()
+		if err := os.WriteFile(filepath.Join(dir, "second"), []byte("edited"), 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+	clean := onCommit(t, loadedModel(t, dir), dir, "taken")
+
+	edit()
+	m := onCommit(t, loadedModel(t, dir), dir, "taken")
+	got, cmd := m.Update(keyPress("b"))
+	if cmd != nil || got.(model).branchPrompt.open || got.(model).notice != branchElsewhereNotice {
+		t.Errorf("open=%v notice=%q; want the box kept shut over the changes", got.(model).branchPrompt.open, got.(model).notice)
+	}
+
+	// The same changes, on the commit they were made on, come along.
+	m = press(onCommit(t, m, dir, "main"), keyPress("b"))
+	if !m.branchPrompt.open || m.branchPrompt.start != "" {
+		t.Errorf("open=%v start=%q; want a branch from where you are", m.branchPrompt.open, m.branchPrompt.start)
+	}
+
+	// The box opened on a clean tree, and the edit came after.
+	if err := os.WriteFile(filepath.Join(dir, "second"), []byte("x"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	m = typed(press(clean, keyPress("b")), "late")
+	edit()
+	started, cmd := m.Update(tea.KeyMsg{Type: tea.KeyEnter})
+	if cmd == nil {
+		t.Fatalf("notice=%q; want git asked", started.(model).notice)
+	}
+	m = res(started.(model).Update(cmd()))
+	if m.switching || m.notice != branchElsewhereNotice {
+		t.Errorf("switching=%v notice=%q; want the changes named", m.switching, m.notice)
+	}
+	if git.BranchExists(dir, "late") || headBranch(t, dir) != "main" {
+		t.Error("a refused branch was made, or HEAD moved")
+	}
+	if body, _ := os.ReadFile(filepath.Join(dir, "second")); string(body) != "edited" {
+		t.Errorf("the edited file now reads %q", body)
+	}
+}
+
+func TestNewBranchWhereYouAre(t *testing.T) {
+	dir, _ := branchRepo(t)
 	head, _ := git.Run(dir, "rev-parse", "HEAD")
-	// The selection is somewhere else: the branch starts at HEAD regardless.
-	m.selected = len(m.commits) - 1
+	m := onCommit(t, loadedModel(t, dir), dir, "HEAD")
 
 	asked, cmd := m.Update(keyPress("b"))
 	m = asked.(model)
@@ -51,7 +152,7 @@ func TestNewBranchIsMadeAtHeadAndSwitchedTo(t *testing.T) {
 		t.Fatalf("open=%v switching=%v; want the box, and nothing made yet", m.branchPrompt.open, m.switching)
 	}
 	screen := ansi.Strip(m.View())
-	for _, want := range []string{"New branch", "From  main  " + head[:7] + " second", "enter: create it and switch to it"} {
+	for _, want := range []string{"New branch", "starts where you are", "From  main  " + head[:7] + " second", "enter: create it and switch to it"} {
 		if !strings.Contains(screen, want) {
 			t.Errorf("the box does not say %q:\n%s", want, screen)
 		}
@@ -148,7 +249,7 @@ func TestNewBranchBoxCancels(t *testing.T) {
 func TestNewBranchFromADetachedHead(t *testing.T) {
 	dir, run := branchRepo(t)
 	run("switch", "-q", "--detach", "taken")
-	m := press(loadedModel(t, dir), keyPress("b"))
+	m := press(onCommit(t, loadedModel(t, dir), dir, "HEAD"), keyPress("b"))
 	at, _ := git.Run(dir, "rev-parse", "--short=7", "HEAD")
 	// With no branch to name, the commit is all that says where it starts.
 	if screen := ansi.Strip(m.View()); !strings.Contains(screen, "From  "+m.currentBranch+"  "+at+" first") || !strings.Contains(m.currentBranch, "HEAD") {
@@ -222,7 +323,7 @@ func TestNewBranchFailureSaysWhy(t *testing.T) {
 	run("add", "-A")
 	run("commit", "-qm", "on other")
 	run("switch", "-q", "main")
-	m := loadedModel(t, dir)
+	m := onCommit(t, loadedModel(t, dir), dir, "HEAD")
 	run("merge", "-q", "--no-commit", "--no-ff", "other")
 	started, cmd := typed(press(m, keyPress("b")), "feature").Update(tea.KeyMsg{Type: tea.KeyEnter})
 	if cmd == nil {
@@ -264,6 +365,8 @@ func TestNewBranchBoxKeepsItsShape(t *testing.T) {
 func TestNewBranchBoxFollowsTheWindow(t *testing.T) {
 	subject := "create a branch with b; the branch finder moves to B (#171)"
 	p := branchPrompt{from: "new-branch-171", commit: "8d94fb3", subject: subject}
+	// A branch from another commit has no name to lead with, and fits too.
+	elsewhere := branchPrompt{start: "8d94fb3", commit: "8d94fb3", subject: subject}
 	widest := func(box string) int {
 		w := 0
 		for _, line := range strings.Split(box, "\n") {
@@ -283,6 +386,10 @@ func TestNewBranchBoxFollowsTheWindow(t *testing.T) {
 		}
 		if !strings.Contains(box, "From  new-branch-171") {
 			t.Fatalf("window %d: the branch is not named:\n%s", window, box)
+		}
+		box = ansi.Strip(elsewhere.render(window))
+		if widest(box) > window || strings.Count(box, "\n") != rows || !strings.Contains(box, "From  8d94fb3") {
+			t.Fatalf("window %d: a branch from another commit draws as:\n%s", window, box)
 		}
 	}
 
