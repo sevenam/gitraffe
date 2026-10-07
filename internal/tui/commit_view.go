@@ -123,7 +123,7 @@ func (m model) updateCommitView(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		m.commitView = commitView{}
 		return m, nil
 	case "?":
-		m.showHelp = true
+		m.showHelp, m.helpScroll = true, 0
 		return m, nil
 	case "o":
 		return m.openPullRequest()

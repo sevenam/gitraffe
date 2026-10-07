@@ -114,3 +114,171 @@ func TestStatusLineAdvertisesHelp(t *testing.T) {
 		t.Error("status line does not lead with the help key")
 	}
 }
+
+// shortHelp is the help open in a window too short for its list.
+func shortHelp() model {
+	m := helpOpen()
+	m.windowWidth, m.windowHeight = 100, 16
+	return m
+}
+
+func helpScreen(m model) string {
+	return ansi.Strip(m.View())
+}
+
+// A window shorter than the list shows the top of it, says there is more,
+// and the keys that move through any box move through this one.
+func TestHelpScrollsInAShortWindow(t *testing.T) {
+	m := shortHelp()
+	screen := helpScreen(m)
+	if got := strings.Count(screen, "\n") + 1; got != m.windowHeight {
+		t.Fatalf("the screen is %d lines, want %d", got, m.windowHeight)
+	}
+	for _, want := range []string{"Keyboard shortcuts", "toggle this help", "↑/↓: scroll • ? / esc / q: close", strings.TrimSpace(markBelow)} {
+		if !strings.Contains(screen, want) {
+			t.Errorf("the top of the help does not show %q:\n%s", want, screen)
+		}
+	}
+	if strings.Contains(screen, strings.TrimSpace(markAbove)) || strings.Contains(screen, "back to the top") {
+		t.Errorf("the top of the help shows what is below it, or a mark for what is above:\n%s", screen)
+	}
+
+	// A line at a time, with the title and the footer staying put.
+	down := press(m, keyPress("j"))
+	if down.helpScroll != 1 || strings.Contains(helpScreen(down), "General") {
+		t.Errorf("j scrolled to %d; want the first line gone from view", down.helpScroll)
+	}
+	if s := helpScreen(down); !strings.Contains(s, "Keyboard shortcuts") || !strings.Contains(s, "esc / q: close") || !strings.Contains(s, strings.TrimSpace(markAbove)) {
+		t.Errorf("scrolled, the box lost its title, its footer or the mark for what is above:\n%s", s)
+	}
+	if up := press(down, keyPress("k")); up.helpScroll != 0 {
+		t.Errorf("k scrolled to %d, want back at the top", up.helpScroll)
+	}
+
+	// The end: the last key of the list, and nothing more below.
+	end := press(m, keyPress("G"))
+	screen = helpScreen(end)
+	if end.helpScroll != end.helpMaxScroll() || !strings.Contains(screen, "back to the top") {
+		t.Errorf("G scrolled to %d of %d:\n%s", end.helpScroll, end.helpMaxScroll(), screen)
+	}
+	if strings.Contains(screen, strings.TrimSpace(markBelow)) {
+		t.Errorf("the end of the help says there is more below:\n%s", screen)
+	}
+	// It stops at both ends.
+	if past := press(end, keyPress("j"), tea.KeyMsg{Type: tea.KeyPgDown}); past.helpScroll != end.helpScroll {
+		t.Errorf("scrolled past the end, to %d", past.helpScroll)
+	}
+	if top := press(end, keyPress("g"), keyPress("k"), tea.KeyMsg{Type: tea.KeyPgUp}); top.helpScroll != 0 {
+		t.Errorf("g then up scrolled to %d, want the top", top.helpScroll)
+	}
+
+	// A page is a screenful less a line, so the eye keeps its place.
+	if page := press(m, tea.KeyMsg{Type: tea.KeyPgDown}); page.helpScroll != helpRows(m.windowHeight)-1 {
+		t.Errorf("a page scrolled %d lines of %d on screen", page.helpScroll, helpRows(m.windowHeight))
+	}
+}
+
+// Scrolling from the top to the bottom shows every key of every screen's
+// help, which is the point of it: none is out of reach in a small window.
+func TestEveryHelpLineCanBeReached(t *testing.T) {
+	for name, sections := range map[string][]helpSection{
+		"graph": helpSections, "commit view": commitViewHelp, "uncommitted changes": stagingViewHelp,
+	} {
+		for _, height := range []int{10, 16, 24} {
+			seen := ""
+			last := len(helpLines(sections)) - helpRows(height)
+			for scroll := 0; scroll <= max(0, last); scroll++ {
+				box := ansi.Strip(renderHelpSections(sections, scroll, 100, height))
+				if rows := strings.Count(box, "\n") + 1; rows > height {
+					t.Fatalf("%s at height %d: the box is %d rows", name, height, rows)
+				}
+				seen += box + "\n"
+			}
+			for _, s := range sections {
+				for _, b := range s.bindings {
+					if !strings.Contains(seen, b.desc) {
+						t.Errorf("%s at height %d: %q is never on screen", name, height, b.desc)
+					}
+				}
+			}
+		}
+	}
+}
+
+func TestHelpScrollsWithTheWheel(t *testing.T) {
+	m := shortHelp()
+	selected := m.selected
+	down := res(m.Update(wheel(5, 5, tea.MouseButtonWheelDown)))
+	if down.helpScroll != mouseScrollLines || down.selected != selected {
+		t.Errorf("a notch down scrolled the help to %d and left the graph on %d; want %d and %d",
+			down.helpScroll, down.selected, mouseScrollLines, selected)
+	}
+	if up := res(down.Update(wheel(5, 5, tea.MouseButtonWheelUp))); up.helpScroll != 0 {
+		t.Errorf("a notch up scrolled to %d, want the top", up.helpScroll)
+	}
+	// Past the top is the top, and a click behind the box selects nothing.
+	if up := res(m.Update(wheel(5, 5, tea.MouseButtonWheelUp))); up.helpScroll != 0 {
+		t.Errorf("a notch up from the top scrolled to %d", up.helpScroll)
+	}
+	if clicked := res(m.Update(click(5, 6))); clicked.selected != selected || !clicked.showHelp {
+		t.Error("a click went through the help to the graph")
+	}
+}
+
+// With room for the whole list there is nothing to scroll and nothing said
+// about scrolling.
+func TestHelpThatFitsDoesNotScroll(t *testing.T) {
+	m := helpOpen()
+	m.windowHeight = 60
+	screen := helpScreen(m)
+	if strings.Contains(screen, "scroll • ?") || strings.Contains(screen, strings.TrimSpace(markBelow)) {
+		t.Errorf("a help that fits offers to scroll:\n%s", screen)
+	}
+	if !strings.Contains(screen, "toggle this help") || !strings.Contains(screen, "back to the top") {
+		t.Errorf("a help that fits does not show its first and last keys:\n%s", screen)
+	}
+	for _, key := range []string{"j", "G"} {
+		if got := press(m, keyPress(key)); got.helpScroll != 0 {
+			t.Errorf("%s scrolled a help that fits, to %d", key, got.helpScroll)
+		}
+	}
+	if got := res(m.Update(wheel(5, 5, tea.MouseButtonWheelDown))); got.helpScroll != 0 {
+		t.Errorf("the wheel scrolled a help that fits, to %d", got.helpScroll)
+	}
+}
+
+// Opened again it starts from the top, and a window made taller while it is
+// scrolled does not leave it scrolled past its end.
+func TestHelpScrollIsNotCarriedOver(t *testing.T) {
+	m := press(shortHelp(), keyPress("G"))
+	if m.helpScroll == 0 {
+		t.Fatal("G did not scroll")
+	}
+	again := press(m, keyPress("?"), keyPress("?"))
+	if !again.showHelp || again.helpScroll != 0 {
+		t.Errorf("open=%v scroll=%d after closing and opening, want it open at the top", again.showHelp, again.helpScroll)
+	}
+
+	m.windowHeight = 60
+	screen := helpScreen(m)
+	if !strings.Contains(screen, "toggle this help") || !strings.Contains(screen, "back to the top") {
+		t.Errorf("made taller while scrolled, the help does not show all of itself:\n%s", screen)
+	}
+}
+
+// A window narrower than the list cuts its lines short and keeps the box's
+// shape, which a wrapped line would not.
+func TestHelpInANarrowWindow(t *testing.T) {
+	for _, width := range []int{30, 50} {
+		box := ansi.Strip(renderHelpSections(helpSections, 0, width, 16))
+		lines := strings.Split(box, "\n")
+		if len(lines) != 16 {
+			t.Errorf("width %d: the box is %d rows, want 16", width, len(lines))
+		}
+		for _, line := range lines {
+			if w := ansi.StringWidth(line); w > width {
+				t.Fatalf("width %d: a line is %d wide:\n%s", width, w, box)
+			}
+		}
+	}
+}

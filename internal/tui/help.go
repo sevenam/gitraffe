@@ -118,14 +118,34 @@ var stagingViewHelp = []helpSection{
 	}},
 }
 
-// renderHelpBox renders the whole key reference as a bordered box.
-func renderHelpBox() string {
-	return renderHelpSections(helpSections)
+// The help is a box over the screen, and a window shorter than the list
+// would cut it off at the bottom with no way to reach the rest. So the list
+// scrolls inside the box, between a title and a footer that stay put, and the
+// box is never taller than the window.
+
+// helpChromeRows is what the box draws around the list: the border, the
+// padding, the title and the footer, and the blank line under one and over
+// the other.
+const helpChromeRows = 8
+
+// helpChromeCols is the border and the padding on both sides.
+const helpChromeCols = 6
+
+// currentHelp is the sections "?" shows on the screen that is open: each
+// screen lists the keys it answers to.
+func (m model) currentHelp() []helpSection {
+	switch {
+	case m.commitView.open && m.commitView.workingTree:
+		return stagingViewHelp
+	case m.commitView.open:
+		return commitViewHelp
+	}
+	return helpSections
 }
 
-// renderHelpSections renders one or more sections of the reference, so a
-// screen can show only the keys it answers to.
-func renderHelpSections(sections []helpSection) string {
+// helpLines is the list itself, a line per section title and binding, with a
+// blank line between sections.
+func helpLines(sections []helpSection) []string {
 	keyWidth := 0
 	for _, s := range sections {
 		for _, b := range s.bindings {
@@ -136,26 +156,101 @@ func renderHelpSections(sections []helpSection) string {
 	sectionStyle := lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color(theme.Current.SectionHeader))
 	keyStyle := lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color(theme.Current.Branch))
 
-	var sb strings.Builder
-	sb.WriteString(titleStyle.Padding(0).Render("Keyboard shortcuts"))
-	for _, s := range sections {
-		sb.WriteString("\n\n")
-		sb.WriteString(sectionStyle.Render(s.title))
+	var lines []string
+	for i, s := range sections {
+		if i > 0 {
+			lines = append(lines, "")
+		}
+		lines = append(lines, sectionStyle.Render(s.title))
 		for _, b := range s.bindings {
-			sb.WriteString("\n  ")
 			// Pad before styling: the escape codes would otherwise count toward
 			// the width and misalign the descriptions.
-			sb.WriteString(keyStyle.Render(b.keys + strings.Repeat(" ", keyWidth-ansi.StringWidth(b.keys))))
-			sb.WriteString("   ")
-			sb.WriteString(b.desc)
+			lines = append(lines, "  "+
+				keyStyle.Render(b.keys+strings.Repeat(" ", keyWidth-ansi.StringWidth(b.keys)))+
+				"   "+b.desc)
 		}
 	}
-	sb.WriteString("\n\n")
-	sb.WriteString(helpStyle.Render("? / esc / q: close"))
+	return lines
+}
 
-	return lipgloss.NewStyle().
+// helpRows is how many lines of the list a window this tall has room for.
+func helpRows(windowHeight int) int {
+	return max(1, windowHeight-helpChromeRows)
+}
+
+// helpMaxScroll is how far the list on screen can be scrolled: nothing, when
+// the window holds all of it. The renderer, the keys and the wheel all ask
+// here, so none can scroll past what another would draw.
+func (m model) helpMaxScroll() int {
+	return max(0, len(helpLines(m.currentHelp()))-helpRows(m.windowHeight))
+}
+
+// scrollHelp moves the list by delta lines and stops at its ends.
+func (m model) scrollHelp(delta int) model {
+	m.helpScroll = max(0, min(m.helpScroll+delta, m.helpMaxScroll()))
+	return m
+}
+
+// helpKey is the keyboard while the help is open: the keys that scroll a box
+// anywhere else scroll this one. The last result is false for a key that is
+// not one of them.
+func (m model) helpKey(key string) (model, bool) {
+	page := max(1, helpRows(m.windowHeight)-1)
+	switch key {
+	case "j", "down":
+		return m.scrollHelp(1), true
+	case "k", "up":
+		return m.scrollHelp(-1), true
+	case "ctrl+d", "pgdown":
+		return m.scrollHelp(page), true
+	case "ctrl+u", "pgup":
+		return m.scrollHelp(-page), true
+	case "g", "home", "ctrl+home":
+		return m.scrollHelp(-m.helpScroll), true
+	case "G", "end", "ctrl+end":
+		return m.scrollHelp(m.helpMaxScroll()), true
+	}
+	return m, false
+}
+
+// renderHelp draws the key reference for the screen that is open, as a
+// bordered box no larger than the window.
+func (m model) renderHelp() string {
+	return renderHelpSections(m.currentHelp(), m.helpScroll, m.windowWidth, m.windowHeight)
+}
+
+// renderHelpSections renders one or more sections of the reference, so a
+// screen can show only the keys it answers to. In a window too short for the
+// list it draws the part from scroll on, and marks the border at whichever
+// end has more, as the commit view's boxes do; in one too narrow it cuts the
+// lines short. A window of no size is taken to have room for everything.
+func renderHelpSections(sections []helpSection, scroll, windowWidth, windowHeight int) string {
+	lines := helpLines(sections)
+	footer := "? / esc / q: close"
+	var marks scrollMarks
+	if windowHeight > 0 && len(lines) > helpRows(windowHeight) {
+		rows := helpRows(windowHeight)
+		scroll = max(0, min(scroll, len(lines)-rows))
+		marks = marksFor(len(lines), scroll, rows)
+		lines = lines[scroll : scroll+rows]
+		// Only when there is something to scroll: the hint is one more thing
+		// to read on a screen that is already short of room.
+		footer = "↑/↓: scroll • " + footer
+	}
+
+	content := append([]string{titleStyle.Padding(0).Render("Keyboard shortcuts"), ""}, lines...)
+	content = append(content, "", helpStyle.Render(footer))
+	if room := windowWidth - helpChromeCols; windowWidth > 0 {
+		for i, line := range content {
+			content[i] = ansi.Truncate(line, max(1, room), "…")
+		}
+	}
+
+	border := lipgloss.Color(theme.Current.BorderActive)
+	box := lipgloss.NewStyle().
 		BorderStyle(lipgloss.RoundedBorder()).
-		BorderForeground(lipgloss.Color(theme.Current.BorderActive)).
+		BorderForeground(border).
 		Padding(1, 2).
-		Render(sb.String())
+		Render(strings.Join(content, "\n"))
+	return markScroll(box, marks, border)
 }

@@ -78,7 +78,7 @@ in `gitraffe ./update`.
 
 ### Keyboard Shortcuts
 
-- `?` - Show every keyboard shortcut (`?`, `Esc` or `q` closes it)
+- `?` - Show every keyboard shortcut (`?`, `Esc` or `q` closes it). In a window too short for the list it scrolls: `↑/↓` or `j/k` a line, `PgUp/PgDn` or `Ctrl+U/Ctrl+D` a page, `g`/`G` to either end, and the mouse wheel
 - `↑/↓` or `k/j` - Scroll up/down
 - `PgUp/PgDn` or `Ctrl+U/Ctrl+D` - Move ten rows, as vim's half-page keys do
 - `Home/End` - Go to the top/bottom of what is on screen; in a box of text, its start/end

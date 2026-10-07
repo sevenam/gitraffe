@@ -68,11 +68,7 @@ func (m model) View() (result string) {
 	if m.commitView.open {
 		screen := m.renderCommitView()
 		if m.showHelp {
-			help := commitViewHelp
-			if m.commitView.workingTree {
-				help = stagingViewHelp
-			}
-			screen = overlayCentre(screen, renderHelpSections(help), m.windowWidth, m.windowHeight)
+			screen = overlayCentre(screen, m.renderHelp(), m.windowWidth, m.windowHeight)
 		}
 		if m.commitPrompt.open {
 			box := m.commitPrompt.render(m.windowWidth, stagedCount(m.viewedFiles()), m.currentBranch)
@@ -182,7 +178,7 @@ func (m model) View() (result string) {
 	}
 
 	if m.showHelp {
-		output = overlayCentre(output, renderHelpBox(), m.windowWidth, m.windowHeight)
+		output = overlayCentre(output, m.renderHelp(), m.windowWidth, m.windowHeight)
 	}
 	if m.picker.open {
 		// 10 rows go to the box's title, footer, spacing, padding and border, so

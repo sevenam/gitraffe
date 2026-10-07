@@ -46,6 +46,7 @@ type model struct {
 	updatedTo           string         // tag installed this session; read by main after Run returns
 	colourLanes         bool           // tint each graph column differently; see lane_colours.go
 	showHelp            bool           // key reference overlay, toggled with "?"
+	helpScroll          int            // how far its list is scrolled, in a window too short for it
 	copying             bool           // the copy prompt opened with "y" waits for its answer; see copy.go
 	checkout            checkoutPrompt // the list "c" asks which branch in; see checkout.go
 	switching           bool           // a checkout is running
