@@ -18,7 +18,7 @@ import (
 // doesn't match it, so the constant has to stay here.
 const (
 	appName = "Gitraffe"
-	version = "0.49.7"
+	version = "0.49.8"
 )
 
 type cliOptions struct {
