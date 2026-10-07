@@ -58,7 +58,7 @@ func (m *model) renderRepoInfo() string {
 	if m.updateAvailable() {
 		versionStr = versionStr + " → " + m.latestVersion + " available"
 	}
-	title := titleStyle.Render("🦒 " + appName + " (" + versionStr + ")")
+	title := titleStyle.Render("🦒 " + appName + " " + versionStr + "")
 
 	// Calculate available width for content (subtract borders and padding)
 	availableWidth := m.windowWidth - 2 - 2 // borders (2) + padding (2)
