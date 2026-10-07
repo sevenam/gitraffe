@@ -1,6 +1,6 @@
 # 🦒 Gitraffe
 
-A text-based UI git graph command line tool built with Golang, Bubble Tea, go-git, and Lip Gloss.
+A text-based git command line tool built with Golang, Bubble Tea, go-git, and Lip Gloss.
 
 <img width="951" height="738" alt="image" src="https://github.com/user-attachments/assets/ec1c1a22-0047-46ea-a4d5-bc95e5a2b893" />
 
