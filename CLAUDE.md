@@ -67,7 +67,7 @@ release build and the release version check all depend on it being there.
 | `log.go` | `Commit`, `DisplayRow`, `IsCommitMarker`, `Filter`, `LoadGraph` (reads the history, then lays it out), `LoadCommits` (fallback) |
 | `layout.go` | the graph drawing: one row per commit, each connection on the row of the commit it belongs to; `commitPaths` |
 | `refs.go` | `ParseRefs`, merged-branch names, `ListRefs`, `CommitDepth` |
-| `diff.go` | `ShowCommit`, `WorkingTree` (its files listed staged, then unstaged, then untracked), `Status`, splitting a patch per file, `Patch` (uncut, for copying) |
+| `diff.go` | `ShowCommit`, `WorkingTree` (its files in path order, whichever side of the index they are on), `Status`, splitting a patch per file, `Patch` (uncut, for copying) |
 | `sync.go` | ahead/behind counts, `Fetch` |
 | `pull.go` | `Pull`: fetch, then fast-forward or nothing |
 | `push.go` | `Push`, `PushNewBranch`, `PushTag`: one branch or one tag, moved forward or created, never forced; `ReadPushPlan` (what the branch tracks and where a new one would go) |
@@ -152,6 +152,8 @@ new helpers.
   patch from that same output; so the listing (`sectionArgs`) and the patch must stay one
   command, pinned against user config. A file with staged and unstaged changes is two
   entries, found again after each reload by path and side (`fileKey`), never by index.
+  The list is in path order, so staging a file changes its mark and not its row, and
+  the selection stays on it.
 - **A commit has more than one marker.** `●` for a commit and `◆` for a merge, each with a
   ringed form when selected. Code looking for "the commit on this row" asks
   `git.IsCommitMarker`, not for a particular character.

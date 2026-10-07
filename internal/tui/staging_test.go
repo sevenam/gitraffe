@@ -125,9 +125,12 @@ func TestStagingAFileFromTheList(t *testing.T) {
 	write(t, dir, "new.txt", "fresh\n")
 
 	m := openedView(t, dir)
-	if got := listed(m); got != "notes.txt:unstaged numbered.txt:unstaged new.txt:untracked" {
+	// In path order, whatever side of the index each is on.
+	const before = "new.txt:untracked notes.txt:unstaged numbered.txt:unstaged"
+	if got := listed(m); got != before {
 		t.Fatalf("files = %q", got)
 	}
+	m = press(m, keyPress("j"))
 	screen := ansi.Strip(m.View())
 	if !strings.Contains(screen, "> "+unstagedMarker+" notes.txt") || !strings.Contains(screen, "0-of-3-staged") {
 		t.Errorf("the list does not mark what is staged:\n%s", screen)
@@ -137,13 +140,12 @@ func TestStagingAFileFromTheList(t *testing.T) {
 	}
 
 	m = do(t, m, keyPress("s"))
-	if got := listed(m); got != "notes.txt:staged numbered.txt:unstaged new.txt:untracked" {
-		t.Fatalf("after s, files = %q, want notes.txt staged", got)
+	// The file is where it was, and so is the selection.
+	if got := listed(m); got != "new.txt:untracked notes.txt:staged numbered.txt:unstaged" {
+		t.Fatalf("after s, files = %q, want notes.txt staged in place", got)
 	}
-	// The selection went on to the next file to stage, not up with the one
-	// that left.
-	if got := selectedEntry(t, m); got != "numbered.txt:unstaged" {
-		t.Errorf("selected %q after staging, want the next unstaged file", got)
+	if got := selectedEntry(t, m); got != "notes.txt:staged" {
+		t.Errorf("selected %q after staging, want the file just staged", got)
 	}
 	screen = ansi.Strip(m.View())
 	if !strings.Contains(screen, stagedMarker+" notes.txt") || !strings.Contains(screen, "1-of-3-staged") {
@@ -153,20 +155,28 @@ func TestStagingAFileFromTheList(t *testing.T) {
 		t.Errorf("status = %q, want notes.txt staged in the repository", out)
 	}
 
-	// s on a staged entry takes it back out.
-	m = press(m, keyPress("g"))
-	if got := selectedEntry(t, m); got != "notes.txt:staged" {
-		t.Fatalf("selected %q, want the staged entry", got)
-	}
+	// s again, on what is now a staged entry, takes it back out.
 	if !strings.Contains(ansi.Strip(m.View()), "s: unstage file") {
 		t.Error("the status line does not say s would unstage")
 	}
 	m = do(t, m, keyPress("s"))
-	if got := listed(m); got != "notes.txt:unstaged numbered.txt:unstaged new.txt:untracked" {
+	if got := listed(m); got != before {
 		t.Fatalf("after unstaging, files = %q", got)
 	}
 	if got := selectedEntry(t, m); got != "notes.txt:unstaged" {
-		t.Errorf("selected %q, want the file where it went", got)
+		t.Errorf("selected %q, want the file where it was", got)
+	}
+
+	// An untracked file is staged and taken back in place too, though git
+	// calls it something else on each side.
+	m = press(m, keyPress("g"))
+	m = do(t, m, keyPress("s"))
+	if got, sel := listed(m), selectedEntry(t, m); got != "new.txt:staged notes.txt:unstaged numbered.txt:unstaged" || sel != "new.txt:staged" {
+		t.Errorf("after staging the untracked file: files = %q, selected %q", got, sel)
+	}
+	m = do(t, m, keyPress("s"))
+	if got, sel := listed(m), selectedEntry(t, m); got != before || sel != "new.txt:unstaged" {
+		t.Errorf("after taking it back: files = %q, selected %q", got, sel)
 	}
 }
 
@@ -182,7 +192,7 @@ func TestStagingEverything(t *testing.T) {
 	}
 	// With nothing left to stage, the same key takes it all back.
 	m = do(t, m, keyPress("S"))
-	if got := listed(m); got != "numbered.txt:unstaged new.txt:untracked" {
+	if got := listed(m); got != "new.txt:untracked numbered.txt:unstaged" {
 		t.Fatalf("after S again, files = %q, want nothing staged", got)
 	}
 	// The row's own summary follows: a new file is "untracked" again.
@@ -356,7 +366,7 @@ func TestDiffCursorStaysOnScreen(t *testing.T) {
 	}
 
 	// Another file starts from its top.
-	m = press(m, keyPress("2"), keyPress("k"))
+	m = press(m, keyPress("2"), keyPress("j"))
 	if m.commitView.diffCursor != 0 || m.commitView.diffScroll != 0 {
 		t.Errorf("cursor %d, scroll %d on another file, want both at the top", m.commitView.diffCursor, m.commitView.diffScroll)
 	}

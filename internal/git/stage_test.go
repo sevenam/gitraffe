@@ -187,7 +187,8 @@ func TestStageAndUnstageAFile(t *testing.T) {
 			t.Fatalf("UnstageFile(%q): %v\n%s", path, err, detail)
 		}
 	}
-	want = []string{"gone.txt:unstaged", odd + ":unstaged", "new.txt:untracked"}
+	// In the places they had while staged.
+	want = []string{"gone.txt:unstaged", "new.txt:untracked", odd + ":unstaged"}
 	if got := describe(WorkingTree(dir, 80).Files); strings.Join(got, "|") != strings.Join(want, "|") {
 		t.Fatalf("after unstaging, files = %q, want %q", got, want)
 	}
@@ -211,7 +212,7 @@ func TestStageAllAndUnstageAll(t *testing.T) {
 	if detail, err := UnstageAll(dir); err != nil {
 		t.Fatalf("UnstageAll: %v\n%s", err, detail)
 	}
-	if got := describe(WorkingTree(dir, 80).Files); strings.Join(got, " ") != "numbered.txt:unstaged new.txt:untracked" {
+	if got := describe(WorkingTree(dir, 80).Files); strings.Join(got, " ") != "new.txt:untracked numbered.txt:unstaged" {
 		t.Fatalf("after UnstageAll, files = %q", got)
 	}
 }
@@ -582,7 +583,7 @@ func TestStagingFromASubdirectory(t *testing.T) {
 	write(t, dir, "numbered.txt", numbered(31))
 
 	// Everything is named from the top, wherever it is asked from.
-	want := []string{"numbered.txt:unstaged", "sub/inner.txt:unstaged", "sub/fresh.txt:untracked"}
+	want := []string{"numbered.txt:unstaged", "sub/fresh.txt:untracked", "sub/inner.txt:unstaged"}
 	if got := describe(WorkingTree(sub, 80).Files); strings.Join(got, " ") != strings.Join(want, " ") {
 		t.Fatalf("files = %q, want %q", got, want)
 	}
@@ -829,5 +830,65 @@ func TestStageLinesOfAFileGitQuotes(t *testing.T) {
 		if got := indexed(t, dir, name); got != want {
 			t.Fatalf("%q: after staging five removals the index holds\n%q", name, got)
 		}
+	}
+}
+
+// The list is in path order whichever side of the index a file is on, so
+// staging one, or part of one, or taking it back, moves nothing: a file that
+// is on both sides has its two entries together, the staged one first.
+func TestStagingLeavesTheFilesWhereTheyAre(t *testing.T) {
+	dir, git := stageRepo(t)
+	write(t, dir, "a.txt", "one\n")
+	write(t, dir, "c.txt", "one\n")
+	if err := os.Mkdir(filepath.Join(dir, "dir"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	write(t, dir, "dir/e.txt", "one\n")
+	git("add", "-A")
+	git("commit", "-qm", "second")
+	write(t, dir, "a.txt", "one\ntwo\n")
+	write(t, dir, "b.txt", "new\n")
+	write(t, dir, "c.txt", "one\ntwo\n")
+	write(t, dir, "d.txt", "new\n")
+	write(t, dir, "dir/e.txt", "one\ntwo\n")
+
+	paths := func() string {
+		var out []string
+		for _, f := range WorkingTree(dir, 80).Files {
+			if len(out) == 0 || out[len(out)-1] != f.Path {
+				out = append(out, f.Path)
+			}
+		}
+		return strings.Join(out, " ")
+	}
+	const order = "a.txt b.txt c.txt d.txt dir/e.txt"
+	if got := paths(); got != order {
+		t.Fatalf("before staging, paths = %q, want %q", got, order)
+	}
+
+	for _, step := range []struct {
+		path string
+		do   func(dir, path string) (string, error)
+		want string
+	}{
+		{"c.txt", StageFile, "a.txt:unstaged b.txt:untracked c.txt:staged d.txt:untracked dir/e.txt:unstaged"},
+		{"d.txt", StageFile, "a.txt:unstaged b.txt:untracked c.txt:staged d.txt:staged dir/e.txt:unstaged"},
+		{"dir/e.txt", StageFile, "a.txt:unstaged b.txt:untracked c.txt:staged d.txt:staged dir/e.txt:staged"},
+		{"c.txt", UnstageFile, "a.txt:unstaged b.txt:untracked c.txt:unstaged d.txt:staged dir/e.txt:staged"},
+		{"d.txt", UnstageFile, "a.txt:unstaged b.txt:untracked c.txt:unstaged d.txt:untracked dir/e.txt:staged"},
+	} {
+		if detail, err := step.do(dir, step.path); err != nil {
+			t.Fatalf("%s: %v\n%s", step.path, err, detail)
+		}
+		if got := strings.Join(describe(WorkingTree(dir, 80).Files), " "); got != step.want {
+			t.Fatalf("after %s, files = %q, want %q", step.path, got, step.want)
+		}
+	}
+
+	// Edited again after being staged: on both sides, and still in place.
+	write(t, dir, "dir/e.txt", "one\ntwo\nthree\n")
+	want := "a.txt:unstaged b.txt:untracked c.txt:unstaged d.txt:untracked dir/e.txt:staged dir/e.txt:unstaged"
+	if got := strings.Join(describe(WorkingTree(dir, 80).Files), " "); got != want {
+		t.Errorf("with a file on both sides, files = %q, want %q", got, want)
 	}
 }

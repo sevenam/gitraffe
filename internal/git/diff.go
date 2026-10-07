@@ -6,6 +6,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"sort"
 	"strings"
 	"sync"
 )
@@ -144,8 +145,8 @@ type Diff struct {
 	Body string // the patch, cut to a length the details panel can hold
 	// Files is the same patch split per file. It is parsed before Body is cut,
 	// so the commit view can list files the panel's text no longer reaches.
-	// For the uncommitted changes they are listed staged first, then unstaged,
-	// then untracked; see WorkingTree.
+	// For the uncommitted changes they are in path order whichever side of
+	// the index they are on; see WorkingTree.
 	Files []FileDiff
 	// State is what the repository is in the middle of, for the uncommitted
 	// changes: it decides whether they can be staged and committed from here.
@@ -188,9 +189,15 @@ func ShowCommit(dir, hash string, statWidth int) Diff {
 // HEAD", which covers staged and unstaged together and matches Status's
 // count; untracked files have no diff to show and are listed instead.
 //
-// Files keeps the two apart, because that is the difference staging makes: the
-// index against HEAD first (what a commit would hold), then the working tree
-// against the index (what it would leave behind), then the untracked files.
+// Files keeps the two apart, because that is the difference staging makes: a
+// file is an entry for the index against HEAD (what a commit would hold), an
+// entry for the working tree against the index (what it would leave behind),
+// or both; and an untracked file is an entry of its own kind.
+//
+// They are listed by path, not by which of those they are. Staging a file
+// changes its entry and must not move it: a list that regroups under the
+// cursor has to be read again after every key. A file with both entries has
+// them together, the staged one first.
 // While the repository is in a state staging is refused in, the split is
 // skipped and the files are listed as one diff: git writes a conflicted file
 // in a form of its own that has no hunks to pick from.
@@ -261,6 +268,15 @@ func WorkingTree(dir string, statWidth int) Diff {
 		}
 		body = sb.String() + body
 	}
+
+	// Stable, and in the byte order git itself lists paths in, so that
+	// entries which compare equal keep the order they were read in.
+	sort.SliceStable(files, func(i, j int) bool {
+		if files[i].Path != files[j].Path {
+			return files[i].Path < files[j].Path
+		}
+		return files[i].Staged && !files[j].Staged
+	})
 
 	return Diff{Stat: stat, Body: body, Files: files, State: state}
 }
