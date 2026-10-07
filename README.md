@@ -234,9 +234,10 @@ esc: back • s: stage file • S: all • c: commit • 3: diff, for hunks and 
 ```
 
 Each row of the file list says which side it is on: `●` is staged — what the next
-commit will hold — and `○` is not. Staged files come first, then unstaged, then
-untracked. A file with some changes staged and some not is listed twice, once on each
-side, so the diff beside a row is exactly what `s` on that row would move.
+commit will hold — and `○` is not. The files are listed by path whichever side they
+are on, so staging one changes its mark and leaves it where it is. A file with some
+changes staged and some not is listed twice, the staged half first, so the diff
+beside a row is exactly what `s` on that row would move.
 
 | Where | Key | Does |
 | --- | --- | --- |
@@ -251,8 +252,10 @@ box follows it. With nothing picked, `s` takes the hunk the cursor is in, from i
 `@@` line to the next. For less than a hunk, press `v` on a line and move: the lines
 from there to the cursor are picked, and `s` stages the changed ones among them — so
 `v` `s` on one line stages that line. After `s` the cursor stays put and the next hunk
-moves up under it, so pressing it again works down the file; on the file list the
-selection steps to the next file in the same way.
+moves up under it, so pressing it again works down the file. On the file list the
+selection stays on the file too: `s` again takes it back, and moving on to the next
+file is yours to do. When the last of a file's changes is staged from the diff, the
+selection goes to its staged half rather than to another file.
 
 `c` opens a box for the message, with a subject line and a body:
 

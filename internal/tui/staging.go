@@ -122,10 +122,13 @@ func (m model) stageSelected() (model, tea.Cmd) {
 
 	// Where the selection goes once the list is read again: the entry itself
 	// while any of it is left, so the next hunk moves up under the cursor;
-	// then the one after it, so "s" again takes the next file; and last the
-	// same file's other half, which is where what was just moved went.
-	v.want = append([]fileKey{keyOf(f)}, neighbours(files, v.file)...)
-	v.want = append(v.want, fileKey{f.Path, !f.Staged})
+	// then the same file's other half, which is where what was just moved
+	// went and, the list being in path order, the row the selection is
+	// already on. Staying there means "s" again takes it back, as a slip
+	// should be undone, and the file being looked at does not change under
+	// the key. Another file is only for when this one has left the list.
+	v.want = []fileKey{keyOf(f), {f.Path, !f.Staged}}
+	v.want = append(v.want, neighbours(files, v.file)...)
 
 	if v.focus != commitBoxDiff {
 		path, staged := f.Path, f.Staged
@@ -167,15 +170,23 @@ func (m model) stageEverything() (model, tea.Cmd) {
 	})
 }
 
-// neighbours are the entries to fall back on when the one at i is gone: the
-// next in its half of the list, then the one before.
+// neighbours are the entries to fall back on when the file at i has left the
+// list altogether: the nearest below it on its side of the index, then the
+// nearest above. The list is in path order with the two sides mixed, so the
+// nearest may be several rows away.
 func neighbours(files []fileDiff, i int) []fileKey {
 	var keys []fileKey
-	if i+1 < len(files) && files[i+1].Staged == files[i].Staged {
-		keys = append(keys, keyOf(files[i+1]))
+	for j := i + 1; j < len(files); j++ {
+		if files[j].Staged == files[i].Staged {
+			keys = append(keys, keyOf(files[j]))
+			break
+		}
 	}
-	if i > 0 && files[i-1].Staged == files[i].Staged {
-		keys = append(keys, keyOf(files[i-1]))
+	for j := i - 1; j >= 0; j-- {
+		if files[j].Staged == files[i].Staged {
+			keys = append(keys, keyOf(files[j]))
+			break
+		}
 	}
 	return keys
 }
