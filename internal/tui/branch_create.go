@@ -14,23 +14,29 @@ import (
 	"github.com/sevenam/gitraffe/internal/theme"
 )
 
-// A new branch: "b" asks for a name, makes the branch where HEAD is and
-// switches to it. See git.CreateBranch.
+// A new branch: "b" asks for a name, makes the branch at the selected commit
+// and switches to it. See git.CreateBranch.
 //
-// It starts at HEAD whatever commit is selected. The selection is wherever
-// reading the history last left it, and a branch started there would start
-// somewhere nobody chose; where you stand is the one place that is never a
-// surprise, and the box names it. A branch from anywhere else is "c" on that
-// commit and then "b".
+// It starts at the selection, which is what the cursor is for, and the box
+// names the commit so that a selection left somewhere by reading the history
+// is seen before the branch is made. On the commit HEAD is at, or on the
+// uncommitted changes above it, no file changes and those changes come
+// along. Anywhere else it is a checkout as well, and is turned down as "c"
+// is while there are uncommitted changes — before the box opens, so that
+// nobody types a name for nothing.
 
 // branchPrompt is the box "b" asks for the name in.
 type branchPrompt struct {
 	open    bool
 	name    textinput.Model
-	from    string // what HEAD is on, as the top box shows it
 	failure string // why the name typed will not do
-	// The commit HEAD is at, which is where the branch starts: its short
-	// hash and its subject. On a detached HEAD they are all that says where.
+	// start is the full hash of the commit the branch starts at, or "" for
+	// where HEAD is.
+	start string
+	// from is what HEAD is on, as the top box shows it, when the branch starts
+	// there. A branch started anywhere else has only its commit to show.
+	from string
+	// The commit the branch starts at: its short hash and its subject.
 	commit, subject string
 }
 
@@ -60,6 +66,10 @@ func (m model) branchBlocked() string {
 	return ""
 }
 
+// branchElsewhereNotice turns down a branch at a commit other than HEAD's
+// while there are uncommitted changes, and says what would work.
+const branchElsewhereNotice = "No branch made here: you have uncommitted changes — commit or stash them, or branch from the commit you are on"
+
 // openBranchPrompt opens the box, unless a branch could not be made now.
 func (m model) openBranchPrompt() (model, tea.Cmd) {
 	if !m.ready || m.err != nil {
@@ -75,14 +85,26 @@ func (m model) openBranchPrompt() (model, tea.Cmd) {
 	name.CharLimit = 200
 	name.Cursor.SetMode(cursor.CursorStatic)
 	name.Focus()
-	m.branchPrompt = branchPrompt{open: true, name: name, from: m.currentBranch, commit: shortHash(m.headHash)}
-	for _, c := range m.commits {
-		// Not there when HEAD is further back than the history loaded.
-		if c.FullHash == m.headHash && !c.WorkingTree {
-			m.branchPrompt.subject, _, _ = strings.Cut(c.Message, "\n")
-			break
+	p := branchPrompt{open: true, name: name, from: m.currentBranch, commit: shortHash(m.headHash)}
+	if c, ok := m.commitOnScreen(); ok && !c.WorkingTree && c.FullHash != m.headHash {
+		// Asked here rather than found out by the branch once it is named.
+		// git.CreateBranch asks again, the box having been open a while.
+		if dirty, _ := git.LocalChanges(m.repoPath); dirty {
+			m.notice = branchElsewhereNotice
+			return m, nil
+		}
+		p.start, p.from, p.commit = c.FullHash, "", c.Hash
+		p.subject, _, _ = strings.Cut(c.Message, "\n")
+	} else {
+		for _, c := range m.commits {
+			// Not there when HEAD is further back than the history loaded.
+			if c.FullHash == m.headHash && !c.WorkingTree {
+				p.subject, _, _ = strings.Cut(c.Message, "\n")
+				break
+			}
 		}
 	}
+	m.branchPrompt = p
 	return m, nil
 }
 
@@ -110,6 +132,7 @@ func (m model) updateBranchPrompt(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 			p.failure = "There is already a branch called " + name + "."
 			return m, nil
 		}
+		start := p.start
 		m.branchPrompt = branchPrompt{}
 		// Something may have started while the box was open.
 		if busy := m.branchBlocked(); busy != "" {
@@ -118,7 +141,7 @@ func (m model) updateBranchPrompt(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		}
 		// A switch as far as everything else is concerned: HEAD is moving.
 		m.switching = true
-		return m, createBranchCmd(m.repoPath, name)
+		return m, createBranchCmd(m.repoPath, name, start)
 	}
 
 	var cmd tea.Cmd
@@ -127,9 +150,9 @@ func (m model) updateBranchPrompt(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	return m, cmd
 }
 
-func createBranchCmd(repoPath, name string) tea.Cmd {
+func createBranchCmd(repoPath, name, start string) tea.Cmd {
 	return func() tea.Msg {
-		detail, err := git.CreateBranch(repoPath, name)
+		detail, err := git.CreateBranch(repoPath, name, start)
 		return branchCreatedMsg{repoPath: repoPath, name: name, detail: detail, err: err}
 	}
 }
@@ -149,6 +172,8 @@ func (m model) finishBranch(msg branchCreatedMsg) (model, tea.Cmd) {
 
 func branchFailedNotice(msg branchCreatedMsg) string {
 	switch {
+	case errors.Is(msg.err, git.ErrLocalChanges):
+		return branchElsewhereNotice
 	case errors.Is(msg.err, git.ErrBranchExists):
 		return "No branch made: there is already a branch called " + msg.name
 	case errors.Is(msg.err, git.ErrBadBranchName):
@@ -183,7 +208,10 @@ const (
 func (p branchPrompt) width(windowWidth int) int {
 	want := ansi.StringWidth(p.name.Value())
 	if p.commit != "" {
-		from := ansi.StringWidth(p.from) + 2 + len(p.commit)
+		from := len(p.commit)
+		if p.from != "" {
+			from += ansi.StringWidth(p.from) + 2
+		}
 		if p.subject != "" {
 			from += 1 + ansi.StringWidth(p.subject)
 		}
@@ -207,15 +235,27 @@ func (p branchPrompt) render(windowWidth int) string {
 	label := lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color(theme.Current.Title))
 	var sb strings.Builder
 	sb.WriteString(titleStyle.Padding(0).Render("New branch"))
-	sb.WriteString(helpStyle.Render("  " + ansi.Truncate("starts where you are, not at the selection",
-		inner-len("New branch  "), "…")))
+	where := "starts where you are"
+	if p.start != "" {
+		where = "starts at the selected commit"
+	}
+	sb.WriteString(helpStyle.Render("  " + ansi.Truncate(where, inner-len("New branch  "), "…")))
 	sb.WriteString("\n\n")
 
-	from := ansi.Truncate(p.from, width, "…")
-	sb.WriteString(label.Render("From") + "  " + localBranchStyle.Render(from))
-	// The name comes first and is kept whole; the commit takes what is left.
-	if room := width - ansi.StringWidth(from) - 2; p.commit != "" && room >= len(p.commit) {
-		sb.WriteString("  " + commitHashStyle.Render(p.commit))
+	sb.WriteString(label.Render("From") + "  ")
+	room := width
+	if p.from != "" {
+		// The branch comes first and is kept whole; the commit takes what
+		// is left.
+		from := ansi.Truncate(p.from, width, "…")
+		sb.WriteString(localBranchStyle.Render(from))
+		room -= ansi.StringWidth(from) + 2
+		if p.commit != "" && room >= len(p.commit) {
+			sb.WriteString("  ")
+		}
+	}
+	if p.commit != "" && room >= len(p.commit) {
+		sb.WriteString(commitHashStyle.Render(p.commit))
 		if room -= len(p.commit) + 1; p.subject != "" && room > 1 {
 			sb.WriteString(" " + helpStyle.Render(ansi.Truncate(p.subject, room, "…")))
 		}

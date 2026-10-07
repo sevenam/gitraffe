@@ -72,7 +72,7 @@ release build and the release version check all depend on it being there.
 | `pull.go` | `Pull`: fetch, then fast-forward or nothing |
 | `push.go` | `Push`, `PushNewBranch`, `PushTag`: one branch or one tag, moved forward or created, never forced; `ReadPushPlan` (what the branch tracks and where a new one would go) |
 | `switch.go` | `Switch`, `SwitchTargets`: checking out a branch, refused while there are uncommitted changes |
-| `branch.go` | `CreateBranch`: a new branch at HEAD, switched to, tracking nothing; `BranchExists` |
+| `branch.go` | `CreateBranch`: a new branch at a commit, switched to, tracking nothing, refused like `Switch` unless the commit is HEAD's; `BranchExists` |
 | `stage.go` | `StageFile`, `UnstageFile`, `StageAll`, `StageLines` (a patch of picked lines for `git apply --cached`; see `buildPatch`), `CommitStaged`, `WorkingState` (a merge or rebase in progress, a detached HEAD) |
 | `delete.go` | `DeleteBranch`, `DeleteTargets`: deleting a local or remote branch, refused when its commits are on no other branch |
 | `remote_tags.go` | which tags the remotes hold |
@@ -162,8 +162,9 @@ new helpers.
 - **Gitraffe only does to a repository what cannot lose work or need resolving.** That is a
   fetch, a fast-forward of the current branch, a switch of branch with a clean working tree
   (`git switch`, never `git checkout`, and refused while tracked files have changes), a
-  new branch where HEAD already is (which touches no file, so nothing is refused over
-  uncommitted changes), the
+  new branch at the selected commit (where HEAD already is that touches no file, so
+  nothing is refused over uncommitted changes; anywhere else it is a switch too, and
+  refused as one), the
   deletion of a branch whose commits stay on another branch or tag, staging and
   committing, and a push that moves a remote branch forward or creates a branch or a tag;
   a merge, a rebase or a forced push is not. Staging only copies changes

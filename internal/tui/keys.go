@@ -195,8 +195,9 @@ func (m model) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		// commits; that view never hands its keys on to the graph.
 		return m.openCheckout()
 	case "b":
-		// Lower case although it makes a branch: it only opens the box, and
-		// nothing is made until a name there is given with enter.
+		// Lower case although it makes a branch and moves HEAD: it only
+		// opens the box, and nothing is made until a name there is given
+		// with enter.
 		return m.openBranchPrompt()
 	case "d":
 		// Lower case although it deletes: it only opens the list, and

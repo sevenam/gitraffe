@@ -18,7 +18,7 @@ A text-based UI git graph command line tool built with Golang, Bubble Tea, go-gi
 - ⬇️ `p` pulls: fetch, then fast-forward your branch — and nothing riskier than that (see [Pulling](#pulling))
 - ⬆️ `P` pushes your branch — never by force — and asks before creating a branch or a tag on the remote (see [Pushing](#pushing))
 - 🔀 `c` checks out the selected commit's branch, and refuses while you have uncommitted changes (see [Checking out](#checking-out))
-- 🌱 `b` starts a new branch where you are and switches to it (see [Creating a branch](#creating-a-branch))
+- 🌱 `b` starts a new branch at the selected commit and switches to it (see [Creating a branch](#creating-a-branch))
 - 🗑️ `d` deletes the selected commit's branch — local, remote or both — and refuses when its commits are on no other branch (see [Deleting branches](#deleting-branches))
 - 🌐 `o` opens the commit's pull request in your browser, on GitHub or Azure DevOps, read from the merge subject and the remote (see [Opening a pull request](#opening-a-pull-request))
 - 📋 `y` copies the commit's hash, subject or whole diff (see [Copying](#copying))
@@ -90,7 +90,7 @@ in `gitraffe ./update`.
 - `p` - Pull: fetch, then fast-forward this branch (see [Pulling](#pulling))
 - `P` - Push this branch, or the selected commit's unpushed tag (see [Pushing](#pushing))
 - `c` - Check out this commit's branch (see [Checking out](#checking-out))
-- `b` - New branch from where you are, switched to (see [Creating a branch](#creating-a-branch))
+- `b` - New branch at this commit, switched to (see [Creating a branch](#creating-a-branch))
 - `d` - Delete this commit's branch: local, remote or both (see [Deleting branches](#deleting-branches))
 - `o` - Open this commit's pull request in a browser (see [Opening a pull request](#opening-a-pull-request))
 - `y` - Copy this commit's hash (`y` again), subject (`s`) or diff (`d`) (see [Copying](#copying))
@@ -596,16 +596,16 @@ reason, the bottom line gives git's reason after `Checkout failed:`.
 
 ### Creating a branch
 
-Press `b` to start a new branch. A box asks for its name; `Enter` makes the branch and
-switches to it, and the bottom line says `Created feature and switched to it`. `Esc`
-closes the box with nothing made.
+Press `b` on a commit to start a new branch there. A box asks for its name; `Enter`
+makes the branch and switches to it, and the bottom line says
+`Created feature and switched to it`. `Esc` closes the box with nothing made.
 
 ```
 ╭─────────────────────────────────────────────────────────────╮
 │                                                             │
-│  New branch  starts where you are, not at the selection     │
+│  New branch  starts at the selected commit                  │
 │                                                             │
-│  From  main  4a938a6 fix the sign flip on refunds           │
+│  From  4a938a6 fix the sign flip on refunds                 │
 │  Name  feature/refunds                                      │
 │                                                             │
 │  enter: create it and switch to it • esc: cancel            │
@@ -613,30 +613,35 @@ closes the box with nothing made.
 ╰─────────────────────────────────────────────────────────────╯
 ```
 
-- **It starts where you are**: at the commit you have checked out, named in the box
-  by its branch, hash and subject, and not at the commit selected in the graph. The
-  selection is wherever reading the history last left it, and a branch started there
-  would start somewhere you never chose. To branch from another commit, check it out
-  with `c` first, then press `b`.
+- **It starts at the selected commit**, which the box names by its hash and subject
+  before anything is made — worth a glance, since the selection is wherever reading
+  the history last left it.
+- **On the commit you have checked out** — or on the uncommitted changes row above
+  it — the box says `starts where you are` and leads with your branch:
+  `From  main  4a938a6 …`. No file is touched, staged or not, so **uncommitted
+  changes come along** exactly as they were, on a branch that is the old one under a
+  new name. That makes `b` the way to move work you started on the wrong branch.
+- **On any other commit** it is a checkout as well: the files become that commit's.
+  So, like [checking out](#checking-out), it is turned down while any tracked file
+  has uncommitted changes, before the box opens:
+  `No branch made here: you have uncommitted changes — commit or stash them, or branch from the commit you are on`.
+  Untracked files don't count.
+- **On a detached HEAD**, `b` on the commit you are on is the way back onto a
+  branch, keeping whatever was committed there. The box then reads
+  `From  HEAD (detached)  4a938a6 …`.
 - **The box fits what it shows.** It widens to show the commit's subject whole and
   to hold a long name as you type it, up to a readable limit; in a narrow window it
   cuts the subject short and never spills past the edge.
-- **Uncommitted changes come along.** Unlike [checking out](#checking-out), nothing
-  is refused over them: no file is touched, staged or not, so they are exactly as
-  they were, on a branch that is the old one under a new name. That makes `b` the way
-  to move work you started on the wrong branch.
-- **On a detached HEAD** it is the way back onto a branch, keeping whatever was
-  committed there. The box then reads `From  HEAD (detached)  4a938a6 …`, the commit
-  being all there is to say where the branch starts.
 - **The name is checked while the box is open**: one git would not accept, or one a
   branch already has, is said in the box, which stays open for another.
-- **The new branch tracks nothing**, whatever `branch.autoSetupMerge` says, so the
-  first `P` asks where to create it on the remote (see [Pushing](#pushing)) rather
-  than pushing to the old branch's upstream.
+- **The new branch tracks nothing**, whatever `branch.autoSetupMerge` says and even
+  when started on a remote branch's commit, so the first `P` asks where to create it
+  on the remote (see [Pushing](#pushing)) rather than pushing to another branch's
+  upstream.
 - **Not during a merge or a rebase**: the operation belongs to the branch it was
   started on, so the bottom line says to finish it first.
 
-It is `git switch --no-track -c <name>`.
+It is `git switch --no-track -c <name> <commit>`.
 
 ### Deleting branches
 

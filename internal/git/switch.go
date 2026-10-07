@@ -89,6 +89,13 @@ func contains(list []string, s string) bool {
 	return false
 }
 
+// LocalChanges reports whether the working tree or the index holds changes to
+// tracked files: what a move to another commit is refused over.
+func LocalChanges(dir string) (bool, error) {
+	out, err := Run(dir, "status", "--porcelain", "--untracked-files=no")
+	return out != "", err
+}
+
 // Switch moves HEAD to the target and the working tree with it, and refuses,
 // changing nothing, while tracked files have uncommitted changes.
 //
@@ -103,11 +110,11 @@ func contains(list []string, s string) bool {
 // branches, where checkout given the wrong argument restores files over local
 // edits.
 func Switch(dir string, t SwitchTarget) (detail string, err error) {
-	dirty, err := Run(dir, "status", "--porcelain", "--untracked-files=no")
+	dirty, err := LocalChanges(dir)
 	if err != nil {
 		return "", err
 	}
-	if dirty != "" {
+	if dirty {
 		return "", ErrLocalChanges
 	}
 
