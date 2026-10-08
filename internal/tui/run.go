@@ -43,6 +43,11 @@ func Run(repoPath, configDir string) (updatedTo string, err error) {
 		// be out of date; see onFocus.
 		tea.WithReportFocus(),
 	)
+	if focusProbe != nil {
+		stop := make(chan struct{})
+		defer close(stop)
+		go watchFocus(focusProbe, focusWatchEvery, p.Send, stop)
+	}
 
 	finalModel, err := p.Run()
 	if err != nil {

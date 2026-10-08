@@ -838,6 +838,10 @@ takes git's index lock, so it won't make a git command you are typing elsewhere 
 It waits while a box is open over the graph — the help, a picker, the search prompt —
 and catches up once it is closed.
 
+On Windows the console doesn't pass focus on to programs, so gitraffe watches which
+window is in front instead. Coming back to its window counts; switching back to its
+tab within Windows Terminal doesn't, and waits for the 30-second check.
+
 Auto-refresh only looks at your machine. Seeing what is new on the remote still
 takes a fetch, which you can also have done for you. Both are set in `settings.yml`
 in your config directory, in seconds:
