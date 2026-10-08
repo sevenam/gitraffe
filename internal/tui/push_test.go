@@ -367,3 +367,31 @@ func TestPushFailureSaysWhy(t *testing.T) {
 		t.Error("the repository was read again after a push that did nothing")
 	}
 }
+
+func TestPushNameBoxShowsALongName(t *testing.T) {
+	dir, _, git, commit := repoWithRemote(t)
+	long := "feature/PROJ-1234-make-the-push-box-wide-enough-for-a-long-branch-name"
+	git("switch", "-q", "-c", long)
+	commit("on the long branch")
+	m := loadedModel(t, dir)
+	m = press(m, keyPress("P"))
+	if !m.push.naming {
+		t.Fatal("P did not open the new-branch box")
+	}
+
+	screen := ansi.Strip(m.View())
+	if !strings.Contains(screen, "Branch  "+long) {
+		t.Errorf("the box does not show the whole name %q:\n%s", long, screen)
+	}
+
+	// In a narrow window the box still fits, with the name scrolled.
+	for _, width := range []int{40, 60, 80} {
+		m.windowWidth = width
+		for _, line := range strings.Split(ansi.Strip(m.push.render(width)), "\n") {
+			if got := ansi.StringWidth(line); got > width {
+				t.Errorf("at %d columns the box is %d wide: %q", width, got, line)
+				break
+			}
+		}
+	}
+}
