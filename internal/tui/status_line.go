@@ -28,9 +28,6 @@ func (m *model) renderStatusLine() string {
 	if m.push.asking {
 		return truncateLines(noticeStyle.Render(m.pushQuestion()), m.windowWidth)
 	}
-	if m.discard.asking {
-		return truncateLines(noticeStyle.Render(m.discard.question), m.windowWidth)
-	}
 	if m.updateState == updateConfirming {
 		return truncateLines(noticeStyle.Render(
 			fmt.Sprintf("Update v%s → %s? This replaces the binary and quits. (y/n)", Version, m.latestVersion)),

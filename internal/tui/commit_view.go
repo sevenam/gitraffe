@@ -543,10 +543,6 @@ func (m model) renderFileDiff(c commit, width, rows int) (string, scrollMarks) {
 // commitViewStatusLine is the view's own bottom line: the keys this screen
 // answers to, with the way out first.
 func (m model) commitViewStatusLine() string {
-	if m.discard.asking {
-		return truncateLines(lipgloss.NewStyle().Bold(true).
-			Foreground(lipgloss.Color(theme.Current.Tag)).Render(m.discard.question), m.windowWidth)
-	}
 	// A notice takes the line while there is one, as it does on the graph
 	// screen: it answers the key just pressed, and the hints can wait.
 	if m.notice != "" {

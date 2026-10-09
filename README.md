@@ -393,9 +393,23 @@ A diff longer than 800 lines is cut on screen, and only the lines shown can be p
 ### Discarding changes
 
 `d` and `D` throw changes away, and are the only keys in gitraffe that lose work
-nothing can bring back. Each asks on the bottom line first —
-`Discard this hunk of parser.go? It cannot be undone (y/n)` — and only `y` answers yes;
-any other key leaves everything as it was.
+nothing can bring back. Each asks first, in a box over the screen that says what will
+go, and only `y` answers yes; any other key leaves everything as it was.
+
+```
+╭──────────────────────────────────────╮
+│                                      │
+│  Discard changes                     │
+│                                      │
+│  This hunk of parser.go              │
+│                                      │
+│  Staged changes are kept.            │
+│  This cannot be undone.              │
+│                                      │
+│  y: discard • any other key: cancel  │
+│                                      │
+╰──────────────────────────────────────╯
+```
 
 | Where | Key | Discards |
 | --- | --- | --- |

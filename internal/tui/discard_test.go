@@ -31,7 +31,7 @@ func TestDiscardAFileAsksFirst(t *testing.T) {
 
 	// Anything but y leaves it alone.
 	m = do(t, m, keyPress("d"))
-	if !strings.Contains(ansi.Strip(m.View()), "Discard the changes to notes.txt?") {
+	if !strings.Contains(ansi.Strip(m.View()), "The unstaged changes to notes.txt") {
 		t.Fatalf("d did not ask:\n%s", ansi.Strip(m.View()))
 	}
 	m = do(t, m, keyPress("n"))
@@ -93,7 +93,7 @@ func TestDiscardAHunkFromTheDiff(t *testing.T) {
 	m = onHunk(t, m, "+line twenty-nine")
 
 	m = do(t, m, keyPress("d"))
-	if !strings.Contains(ansi.Strip(m.View()), "Discard this hunk of numbered.txt?") {
+	if !strings.Contains(ansi.Strip(m.View()), "This hunk of numbered.txt") {
 		t.Fatalf("d did not ask about the hunk:\n%s", ansi.Strip(m.View()))
 	}
 	m = do(t, m, keyPress("y"))
@@ -116,8 +116,8 @@ func TestDiscardingEverythingClosesTheView(t *testing.T) {
 
 	next, cmd := m.Update(keyPress("D"))
 	m = next.(model)
-	if !strings.Contains(m.discard.question, "2 files") {
-		t.Fatalf("question = %q, want the files counted", m.discard.question)
+	if !strings.Contains(m.discard.what, "2 files") {
+		t.Fatalf("what = %q, want the files counted", m.discard.what)
 	}
 	next, cmd = m.Update(keyPress("y"))
 	m = next.(model)
@@ -140,7 +140,7 @@ func TestDiscardFromTheGraph(t *testing.T) {
 	m := withDiff(t, loadedModel(t, dir))
 
 	m = press(m, keyPress("D"))
-	if !strings.Contains(ansi.Strip(m.View()), "Discard the unstaged changes to 2 files? Staged changes are kept") {
+	if !strings.Contains(ansi.Strip(m.View()), "The unstaged changes to 2 files") {
 		t.Fatalf("D did not ask:\n%s", ansi.Strip(m.View()))
 	}
 	m = do(t, m, keyPress("y"))

@@ -2,8 +2,13 @@ package tui
 
 import (
 	"errors"
+	"strings"
 
 	tea "github.com/charmbracelet/bubbletea"
+	"github.com/charmbracelet/lipgloss"
+	"github.com/charmbracelet/x/ansi"
+
+	"github.com/sevenam/gitraffe/internal/theme"
 
 	"github.com/sevenam/gitraffe/internal/git"
 )
@@ -11,8 +16,9 @@ import (
 // Discarding: "d" and "D" in the commit view of the uncommitted changes throw
 // away what "s" and "S" there would stage, and "D" on the graph throws away
 // all of it. It is the one thing gitraffe does that loses work nothing can
-// bring back, so every discard asks on the status line first and only "y"
-// answers yes; any other key leaves everything as it was.
+// bring back, so every discard asks first, in a box over the screen rather
+// than on the status line where it could be read past, and only "y" answers
+// yes; any other key leaves everything as it was.
 //
 // Only unstaged changes are reached (see internal/git/discard.go): what is
 // staged is kept, so staging something is how to put it out of reach of a
@@ -21,11 +27,12 @@ import (
 // discardPrompt is the question a discard waits on, and what it does once
 // answered.
 type discardPrompt struct {
-	asking   bool
-	question string
-	done     string // the status line once it is done
-	change   func(dir string) (string, error)
-	want     []fileKey // where the file list's selection goes afterwards
+	asking bool
+	title  string // "Discard changes", or "Delete file" for one git has never seen
+	what   string // what goes, as "This hunk of parser.go"
+	done   string // the status line once it is done
+	change func(dir string) (string, error)
+	want   []fileKey // where the file list's selection goes afterwards
 }
 
 // canDiscard is canStage for the graph as well as the commit view: nothing
@@ -83,9 +90,10 @@ func (m model) discardSelected() model {
 		what = "this hunk"
 	}
 	m.discard = discardPrompt{
-		asking:   true,
-		question: "Discard " + what + " of " + entry.Path + "? It cannot be undone (y/n)",
-		done:     "Discarded " + what + " of " + entry.Path,
+		asking: true,
+		title:  "Discard changes",
+		what:   strings.ToUpper(what[:1]) + what[1:] + " of " + entry.Path,
+		done:   "Discarded " + what + " of " + entry.Path,
 		change: func(dir string) (string, error) {
 			return git.DiscardLines(dir, entry, first, last)
 		},
@@ -110,9 +118,10 @@ func (m model) discardShownFile() model {
 
 func (m model) askDiscardFile(f fileDiff) model {
 	p := discardPrompt{
-		asking:   true,
-		question: "Discard the changes to " + f.Path + "? It cannot be undone (y/n)",
-		done:     "Discarded the changes to " + f.Path,
+		asking: true,
+		title:  "Discard changes",
+		what:   "The unstaged changes to " + f.Path,
+		done:   "Discarded the changes to " + f.Path,
 		change: func(dir string) (string, error) {
 			return git.DiscardFile(dir, f)
 		},
@@ -120,7 +129,8 @@ func (m model) askDiscardFile(f fileDiff) model {
 		want: append([]fileKey{{f.Path, true}}, neighbours(m.viewedFiles(), m.commitView.file)...),
 	}
 	if f.Untracked {
-		p.question = "Delete " + f.Path + ", which git has never seen? It cannot be undone (y/n)"
+		p.title = "Delete file"
+		p.what = f.Path + ", which git has never seen"
 		p.done = "Deleted " + f.Path
 	}
 	m.discard = p
@@ -139,7 +149,7 @@ func (m model) discardEverything() model {
 		return m
 	}
 	c := m.commits[0]
-	question := "Discard every unstaged change and untracked file? Staged changes are kept. It cannot be undone (y/n)"
+	what := "Every unstaged change, and every untracked file"
 	if c.DiffLoaded {
 		unstaged := 0
 		for _, f := range c.DiffFiles {
@@ -151,14 +161,14 @@ func (m model) discardEverything() model {
 			m.notice = "Nothing unstaged to discard — staged changes are kept"
 			return m
 		}
-		question = "Discard the unstaged changes to " + plural(unstaged, "file") +
-			"? Staged changes are kept. It cannot be undone (y/n)"
+		what = "The unstaged changes to " + plural(unstaged, "file") + ", untracked ones deleted"
 	}
 	m.discard = discardPrompt{
-		asking:   true,
-		question: question,
-		done:     "Discarded all unstaged changes",
-		change:   git.DiscardAll,
+		asking: true,
+		title:  "Discard changes",
+		what:   what,
+		done:   "Discarded all unstaged changes",
+		change: git.DiscardAll,
 	}
 	return m
 }
@@ -226,4 +236,40 @@ func discardFailedNotice(msg stageFinishedMsg) string {
 		reason = msg.err.Error()
 	}
 	return "Not discarded: " + reason
+}
+
+// discardBoxChrome is the border and padding round the box's text.
+const discardBoxChrome = 2 + 2*commitPromptPadding
+
+// render draws the question as a box over the screen, bordered in the
+// error colour: it is the one box in gitraffe whose yes cannot be taken back.
+func (p discardPrompt) render(windowWidth int) string {
+	const hints = "y: discard • any other key: cancel"
+	notes := []string{"Staged changes are kept.", "This cannot be undone."}
+	width := max(ansi.StringWidth(p.what), ansi.StringWidth(hints), ansi.StringWidth(p.title))
+	width = max(10, min(width, windowWidth-discardBoxChrome-2))
+
+	danger := lipgloss.Color(theme.Current.Error)
+	var sb strings.Builder
+	sb.WriteString(lipgloss.NewStyle().Bold(true).Foreground(danger).Render(p.title))
+	sb.WriteString("\n\n")
+	// A long path is cut at the front: its end is the file's own name.
+	what := p.what
+	if ansi.StringWidth(what) > width {
+		what = "…" + ansi.TruncateLeft(what, ansi.StringWidth(what)-width+1, "")
+	}
+	sb.WriteString(lipgloss.NewStyle().Bold(true).Render(what))
+	sb.WriteString("\n\n")
+	for _, n := range notes {
+		sb.WriteString(helpStyle.Render(ansi.Truncate(n, width, "…")) + "\n")
+	}
+	sb.WriteString("\n")
+	sb.WriteString(helpStyle.Render(ansi.Truncate(hints, width, "…")))
+
+	return lipgloss.NewStyle().
+		Width(width+2*commitPromptPadding).
+		BorderStyle(lipgloss.RoundedBorder()).
+		BorderForeground(danger).
+		Padding(1, commitPromptPadding).
+		Render(sb.String())
 }
