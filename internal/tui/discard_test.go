@@ -6,9 +6,11 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/charmbracelet/lipgloss"
 	"github.com/charmbracelet/x/ansi"
 
 	"github.com/sevenam/gitraffe/internal/git"
+	"github.com/sevenam/gitraffe/internal/theme"
 )
 
 func fileIs(t *testing.T, dir, name string) string {
@@ -153,5 +155,20 @@ func TestDiscardFromTheGraph(t *testing.T) {
 	m = press(loadedModel(t, clean), keyPress("D"))
 	if m.discard.asking || !strings.Contains(m.notice, "Nothing to discard") {
 		t.Errorf("asking %v, notice %q on a clean working tree", m.discard.asking, m.notice)
+	}
+}
+
+// The keys stand out from the words beside them.
+func TestDiscardBoxHighlightsItsKeys(t *testing.T) {
+	withTrueColor(t)
+	box := discardPrompt{title: "Discard changes", what: "This hunk of a.txt"}.render(100)
+	key := lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color(theme.Current.SelectedFg))
+	for _, k := range []string{"y", "esc"} {
+		if !strings.Contains(box, key.Render(k)) {
+			t.Errorf("%q is not drawn in the key colour:\n%q", k, box)
+		}
+	}
+	if !strings.Contains(ansi.Strip(box), "y: discard • esc: cancel") {
+		t.Errorf("the keys line reads:\n%s", ansi.Strip(box))
 	}
 }

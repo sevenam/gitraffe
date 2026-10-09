@@ -240,12 +240,23 @@ func discardFailedNotice(msg stageFinishedMsg) string {
 
 // render draws the question as a box over the screen, made like the other
 // boxes that ask something (the delete list, the check-out list): a title,
-// what it is about, and the keys along the bottom.
+// what it is about, and the keys along the bottom. The keys themselves stand
+// out from their words, in the theme's selected-text colour (white unless a
+// theme says otherwise): with work at stake, which key does what should be
+// read at a glance.
 func (p discardPrompt) render(windowWidth int) string {
-	const footer = "y: discard • esc: cancel"
 	const note = "Staged changes are kept. This cannot be undone."
+	keys := [][2]string{{"y", "discard"}, {"esc", "cancel"}}
+	key := lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color(theme.Current.SelectedFg))
+	var plain, footer []string
+	for _, k := range keys {
+		plain = append(plain, k[0]+": "+k[1])
+		footer = append(footer, key.Render(k[0])+helpStyle.Render(": "+k[1]))
+	}
+	footerWidth := ansi.StringWidth(strings.Join(plain, " • "))
+
 	// The border and the padding take six columns.
-	width := max(ansi.StringWidth(p.what), ansi.StringWidth(note), ansi.StringWidth(footer))
+	width := max(ansi.StringWidth(p.what), ansi.StringWidth(note), footerWidth)
 	width = max(10, min(width, windowWidth-6))
 
 	// A long path is cut at the front: its end is the file's own name.
@@ -259,7 +270,7 @@ func (p discardPrompt) render(windowWidth int) string {
 	sb.WriteString(what + "\n")
 	sb.WriteString(ansi.Truncate(note, width, "…"))
 	sb.WriteString("\n\n")
-	sb.WriteString(helpStyle.Render(ansi.Truncate(footer, width, "…")))
+	sb.WriteString(ansi.Truncate(strings.Join(footer, helpStyle.Render(" • ")), width, "…"))
 
 	return lipgloss.NewStyle().
 		BorderStyle(lipgloss.RoundedBorder()).
