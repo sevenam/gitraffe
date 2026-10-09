@@ -74,6 +74,7 @@ release build and the release version check all depend on it being there.
 | `switch.go` | `Switch`, `SwitchTargets`: checking out a branch, refused while there are uncommitted changes |
 | `branch.go` | `CreateBranch`: a new branch at a commit, switched to, tracking nothing, refused like `Switch` unless the commit is HEAD's; `BranchExists` |
 | `stage.go` | `StageFile`, `UnstageFile`, `StageAll`, `StageLines` (a patch of picked lines for `git apply --cached`; see `buildPatch`), `CommitStaged`, `WorkingState` (a merge or rebase in progress, a detached HEAD) |
+| `discard.go` | `DiscardFile`, `DiscardLines`, `DiscardAll`: unstaged changes thrown away, never staged ones |
 | `delete.go` | `DeleteBranch`, `DeleteTargets`: deleting a local or remote branch, refused when its commits are on no other branch |
 | `remote_tags.go` | which tags the remotes hold |
 | `files.go` | `ListFiles`: every tracked file, for the file-history picker |
@@ -91,7 +92,7 @@ release build and the release version check all depend on it being there.
 | Loading | `load.go` (repository into model), `diff_load.go`, `reload.go`, `auto_refresh.go` (the refresh and fetch timers), `focus_watch.go` and `console_input_windows.go` (focus on Windows, where Bubble Tea drops it), `more_commits.go`, `fetch.go`, `pull.go`, `push.go` (`P`, its tag-or-branch question and the new-branch box), `checkout.go`, `branch_create.go` (`b` and its name box), `branch_delete.go` (the `d` list and the delete), `remote_tags.go`, `working_tree.go` |
 | Screen assembly | `view.go` (`View`), `layout.go` (`currentLayout`: how the width is shared), `boxes.go` (clipping, labels, overlays, `trimToHeight`), `scroll_marks.go`, `background.go` (`paintBackground`) |
 | Main screen | `repo_info.go` (top box), `graph_panel.go` (commit list and `graphWindow`), `branch_label.go`, `details_panel.go` (`fitDetails`), `line_numbers.go` (the number column in front of a diff, here and in the commit view), `status_line.go` |
-| Other screens and overlays | `commit_view.go`, `staging.go` (`s`, `S`, `v` and the diff box's cursor on uncommitted changes), `staging_diff.go` (the diff box's lines there: a file's staged and unstaged hunks together, each marked), `commit_prompt.go` (the `c` message box and the commit), `ref_picker.go`, `repo_switcher.go`, `theme_picker.go`, `search.go`, `filter.go` (the file-history filter and its `h` picker), `help.go`, `pull_request.go` (also opens the browser), `copy.go` (the `y` prompt and the clipboard) |
+| Other screens and overlays | `commit_view.go`, `staging.go` (`s`, `S`, `v` and the diff box's cursor on uncommitted changes), `discard.go` (`d` and `D` there, `D` on the graph, and the question they ask), `staging_diff.go` (the diff box's lines there: a file's staged and unstaged hunks together, each marked), `commit_prompt.go` (the `c` message box and the commit), `ref_picker.go`, `repo_switcher.go`, `theme_picker.go`, `search.go`, `filter.go` (the file-history filter and its `h` picker), `help.go`, `pull_request.go` (also opens the browser), `copy.go` (the `y` prompt and the clipboard) |
 | Looks | `styles.go` (package-level styles built from the theme), `lane_colours.go`, `whitespace.go` (`w`: marks for the spaces and tabs of a diff, drawn by `styleDiffLine`) |
 | Session | `preferences.go` (what is remembered between runs), `selfupdate_tui.go` (the in-app update prompt), `terminal.go` |
 
@@ -176,7 +177,10 @@ new helpers.
   a merge, a rebase or a forced push is not. Staging only copies changes
   into the index and back, never touching a file; a commit holds only what was staged (`c` with nothing staged stages everything
   first, and says so), is made only by `c` then `Enter`, runs the repository's hooks and never skips one, and is
-  refused on a detached HEAD or during a merge or rebase. A push names the one branch or
+  refused on a detached HEAD or during a merge or rebase. The one exception is
+  discarding (`d`/`D`, issue #201): it asks on every use, takes only `y` as yes, and
+  reaches only unstaged changes and untracked files, never the index, so staging is
+  how a change is kept out of its reach. A push names the one branch or
   tag it sends, so no push setting can widen it, runs the `pre-push` hook, and is refused
   by git, changing nothing, when the remote has commits the branch lacks or a tag of that
   name elsewhere; a new name on the remote is asked about first. Deleting takes a row

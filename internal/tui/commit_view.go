@@ -543,6 +543,10 @@ func (m model) renderFileDiff(c commit, width, rows int) (string, scrollMarks) {
 // commitViewStatusLine is the view's own bottom line: the keys this screen
 // answers to, with the way out first.
 func (m model) commitViewStatusLine() string {
+	if m.discard.asking {
+		return truncateLines(lipgloss.NewStyle().Bold(true).
+			Foreground(lipgloss.Color(theme.Current.Tag)).Render(m.discard.question), m.windowWidth)
+	}
 	// A notice takes the line while there is one, as it does on the graph
 	// screen: it answers the key just pressed, and the hints can wait.
 	if m.notice != "" {
@@ -562,12 +566,12 @@ func (m model) commitViewStatusLine() string {
 			Foreground(lipgloss.Color(theme.Current.Tag)).Render("Committing..."), m.windowWidth)
 	}
 	if m.commitView.workingTree {
-		hints := "esc: back • s: stage file • S: all • c: commit • 3: diff, for hunks and lines • ?: help"
+		hints := "esc: back • s: stage file • S: all • d: discard • c: commit • 3: diff, for hunks and lines • ?: help"
 		switch {
 		case m.commitView.selecting:
-			hints = "s: stage these lines • ↑/↓/j/k: pick more • esc: let go • ?: help"
+			hints = "s: stage these lines • d: discard them • ↑/↓/j/k: pick more • esc: let go • ?: help"
 		case m.commitView.focus == commitBoxDiff:
-			hints = "esc: back • s: stage hunk • v: pick lines • S: file • c: commit • 2: files • ?: help"
+			hints = "esc: back • s: stage hunk • v: pick lines • S: file • d: discard • c: commit • 2: files • ?: help"
 			// Below a hunk's header the key takes the one line.
 			if !m.cursorTakesHunk(m.stagingDiff()) {
 				hints = strings.Replace(hints, "s: stage hunk", "s: stage line", 1)

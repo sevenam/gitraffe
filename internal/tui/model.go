@@ -74,6 +74,7 @@ type model struct {
 	commitPrompt commitPrompt     // the message box "c" opens
 	committing   bool             // a commit is running
 	committed    string           // full hash of the commit just made, until the reload finds it
+	discard      discardPrompt    // the question "d" and "D" ask first; see discard.go
 	// Pushing; see push.go.
 	push    pushPrompt // what "P" has to ask before it pushes
 	pushing bool       // a push is running
