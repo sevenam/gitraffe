@@ -74,6 +74,9 @@ func (m model) View() (result string) {
 			box := m.commitPrompt.render(m.windowWidth, stagedCount(m.viewedFiles()), m.currentBranch)
 			screen = overlayCentre(screen, box, m.windowWidth, m.windowHeight)
 		}
+		if m.discard.asking {
+			screen = overlayCentre(screen, m.discard.render(m.windowWidth), m.windowWidth, m.windowHeight)
+		}
 		return screen
 	}
 
@@ -209,6 +212,9 @@ func (m model) View() (result string) {
 	}
 	if m.switcher.open {
 		output = overlayCentre(output, m.switcher.render(m.windowWidth, m.windowHeight), m.windowWidth, m.windowHeight)
+	}
+	if m.discard.asking {
+		output = overlayCentre(output, m.discard.render(m.windowWidth), m.windowWidth, m.windowHeight)
 	}
 
 	return output

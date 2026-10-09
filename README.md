@@ -15,6 +15,7 @@ A text-based git command line tool built with Golang, Bubble Tea, go-git, and Li
 - 📝 Uncommitted changes as a row above the newest commit, with their diff (see [Uncommitted changes](#uncommitted-changes))
 - 🔍 A commit view on `Space`: what the commit is, every file it touched, and one file's diff at a time (see [The commit view](#the-commit-view))
 - ✍️ Stage files, hunks or single lines from the commit view and commit them with `c`, without leaving gitraffe (see [Staging and committing](#staging-and-committing))
+- 🧹 Discard unstaged files, hunks or lines there with `d`, or every unstaged change with `D`, always asked about first (see [Discarding changes](#discarding-changes))
 - ⬇️ `p` pulls: fetch, then fast-forward your branch — and nothing riskier than that (see [Pulling](#pulling))
 - ⬆️ `P` pushes your branch — never by force — and asks before creating a branch or a tag on the remote (see [Pushing](#pushing))
 - 🔀 `c` checks out the selected commit's branch, and refuses while you have uncommitted changes (see [Checking out](#checking-out))
@@ -92,6 +93,7 @@ in `gitraffe ./update`.
 - `c` - Check out this commit's branch (see [Checking out](#checking-out))
 - `b` - New branch at this commit, switched to (see [Creating a branch](#creating-a-branch))
 - `d` - Delete this commit's branch: local, remote or both (see [Deleting branches](#deleting-branches))
+- `D` - Discard every unstaged change and untracked file, after asking; staged changes are kept (see [Discarding changes](#discarding-changes))
 - `o` - Open this commit's pull request in a browser, or start one from its branch (see [Opening a pull request](#opening-a-pull-request))
 - `y` - Copy this commit's hash (`y` again), subject (`s`) or diff (`d`) (see [Copying](#copying))
 - `r` or `F5` - Reload the repository (see [Reloading](#reloading))
@@ -255,7 +257,7 @@ commit. Nothing else in gitraffe writes a commit, and this only does on `c` then
 │ > ○ parser.go       +2 -2 ││ +  if amount < 0 {                     │
 │   ○ notes.txt   untracked ││                                        │
 ╰───────────────────────────╯╰────────────────────────────────────────╯
-esc: back • s: stage file • S: all • c: commit • 3: diff, for hunks and lines • ?: help
+esc: back • s: stage file • S: all • d: discard • c: commit • 3: diff, for hunks and lines • ?: help
 ```
 
 Each row of the file list says which side it is on: `●` is staged — what the next
@@ -294,6 +296,7 @@ in view around it.
 | files | `S` | stage everything; when everything is staged already, unstage it all |
 | diff | `S` | stage all of the file shown; when all of it is staged already, unstage it |
 | any | `c` | commit what is staged |
+| files, diff | `d`, `D` | discard instead of stage (see [Discarding changes](#discarding-changes)) |
 
 Here the diff box has a cursor, which `↑/↓`, `j/k`, the wheel and a click all move; the
 box follows it. Where the cursor is says how much `s` takes: on a hunk's `@@` line,
@@ -386,6 +389,49 @@ What it will and won't do:
 
 A diff longer than 800 lines is cut on screen, and only the lines shown can be picked;
 `s` on the file list stages all of it.
+
+### Discarding changes
+
+`d` and `D` throw changes away, and are the only keys in gitraffe that lose work
+nothing can bring back. Each asks first, in a box over the screen that says what will
+go, and only `y` answers yes; `Esc`, or any other key, leaves everything as it was.
+
+```
+╭───────────────────────────────────────────────────╮
+│                                                   │
+│  Discard changes                                  │
+│                                                   │
+│  This hunk of parser.go                           │
+│  Staged changes are kept. This cannot be undone.  │
+│                                                   │
+│  y: discard • esc: cancel                         │
+│                                                   │
+╰───────────────────────────────────────────────────╯
+```
+
+| Where | Key | Discards |
+| --- | --- | --- |
+| files | `d` | the selected file's unstaged changes; an untracked file is deleted |
+| diff | `d` | the hunk, the line or the lines picked with `v`, as `s` would take them |
+| files | `D` | every unstaged change, and every untracked file |
+| diff | `D` | all of the shown file's unstaged changes |
+| graph | `D` | every unstaged change, and every untracked file |
+
+On the graph `D` is the whole working tree at once; to pick files, open the
+uncommitted changes with `Space` and use `d` there.
+
+- **Only what is not staged.** A tracked file goes back to what is staged, which is
+  the last commit's version when nothing of it is. Staged changes are never touched,
+  so staging something puts it out of reach of a discard; `d` on a `●` row or line
+  says so and does nothing. Unstage it with `s` first to discard it.
+- **Untracked files are deleted, whole.** A file git has never seen has no version to
+  go back to: `d` on its row deletes it, and lines of it cannot be discarded on their
+  own. `D` deletes every untracked file, and any directory left empty by that.
+  Ignored files are never touched.
+- **Not during a merge, rebase, cherry-pick or revert, or with unresolved conflicts**,
+  as for staging.
+- **A file that changed since it was read is shown again, not discarded**, as for
+  staging lines.
 
 ### Jumping to a branch or tag
 
@@ -920,7 +966,8 @@ Staged and unstaged changes are one number: both are work in progress. Select th
 and it shows the stats and the diff of everything against `HEAD`, staged changes
 included. Untracked files have no diff, so they are listed by name instead. Open the
 row (`Space`) to read them, to see what is staged and what is not, and to stage and
-commit (see [Staging and committing](#staging-and-committing)).
+commit (see [Staging and committing](#staging-and-committing)), or to throw changes
+away (see [Discarding changes](#discarding-changes)).
 
 The row follows your edits on its own (see [Auto-refresh](#auto-refresh)); press `r`
 if you don't want to wait for the next check.

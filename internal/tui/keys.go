@@ -40,6 +40,9 @@ func (m model) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	if m.copying {
 		return m.answerCopyPrompt(msg)
 	}
+	if m.discard.asking {
+		return m.answerDiscard(msg)
+	}
 	if m.push.asking {
 		return m.answerPush(msg)
 	}
@@ -207,6 +210,14 @@ func (m model) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		// Lower case although it deletes: it only opens the list, and
 		// nothing goes until a row there is picked with enter.
 		return m.openDelete(), nil
+	case "D":
+		// Capital, and asked about: it throws away work nothing can bring
+		// back. Every unstaged change goes; to pick files, open the
+		// uncommitted changes with space and use d there.
+		if !m.ready {
+			return m, nil
+		}
+		return m.discardEverything(), nil
 	case "w":
 		return m.toggleWhitespace(), nil
 	case "L":

@@ -13,7 +13,8 @@ import (
 )
 
 // Staging and committing: the part of gitraffe that writes what you chose
-// into the repository. Nothing here discards anything. Staging copies changes
+// into the repository. Nothing here discards anything (that is discard.go,
+// and asked about first). Staging copies changes
 // into the index and unstaging takes them back out, and the working tree is
 // never touched by either; a commit holds what was staged and nothing else.
 //
@@ -251,15 +252,6 @@ func stageLines(top string, f FileDiff, first, last int) (string, error) {
 		return runWrite(top, "", "--literal-pathspecs", "add", "--", f.Path)
 	}
 
-	shown := strings.Split(f.Body, "\n")
-	cut := len(shown) > 0 && shown[len(shown)-1] == truncatedMark
-	if cut {
-		shown = shown[:len(shown)-1]
-	}
-	if first > last {
-		first, last = last, first
-	}
-
 	// An untracked file is listed as its contents, with no hunk header: the
 	// diff git gives once it knows the file starts one line later.
 	offset := 0
@@ -274,51 +266,16 @@ func stageLines(top string, f FileDiff, first, last int) (string, error) {
 		}
 		offset = 1
 	}
-	// Taken back if nothing came of it, so a refusal leaves no trace.
-	forget := func() {
+
+	p, err := pickLines(top, f, first, last, offset)
+	switch {
+	case err != nil:
+		// Taken back, so a refusal leaves no trace.
 		if f.Untracked {
 			runWrite(top, "", "--literal-pathspecs", "reset", "--quiet", "--", f.Path)
 		}
-	}
-
-	raw, err := rawOutput(top, sectionArgs(f.Staged, "--", f.Path)...)
-	if err != nil {
-		forget()
 		return "", err
-	}
-	head, lines := splitFilePatch(raw)
-	if len(lines) == 0 {
-		if strings.TrimSpace(raw) == "" {
-			forget()
-			return "", ErrStaleDiff
-		}
-		// A binary file or a change of mode: nothing to pick from, so the
-		// file goes as one.
-		return whole()
-	}
-	if !f.Untracked && !sameDiff(shown, lines, cut) {
-		return "", ErrStaleDiff
-	}
-
-	picked := map[int]bool{}
-	changed := 0
-	for i, line := range lines {
-		if !isChange(line) {
-			continue
-		}
-		changed++
-		if shownAt := i - offset; shownAt >= first && shownAt <= last && shownAt < len(shown) {
-			picked[i] = true
-		}
-	}
-	switch {
-	case len(picked) == 0:
-		forget()
-		return "", ErrNoLines
-	case len(picked) == changed:
-		// Every change in the file: git does that itself, and gets right the
-		// things a patch of lines cannot say, such as a file being new or
-		// deleted, or its mode.
+	case p.whole:
 		return whole()
 	}
 
@@ -326,11 +283,76 @@ func stageLines(top string, f FileDiff, first, last int) (string, error) {
 	if f.Staged {
 		args = append(args, "--reverse")
 	}
-	detail, err := runWrite(top, buildPatch(head, lines, picked, f.Staged), append(args, "-")...)
-	if err != nil {
-		forget()
+	detail, err := runWrite(top, buildPatch(p.head, p.lines, p.picked, f.Staged), append(args, "-")...)
+	if err != nil && f.Untracked {
+		runWrite(top, "", "--literal-pathspecs", "reset", "--quiet", "--", f.Path)
 	}
 	return detail, err
+}
+
+// picking is what pickLines found: a file's diff as git gives it now, and
+// which of its lines were picked.
+type picking struct {
+	head   patchHead
+	lines  []string
+	picked map[int]bool
+	// whole is every change in the file picked, or a diff with no lines to
+	// pick from (a binary file, a change of mode): git then does the file
+	// itself, and gets right what a patch of lines cannot say, such as a
+	// file being new or deleted, or its mode.
+	whole bool
+}
+
+// pickLines reads f's diff again and finds the changed lines among
+// first..last of it as it is listed, offset being how many lines further
+// down git's diff starts them. It refuses with ErrStaleDiff when the diff is
+// not the one the lines were picked from, and with ErrNoLines when none of
+// them is a change.
+func pickLines(top string, f FileDiff, first, last, offset int) (picking, error) {
+	var p picking
+	shown := strings.Split(f.Body, "\n")
+	cut := len(shown) > 0 && shown[len(shown)-1] == truncatedMark
+	if cut {
+		shown = shown[:len(shown)-1]
+	}
+	if first > last {
+		first, last = last, first
+	}
+
+	raw, err := rawOutput(top, sectionArgs(f.Staged, "--", f.Path)...)
+	if err != nil {
+		return p, err
+	}
+	p.head, p.lines = splitFilePatch(raw)
+	if len(p.lines) == 0 {
+		if strings.TrimSpace(raw) == "" {
+			return p, ErrStaleDiff
+		}
+		p.whole = true
+		return p, nil
+	}
+	if !f.Untracked && !sameDiff(shown, p.lines, cut) {
+		return p, ErrStaleDiff
+	}
+
+	p.picked = map[int]bool{}
+	changed := 0
+	for i, line := range p.lines {
+		if !isChange(line) {
+			continue
+		}
+		changed++
+		if shownAt := i - offset; shownAt >= first && shownAt <= last && shownAt < len(shown) {
+			p.picked[i] = true
+		}
+	}
+	switch {
+	case len(p.picked) == 0:
+		return p, ErrNoLines
+	case len(p.picked) == changed:
+		p.whole = true
+	}
+	return p, nil
 }
 
 // isChange reports whether a diff line adds or removes something.

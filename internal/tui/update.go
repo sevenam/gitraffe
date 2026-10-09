@@ -161,7 +161,7 @@ func (m model) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		if msg.repoPath != m.repoPath {
 			return m, nil
 		}
-		return m.finishStage(msg), nil
+		return m.finishStage(msg)
 
 	case commitFinishedMsg:
 		if msg.repoPath != m.repoPath {

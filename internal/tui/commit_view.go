@@ -562,12 +562,12 @@ func (m model) commitViewStatusLine() string {
 			Foreground(lipgloss.Color(theme.Current.Tag)).Render("Committing..."), m.windowWidth)
 	}
 	if m.commitView.workingTree {
-		hints := "esc: back • s: stage file • S: all • c: commit • 3: diff, for hunks and lines • ?: help"
+		hints := "esc: back • s: stage file • S: all • d: discard • c: commit • 3: diff, for hunks and lines • ?: help"
 		switch {
 		case m.commitView.selecting:
-			hints = "s: stage these lines • ↑/↓/j/k: pick more • esc: let go • ?: help"
+			hints = "s: stage these lines • d: discard them • ↑/↓/j/k: pick more • esc: let go • ?: help"
 		case m.commitView.focus == commitBoxDiff:
-			hints = "esc: back • s: stage hunk • v: pick lines • S: file • c: commit • 2: files • ?: help"
+			hints = "esc: back • s: stage hunk • v: pick lines • S: file • d: discard • c: commit • 2: files • ?: help"
 			// Below a hunk's header the key takes the one line.
 			if !m.cursorTakesHunk(m.stagingDiff()) {
 				hints = strings.Replace(hints, "s: stage hunk", "s: stage line", 1)

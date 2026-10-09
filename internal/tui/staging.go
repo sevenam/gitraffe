@@ -49,8 +49,11 @@ type stageFinishedMsg struct {
 	diff        git.Diff
 	fingerprint string
 	// summary is the row's "3 changed, 1 untracked", which unstaging a new
-	// file changes; "" when it could not be counted.
+	// file changes; "" when it could not be counted, or nothing is left.
 	summary string
+	// discarded is the status line for a discard once it is done, and ""
+	// for staging; see discard.go.
+	discarded string
 }
 
 // canStage says whether the view is one staging works in, and puts the
@@ -113,6 +116,14 @@ func (m model) stagingKey(msg tea.KeyMsg) (model, tea.Cmd, bool) {
 	case "c":
 		next, cmd := m.openCommitPrompt()
 		return next, cmd, true
+	case "d":
+		return m.discardSelected(), nil, true
+	case "D":
+		// As far as the box reaches, as "S" does.
+		if v.focus == commitBoxDiff {
+			return m.discardShownFile(), nil, true
+		}
+		return m.discardEverything(), nil, true
 	}
 	return m, nil, false
 }
@@ -261,13 +272,16 @@ func stageCmd(repoPath string, statWidth int, change func(dir string) (string, e
 }
 
 // finishStage shows the list as it is now, and says why when nothing moved.
-func (m model) finishStage(msg stageFinishedMsg) model {
+func (m model) finishStage(msg stageFinishedMsg) (model, tea.Cmd) {
 	m.staging = false
 	if msg.fingerprint != "" {
 		m.fingerprint = msg.fingerprint
 	}
 	if msg.err != nil {
 		m.notice = stageFailedNotice(msg)
+		if msg.discarded != "" {
+			m.notice = discardFailedNotice(msg)
+		}
 		// Nothing moved, so there is nothing for the cursor to follow.
 		m.commitView.follow = nil
 	}
@@ -275,6 +289,9 @@ func (m model) finishStage(msg stageFinishedMsg) model {
 		m.commits[0].Message = msg.summary
 	}
 	m.setWorkingDiff(msg.diff)
+	if msg.discarded != "" {
+		return m.finishDiscard(msg)
+	}
 
 	// "c" with nothing staged staged everything so as to commit it, and
 	// this is that staging done: on to the message.
@@ -284,7 +301,7 @@ func (m model) finishStage(msg stageFinishedMsg) model {
 			m = m.showCommitPrompt(n)
 		}
 	}
-	return m
+	return m, nil
 }
 
 // autoStagedNotice is the status line while the message box is open on files
