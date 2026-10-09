@@ -303,10 +303,17 @@ func pushNotice(msg pushFinishedMsg) string {
 	return fmt.Sprintf("Pushed %s to %s", plural(r.Commits, "commit"), r.Upstream())
 }
 
-// pushNameWidth is the room for the name being typed: enough for a long
-// branch name, and narrower only where the window is.
+// pushBoxFrame is the box's width besides the name: the "Branch  " label,
+// the padding on both sides, the column the cursor sits in past the end of
+// the name, and the border.
+const pushBoxFrame = len("Branch  ") + 2*commitPromptPadding + 1 + 2
+
+// pushNameWidth is the room for the name being typed. Branch names that carry
+// a ticket number and a description run well past 50 characters, and a name
+// that scrolls out of sight cannot be checked before it is pushed, so the box
+// takes up to 100 columns, keeping two clear of the window on each side.
 func pushNameWidth(windowWidth int) int {
-	return max(20, min(50, windowWidth-12))
+	return max(20, min(100, windowWidth-pushBoxFrame-4))
 }
 
 // render draws the new-branch box: what is being pushed, where to, the name
@@ -344,7 +351,7 @@ func (p pushPrompt) render(windowWidth int) string {
 	sb.WriteString(helpStyle.Render(footer))
 
 	return lipgloss.NewStyle().
-		Width(width+len("Branch  ")+2*commitPromptPadding+1).
+		Width(width+pushBoxFrame-2).
 		BorderStyle(lipgloss.RoundedBorder()).
 		BorderForeground(lipgloss.Color(theme.Current.BorderActive)).
 		Padding(1, commitPromptPadding).
