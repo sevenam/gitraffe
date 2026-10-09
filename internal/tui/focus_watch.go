@@ -1,6 +1,7 @@
 package tui
 
 import (
+	"log"
 	"time"
 
 	tea "github.com/charmbracelet/bubbletea"
@@ -36,6 +37,7 @@ func watchFocus(focused func() (in, known bool), every time.Duration, send func(
 			continue
 		}
 		if started && in && !was {
+			log.Print("Focus: back in front")
 			send(tea.FocusMsg{})
 		}
 		was, started = in, true
