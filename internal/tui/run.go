@@ -35,14 +35,29 @@ func Run(repoPath, configDir string) (updatedTo string, err error) {
 	m.configDir = configDir
 	m = applyPreferences(m)
 
-	p := tea.NewProgram(
-		m,
+	options := []tea.ProgramOption{
 		tea.WithAltScreen(),
 		tea.WithMouseCellMotion(),
 		// Coming back to the terminal is the moment the graph is most likely to
 		// be out of date; see onFocus.
 		tea.WithReportFocus(),
-	)
+	}
+	// On Windows gitraffe reads the console itself, to see focus there too;
+	// see console_input_windows.go.
+	input := openConsoleInput()
+	if input != nil {
+		options = append(options, tea.WithInput(nil))
+	}
+	p := tea.NewProgram(m, options...)
+	if input != nil {
+		go input.run(p.Send)
+		defer input.close()
+	}
+	if focusProbe != nil {
+		stop := make(chan struct{})
+		defer close(stop)
+		go watchFocus(focusProbe, focusWatchEvery, p.Send, stop)
+	}
 
 	finalModel, err := p.Run()
 	if err != nil {
