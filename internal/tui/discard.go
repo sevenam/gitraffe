@@ -18,7 +18,7 @@ import (
 // all of it. It is the one thing gitraffe does that loses work nothing can
 // bring back, so every discard asks first, in a box over the screen rather
 // than on the status line where it could be read past, and only "y" answers
-// yes; any other key leaves everything as it was.
+// yes; esc, or any other key, leaves everything as it was.
 //
 // Only unstaged changes are reached (see internal/git/discard.go): what is
 // staged is kept, so staging something is how to put it out of reach of a
@@ -238,38 +238,32 @@ func discardFailedNotice(msg stageFinishedMsg) string {
 	return "Not discarded: " + reason
 }
 
-// discardBoxChrome is the border and padding round the box's text.
-const discardBoxChrome = 2 + 2*commitPromptPadding
-
-// render draws the question as a box over the screen, bordered in the
-// error colour: it is the one box in gitraffe whose yes cannot be taken back.
+// render draws the question as a box over the screen, made like the other
+// boxes that ask something (the delete list, the check-out list): a title,
+// what it is about, and the keys along the bottom.
 func (p discardPrompt) render(windowWidth int) string {
-	const hints = "y: discard • any other key: cancel"
-	notes := []string{"Staged changes are kept.", "This cannot be undone."}
-	width := max(ansi.StringWidth(p.what), ansi.StringWidth(hints), ansi.StringWidth(p.title))
-	width = max(10, min(width, windowWidth-discardBoxChrome-2))
+	const footer = "y: discard • esc: cancel"
+	const note = "Staged changes are kept. This cannot be undone."
+	// The border and the padding take six columns.
+	width := max(ansi.StringWidth(p.what), ansi.StringWidth(note), ansi.StringWidth(footer))
+	width = max(10, min(width, windowWidth-6))
 
-	danger := lipgloss.Color(theme.Current.Error)
-	var sb strings.Builder
-	sb.WriteString(lipgloss.NewStyle().Bold(true).Foreground(danger).Render(p.title))
-	sb.WriteString("\n\n")
 	// A long path is cut at the front: its end is the file's own name.
 	what := p.what
 	if ansi.StringWidth(what) > width {
 		what = "…" + ansi.TruncateLeft(what, ansi.StringWidth(what)-width+1, "")
 	}
-	sb.WriteString(lipgloss.NewStyle().Bold(true).Render(what))
+	var sb strings.Builder
+	sb.WriteString(titleStyle.Padding(0).Render(ansi.Truncate(p.title, width, "…")))
 	sb.WriteString("\n\n")
-	for _, n := range notes {
-		sb.WriteString(helpStyle.Render(ansi.Truncate(n, width, "…")) + "\n")
-	}
-	sb.WriteString("\n")
-	sb.WriteString(helpStyle.Render(ansi.Truncate(hints, width, "…")))
+	sb.WriteString(what + "\n")
+	sb.WriteString(ansi.Truncate(note, width, "…"))
+	sb.WriteString("\n\n")
+	sb.WriteString(helpStyle.Render(ansi.Truncate(footer, width, "…")))
 
 	return lipgloss.NewStyle().
-		Width(width+2*commitPromptPadding).
 		BorderStyle(lipgloss.RoundedBorder()).
-		BorderForeground(danger).
-		Padding(1, commitPromptPadding).
+		BorderForeground(lipgloss.Color(theme.Current.BorderActive)).
+		Padding(1, 2).
 		Render(sb.String())
 }
