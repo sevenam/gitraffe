@@ -23,6 +23,16 @@ func syncLabel(ahead, behind int) string {
 	return strings.Join(parts, " ")
 }
 
+// appTitle is the name and version at the right end of every screen's top
+// box, with the newer release when there is one.
+func (m *model) appTitle() string {
+	versionStr := "v" + Version
+	if m.updateAvailable() {
+		versionStr = versionStr + " → " + m.latestVersion + " available"
+	}
+	return titleStyle.Render("🦒 " + appName + " " + versionStr)
+}
+
 // renderRepoInfo renders the top repository info box
 func (m *model) renderRepoInfo() string {
 	var sb strings.Builder
@@ -54,11 +64,7 @@ func (m *model) renderRepoInfo() string {
 	leftContent := sb.String()
 
 	// Title on the right
-	versionStr := "v" + Version
-	if m.updateAvailable() {
-		versionStr = versionStr + " → " + m.latestVersion + " available"
-	}
-	title := titleStyle.Render("🦒 " + appName + " " + versionStr + "")
+	title := m.appTitle()
 
 	// Calculate available width for content (subtract borders and padding)
 	availableWidth := m.windowWidth - 2 - 2 // borders (2) + padding (2)

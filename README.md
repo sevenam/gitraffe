@@ -164,7 +164,7 @@ to three boxes: what the commit is, every file it touched, and the diff of which
 file is chosen. `Esc` or `q` comes back to the graph, exactly as it was.
 
 ```
-╭──────────────────────────────────────────────────────────────────────╮
+╭Commit-view───────────────────────────────────────────────────────────╮
 │ Commit: 4a938a6  fix the sign flip on refunds                        │
 ╰──────────────────────────────────────────────────────────────────────╯
 ╭[1]-commit───────────╮╭[3]-diff─────────────────────────────────────╮
