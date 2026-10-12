@@ -58,6 +58,10 @@ type Settings struct {
 	// Whitespace carries the "w" toggle the same way: marks for spaces and
 	// tabs in a diff are on by default, so off has to be a saved false.
 	Whitespace *bool `yaml:"whitespace,omitempty"`
+	// TwoLineNumbers is the "#" toggle of the commit view: a diff numbered in
+	// two columns, old and new. One column is the default, so a plain bool
+	// that is left out when false says all there is to say.
+	TwoLineNumbers bool `yaml:"two_line_numbers,omitempty"`
 	// AutoRefresh is how often, in seconds, the open repository is checked for
 	// changes. It is a pointer for the same reason as the toggles above: absent
 	// means the default interval, and 0 means never.

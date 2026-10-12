@@ -259,6 +259,7 @@ func (m model) switchRepo(root string) (model, tea.Cmd) {
 	next.configDir = m.configDir
 	next.colourLanes = m.colourLanes
 	next.showWhitespace = m.showWhitespace
+	next.twoLineNumbers = m.twoLineNumbers
 	next.autoRefresh, next.autoFetch = m.autoRefresh, m.autoFetch
 	return next, tea.Batch(loadRepo(root), loadRemoteTagsCmd(root))
 }

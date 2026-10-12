@@ -19,6 +19,7 @@ func applyPreferences(m model) model {
 	if s.Whitespace != nil {
 		m.showWhitespace = *s.Whitespace
 	}
+	m.twoLineNumbers = s.TwoLineNumbers
 	m.autoRefresh = defaultAutoRefresh
 	if s.AutoRefresh != nil {
 		m.autoRefresh = interval(*s.AutoRefresh, minAutoRefresh)
@@ -42,5 +43,6 @@ func savePreferences(m model) error {
 	s.FocusedBox = m.focusedBox
 	s.Maximised = &m.maximised
 	s.Whitespace = &m.showWhitespace
+	s.TwoLineNumbers = m.twoLineNumbers
 	return config.Save(m.configDir, s)
 }

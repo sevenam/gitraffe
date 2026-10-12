@@ -130,6 +130,8 @@ func (m model) updateCommitView(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		return m, nil
 	case "o":
 		return m.openPullRequest()
+	case "#":
+		return m.toggleLineNumberColumns(), nil
 	case "w":
 		return m.toggleWhitespace(), nil
 	case "y":
@@ -531,7 +533,7 @@ func (m model) renderFileDiff(c commit, width, rows int) (string, scrollMarks) {
 	case len(d.lines) == 0:
 		sb.WriteString(helpStyle.Render("No textual change"))
 	default:
-		gutter := newDiffGutter(d.numbers())
+		gutter := newDiffGutter(d.numbers(), m.twoLineNumbers)
 		// Only the uncommitted changes have sides to mark.
 		marks := 0
 		if c.WorkingTree {

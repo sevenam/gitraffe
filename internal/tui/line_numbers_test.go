@@ -5,6 +5,8 @@ import (
 	"testing"
 
 	"github.com/charmbracelet/x/ansi"
+
+	"github.com/sevenam/gitraffe/internal/config"
 )
 
 // hunkAtLine98 crosses from two digits to three, so the column has to be as
@@ -75,5 +77,85 @@ func TestPickedLineBandIncludesTheGutter(t *testing.T) {
 	}
 	if got := ansi.Strip(line); !strings.HasPrefix(got, unstagedMarker+"  99 -old") {
 		t.Errorf("the picked line lost its number: %q", got)
+	}
+}
+
+// "#" gives the commit view a column for each side: the number a line had,
+// then the number it has, each blank where the line has no such number.
+func TestHashShowsOldAndNewLineNumbers(t *testing.T) {
+	c := commit{DiffLoaded: true, DiffFiles: []fileDiff{{Path: "a.go", Body: hunkAtLine98}}}
+	m := model{twoLineNumbers: true}
+	out, _ := m.renderFileDiff(c, 80, 20)
+
+	want := []string{
+		"        @@ -98,3 +98,3 @@ func f() {",
+		" 98  98  keep",
+		" 99     -old",
+		"     99 +new",
+		"100 100  last",
+	}
+	got := strings.Split(ansi.Strip(out), "\n")[diffHeaderLines:]
+	for i, w := range want {
+		if i >= len(got) || got[i] != w {
+			t.Fatalf("got:\n%s\nwant:\n%s", strings.Join(got, "\n"), strings.Join(want, "\n"))
+		}
+	}
+}
+
+// The key turns the second column on and off from the commit view, says
+// which column is which, and leaves the details panel's one column alone.
+func TestHashTogglesTheSecondColumn(t *testing.T) {
+	m := openedView(t, threeFileRepo(t))
+	if m.twoLineNumbers {
+		t.Fatal("a first run numbers a diff in two columns")
+	}
+
+	m = press(m, keyPress("#"))
+	if !m.twoLineNumbers || !strings.Contains(m.notice, "old, then new") {
+		t.Errorf("after #: two=%v notice=%q; want two columns and a word on which is which", m.twoLineNumbers, m.notice)
+	}
+	if !m.commitView.open {
+		t.Error("# closed the commit view")
+	}
+	m = press(m, keyPress("#"))
+	if m.twoLineNumbers || !strings.Contains(m.notice, "one column") {
+		t.Errorf("after # again: two=%v notice=%q; want one column", m.twoLineNumbers, m.notice)
+	}
+
+	// The details panel beside the graph has too little room for a second
+	// column, and keeps one whatever the commit view shows.
+	c := commit{Hash: "abc", DiffLoaded: true, DiffBody: "diff --git a/a.go b/a.go\n" + hunkAtLine98}
+	d := testModel()
+	d.twoLineNumbers = true
+	d.commits = []commit{c}
+	out, _ := d.renderCommitDetails()
+	if !strings.Contains(ansi.Strip(out), "\n 99 -old\n") {
+		t.Errorf("the details panel does not number its diff in one column:\n%s", ansi.Strip(out))
+	}
+}
+
+// One column until two are asked for, and the choice is kept.
+func TestLineNumberColumnsAreRemembered(t *testing.T) {
+	m := initialModel(".")
+	m.configDir = t.TempDir()
+	if got := applyPreferences(m); got.twoLineNumbers {
+		t.Error("an empty settings file gave two columns")
+	}
+	m.twoLineNumbers = true
+	if err := savePreferences(m); err != nil {
+		t.Fatal(err)
+	}
+	if s := config.Load(m.configDir); !s.TwoLineNumbers {
+		t.Error("settings do not hold the two columns")
+	}
+	fresh := initialModel(".")
+	fresh.configDir = m.configDir
+	if got := applyPreferences(fresh); !got.twoLineNumbers {
+		t.Error("the next run forgot the two columns")
+	}
+
+	// Another repository in the same session keeps what was chosen.
+	if next, _ := m.switchRepo("."); !next.twoLineNumbers {
+		t.Error("switching repository went back to one column")
 	}
 }

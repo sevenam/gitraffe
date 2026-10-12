@@ -91,6 +91,7 @@ var commitViewHelp = []helpSection{
 		{"o", "open this commit's pull request in a browser, or start one"},
 		{"y", "copy this commit's hash (y), subject (s) or diff (d)"},
 		{"w", "show or hide whitespace in the diff"},
+		{"#", "line numbers in one column, or two: old and new"},
 		{"h", "files: show the selected file's history in the graph"},
 		{"space / esc / q", "back to the graph"},
 		{"ctrl+c", "quit"},
@@ -99,9 +100,10 @@ var commitViewHelp = []helpSection{
 
 // stagingViewHelp is commitViewHelp for the uncommitted changes, where the
 // view has keys a commit has no use for. It is a list of its own rather than
-// a section added to the other: the two together are taller than a
-// 24-row terminal, and the keys cut off would be the new ones. What only
-// applies to a commit is left out to make the room.
+// a section added to the other, and what only applies to a commit is left
+// out. It leads with the keys this screen adds: the list is taller than a
+// 24-row terminal and scrolls there, as any help does in a window too short
+// for it, and what is under the fold should be the keys every screen has.
 var stagingViewHelp = []helpSection{
 	{"Uncommitted changes", []keyBinding{
 		{"s", "files: stage or unstage the file"},
@@ -114,7 +116,9 @@ var stagingViewHelp = []helpSection{
 		{"↑ / ↓  k / j", "move in the focused box"},
 		{"pgup/pgdn  g / G", "move by ten; first / last"},
 		{"wheel / click", "move in, or select, what is under the pointer"},
-		{"y / w", "copy the diff (d) / show or hide whitespace"},
+		{"y", "copy the diff (d)"},
+		{"w", "show or hide whitespace in the diff"},
+		{"#", "line numbers in one column, or two: old and new"},
 		{"h", "files: show the selected file's history in the graph"},
 		{"?", "toggle this help"},
 		{"space / esc / q", "back to the graph"},

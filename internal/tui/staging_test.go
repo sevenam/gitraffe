@@ -981,17 +981,32 @@ func TestStagingWaitsForTheLastChange(t *testing.T) {
 }
 
 // The view of the uncommitted changes has keys a commit's does not, and its
-// help has to show every one of them on a terminal of the usual height.
-func TestHelpOnUncommittedChangesFitsAndListsTheKeys(t *testing.T) {
+// help has to show every one of those on a terminal of the usual height
+// without being scrolled. The keys every screen has are further down, and
+// scrolling reaches them.
+func TestHelpOnUncommittedChangesListsItsKeysFirst(t *testing.T) {
 	dir, _ := stagingRepo(t)
 	twoHunks(t, dir)
 	m := openedView(t, dir)
 	m.windowWidth, m.windowHeight = 80, 24
-	screen := ansi.Strip(press(m, keyPress("?")).View())
+	m = press(m, keyPress("?"))
+	screen := ansi.Strip(m.View())
 
-	for _, want := range []string{"stage or unstage the file", "on a hunk's @@ line the hunk, below it the line", "pick lines", "stage or unstage everything; diff: this file", "commit what is staged", "back to the graph", "quit"} {
+	for _, want := range []string{"stage or unstage the file", "on a hunk's @@ line the hunk, below it the line", "pick lines", "stage or unstage everything; diff: this file", "discard what s / S would stage", "commit what is staged"} {
 		if !strings.Contains(screen, want) {
 			t.Errorf("the help does not show %q on an 80x24 terminal:\n%s", want, screen)
+		}
+	}
+	if m.helpMaxScroll() == 0 {
+		t.Fatal("the list fits 24 rows; this test is about one that does not")
+	}
+	if lines := strings.Split(screen, "\n"); len(lines) != 24 {
+		t.Errorf("the help makes the screen %d rows, want 24", len(lines))
+	}
+	end := ansi.Strip(m.scrollHelp(m.helpMaxScroll()).View())
+	for _, want := range []string{"old and new", "back to the graph", "quit"} {
+		if !strings.Contains(end, want) {
+			t.Errorf("scrolled to its end, the help does not show %q:\n%s", want, end)
 		}
 	}
 	// A commit's help is the one without them.

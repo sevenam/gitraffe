@@ -130,7 +130,7 @@ func (m *model) renderDiffSections(c commit) string {
 		sb.WriteString(lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color(theme.Current.SectionHeader)).Render("─── Diff ──────────────────────────"))
 		sb.WriteString("\n")
 
-		gutter := newDiffGutter(git.LineNumbers(c.DiffBody))
+		gutter := newDiffGutter(git.LineNumbers(c.DiffBody), false)
 		for i, line := range strings.Split(c.DiffBody, "\n") {
 			sb.WriteString(gutter.render(i))
 			sb.WriteString(styleDiffLine(line, m.showWhitespace))
@@ -179,7 +179,7 @@ func (m *model) renderFilteredDiff(c commit, only []fileDiff) string {
 			sb.WriteString("\n")
 			continue
 		}
-		gutter := newDiffGutter(f.LineNumbers())
+		gutter := newDiffGutter(f.LineNumbers(), false)
 		for j, line := range strings.Split(f.Body, "\n") {
 			sb.WriteString(gutter.render(j))
 			sb.WriteString(styleDiffLine(line, m.showWhitespace))
