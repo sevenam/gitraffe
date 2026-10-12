@@ -135,3 +135,37 @@ jobs:
           generate_release_notes: true
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  # Each version reaches winget as a pull request to microsoft/winget-pkgs,
+  # which this opens. It is a job here, not a workflow of its own on the
+  # release, because a release created with GITHUB_TOKEN starts no workflow.
+  # Last, and nothing needs it: the release above stands whatever happens here.
+  winget:
+    needs: release
+    runs-on: ubuntu-latest
+    env:
+      # GITHUB_TOKEN cannot open a pull request in someone else's repository.
+      # A classic token with public_repo, held as a repository secret.
+      WINGET_TOKEN: ${{ secrets.WINGET_TOKEN }}
+    steps:
+      # A missing token is a release nobody set winget up for, not a failure.
+      - name: No token, nothing submitted
+        if: env.WINGET_TOKEN == ''
+        run: echo "::notice::WINGET_TOKEN is not set, so $GITHUB_REF_NAME was not submitted to winget."
+
+      # RELEASE-NOTES.md has a heading per version, and GitHub's anchor for
+      # the heading "0.51.0" is "0510".
+      - name: Release notes link
+        id: notes
+        if: env.WINGET_TOKEN != ''
+        run: echo "url=https://github.com/$GITHUB_REPOSITORY/blob/main/RELEASE-NOTES.md#$(echo "${GITHUB_REF_NAME#v}" | tr -d .)" >> "$GITHUB_OUTPUT"
+
+      - name: Submit to winget
+        if: env.WINGET_TOKEN != ''
+        uses: vedantmgoyal9/winget-releaser@v2
+        with:
+          identifier: sevenam.gitraffe
+          installers-regex: 'windows-amd64\.exe$'
+          release-tag: ${{ github.ref_name }}
+          release-notes-url: ${{ steps.notes.outputs.url }}
+          token: ${{ secrets.WINGET_TOKEN }}
