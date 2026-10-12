@@ -612,8 +612,8 @@ While filtered, the details panel (`Enter`) shows what each commit did to that f
 and nothing else it touched: the file's own counts and diff, or those of every file
 under a directory. A line under the counts says how much more the commit changed —
 `2 other files in this commit — space lists them all` — and `Space` opens the commit
-whole, its file list starting on the filtered file. A merge, whose diff is not split
-by file, is shown as it always is.
+whole, its file list starting on the filtered file. A commit that has nothing of the
+file to show is shown as it always is.
 
 The row of uncommitted changes is left out while filtered, since it counts every
 change in the working tree, not just the file's. A rename is not followed: the
