@@ -107,7 +107,8 @@ func commitIdentity(c commit) string {
 func (m *model) renderDiffSections(c commit) string {
 	// A graph filtered to a file is that file's history, and the commit's
 	// part in it is what it did to that file. A commit that has no such file
-	// to show — a merge, whose diff is not split by file — is shown whole.
+	// to show, such as a merge both of whose sides already held the change, is
+	// shown whole.
 	if only := m.filteredFiles(c.DiffFiles); c.DiffLoaded && len(only) > 0 {
 		return m.renderFilteredDiff(c, only)
 	}

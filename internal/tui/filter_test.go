@@ -441,8 +441,9 @@ func TestFilteredGraphShowsEveryFileUnderADirectory(t *testing.T) {
 	}
 }
 
-// A commit with no file of its own to show for the filter, as a merge has
-// none, is shown as it would be unfiltered rather than as nothing.
+// A commit with no file of its own to show for the filter, as a merge that
+// changed nothing in it has none, is shown as it would be unfiltered rather
+// than as nothing.
 func TestFilteredGraphShowsACommitWithoutTheFileWhole(t *testing.T) {
 	m := testModel()
 	m.filter = git.Filter{Path: "notes.txt"}

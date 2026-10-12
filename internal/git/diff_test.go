@@ -278,3 +278,59 @@ func TestPatchOfWorkingTree(t *testing.T) {
 		}
 	}
 }
+
+// A merge's files are what it brought into the branch it was merged into,
+// in the list as in the summary. Git's own patch for a merge that needed no
+// resolving is empty, which left the summary naming files the commit view
+// then said were not there.
+func TestMergeCommitListsItsFiles(t *testing.T) {
+	dir, git, commit := gittest.Fixture(t)
+	git("init", "-q", "-b", "main")
+	commit("first")
+	git("switch", "-qc", "feature")
+	commit("one.txt")
+	commit("two.txt")
+	git("switch", "-q", "main")
+	// A commit of main's own, so the merge cannot be a fast-forward and its
+	// file is not among what the merge brought in.
+	commit("mainline.txt")
+	git("merge", "-q", "--no-ff", "-m", "merge feature", "feature")
+
+	d := ShowCommit(dir, "HEAD", 80)
+	if got := strings.Join(paths(d.Files), " "); got != "one.txt two.txt" {
+		t.Errorf("files = %q, want the two the branch added", got)
+	}
+	for _, name := range []string{"one.txt", "two.txt"} {
+		if !strings.Contains(d.Stat, name) {
+			t.Errorf("the summary does not name %s:\n%s", name, d.Stat)
+		}
+	}
+	if !strings.Contains(d.Stat, "2 files changed") {
+		t.Errorf("the summary counts differently from the list:\n%s", d.Stat)
+	}
+	if !strings.Contains(d.Body, "+++ b/one.txt") {
+		t.Errorf("the diff does not show what the merge brought in:\n%s", d.Body)
+	}
+
+	// Copying the diff gives the same thing, once.
+	patch, err := Patch(dir, "HEAD")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if n := strings.Count(patch, "diff --git"); n != 2 {
+		t.Errorf("the copied patch has %d files, want 2:\n%s", n, patch)
+	}
+}
+
+// An ordinary commit is read as it always was.
+func TestOrdinaryCommitListsItsFiles(t *testing.T) {
+	dir, git, commit := gittest.Fixture(t)
+	git("init", "-q", "-b", "main")
+	commit("first")
+	commit("second.txt")
+
+	d := ShowCommit(dir, "HEAD", 80)
+	if got := strings.Join(paths(d.Files), " "); got != "second.txt" {
+		t.Errorf("files = %q, want second.txt", got)
+	}
+}

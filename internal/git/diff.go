@@ -156,18 +156,31 @@ type Diff struct {
 // maxDiffLines caps the patch shown in the details panel.
 const maxDiffLines = 300
 
+// showArgs is "git show" for what a commit changed, in the given form (-p or
+// --stat), and nothing of the commit itself.
+//
+// A merge is compared with its first parent: what it brought into the branch
+// it was merged into. Left to itself git answers the two forms differently
+// for a merge, the summary against the first parent and the patch as a
+// combined diff, which is empty for a merge that needed no resolving; the
+// summary then names files the patch does not have. An ordinary commit has
+// the one parent and is read as before.
+func showArgs(hash, form string) []string {
+	return []string{"show", "--format=", "--no-color", "-m", "--first-parent", form, hash}
+}
+
 // ShowCommit reads what a commit changed. statWidth is the width the --stat
 // summary is drawn to.
 func ShowCommit(dir, hash string, statWidth int) Diff {
 	var d Diff
 
-	cmd := exec.Command("git", "show", "--format=", fmt.Sprintf("--stat=%d", statWidth), "--no-color", hash)
+	cmd := exec.Command("git", showArgs(hash, fmt.Sprintf("--stat=%d", statWidth))...)
 	cmd.Dir = dir
 	if out, err := cmd.Output(); err == nil {
 		d.Stat = strings.TrimSpace(strings.ReplaceAll(string(out), "\r", ""))
 	}
 
-	cmd = exec.Command("git", "show", "--format=", "--no-color", "-p", hash)
+	cmd = exec.Command("git", showArgs(hash, "-p")...)
 	cmd.Dir = dir
 	if out, err := cmd.Output(); err == nil {
 		diff := strings.ReplaceAll(string(out), "\r", "")
@@ -342,7 +355,7 @@ func Status(dir string) (changed, untracked int, err error) {
 func Patch(dir, hash string) (string, error) {
 	args := []string{"diff", "HEAD", "--no-color"}
 	if hash != "" {
-		args = []string{"show", "--format=", "--no-color", "-p", hash}
+		args = showArgs(hash, "-p")
 	}
 	cmd := exec.Command("git", args...)
 	cmd.Dir = dir
