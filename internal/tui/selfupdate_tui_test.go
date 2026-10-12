@@ -7,6 +7,8 @@ import (
 
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
+
+	"github.com/sevenam/gitraffe/internal/selfupdate"
 )
 
 func TestUpdateKeyWithNothingToDo(t *testing.T) {
@@ -30,6 +32,30 @@ func TestUpdateKeyWithNothingToDo(t *testing.T) {
 				t.Errorf("message = %q, want it to contain %q", got.updateMessage, tc.want)
 			}
 		})
+	}
+}
+
+// A copy winget installed is winget's to replace: U downloads nothing, asks
+// nothing, and names the command that does update it.
+func TestUpdateKeyOnAWingetInstall(t *testing.T) {
+	was := selfupdate.ManagedByWinget
+	selfupdate.ManagedByWinget = func() bool { return true }
+	t.Cleanup(func() { selfupdate.ManagedByWinget = was })
+
+	m := testModel()
+	m.latestVersion = "v9.9.9"
+
+	res, cmd := m.Update(keyPress("U"))
+	got := res.(model)
+
+	if got.updateState != updateIdle {
+		t.Errorf("state = %v, want idle", got.updateState)
+	}
+	if cmd != nil {
+		t.Errorf("U started a command; want nothing to run")
+	}
+	if !strings.Contains(got.updateMessage, selfupdate.WingetUpgrade) {
+		t.Errorf("message = %q, want it to name %q", got.updateMessage, selfupdate.WingetUpgrade)
 	}
 }
 

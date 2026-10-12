@@ -20,6 +20,11 @@ func (m model) startUpdate() model {
 		m.updateMessage = "Update check unavailable — could not reach GitHub"
 	case !m.updateAvailable():
 		m.updateMessage = "Already on the latest version (v" + Version + ")"
+	case selfupdate.ManagedByWinget():
+		// Nothing is downloaded: winget refuses to upgrade or uninstall a
+		// file that was replaced behind its back. It trails a release by its
+		// review, so the message does not say the new version is there yet.
+		m.updateMessage = "Installed with winget — update with: " + selfupdate.WingetUpgrade + " (it can be a day or two behind)"
 	default:
 		m.updateState = updateConfirming
 	}

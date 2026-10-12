@@ -4,6 +4,7 @@ package selfupdate
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -20,6 +21,9 @@ const (
 	owner = "sevenam"
 	repo  = "gitraffe"
 )
+
+// ErrManagedByWinget is what Install answers on a copy winget installed.
+var ErrManagedByWinget = errors.New("installed with winget; update with: " + WingetUpgrade)
 
 // Release is a GitHub release, as much of it as an update needs.
 type Release struct {
@@ -56,6 +60,16 @@ func Check(version string) error {
 	}
 
 	fmt.Printf("New version available: %s (current: %s)\n", release.TagName, currentTag)
+
+	// winget gets a release only once its pull request is reviewed, so this
+	// names the command without promising what it will find.
+	if ManagedByWinget() {
+		fmt.Println("This copy was installed with winget, which updates it:")
+		fmt.Println("  " + WingetUpgrade)
+		fmt.Println("winget can be a day or two behind a new release.")
+		return nil
+	}
+
 	fmt.Println("Downloading...")
 
 	if err := Install(release); err != nil {
@@ -175,6 +189,12 @@ func LatestVersion() string {
 // Install downloads the release's binary for this platform and puts it in
 // place of the running one.
 func Install(release *Release) error {
+	// Checked here as well as by the callers, so no path to a download can
+	// leave winget with a file it no longer recognises.
+	if ManagedByWinget() {
+		return ErrManagedByWinget
+	}
+
 	assetName := getBinaryName()
 	var downloadURL string
 

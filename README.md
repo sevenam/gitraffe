@@ -1168,6 +1168,17 @@ The same thing works without the TUI:
 gitraffe --update
 ```
 
+A copy installed with winget is updated by winget instead. There, `U` and
+`gitraffe --update` download nothing and name the command to run:
+
+```bash
+winget upgrade sevenam.gitraffe
+```
+
+winget would otherwise be left with a file it no longer recognises, and refuse to
+upgrade or uninstall it. It gets a release once its submission has been reviewed, so
+it can be a day or two behind the version gitraffe says is available.
+
 ## Dependencies
 
 - [Bubble Tea](https://github.com/charmbracelet/bubbletea) - TUI framework
