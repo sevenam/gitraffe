@@ -209,7 +209,7 @@ func (m model) maxScroll(box int) int {
 	l := m.currentCommitViewLayout()
 	switch box {
 	case commitBoxDetails:
-		return max(0, lineCount(commitIdentity(c))-(l.detailsRows-2))
+		return max(0, lineCount(m.commitViewIdentity(c))-(l.detailsRows-2))
 	case commitBoxDiff:
 		files := c.DiffFiles
 		if len(files) == 0 {
@@ -315,7 +315,7 @@ func commitViewLayoutFor(width, height, detailLines int) commitViewLayout {
 func (m model) currentCommitViewLayout() commitViewLayout {
 	lines := 0
 	if c, ok := m.viewedCommit(); ok {
-		lines = strings.Count(commitIdentity(c), "\n") + 1
+		lines = strings.Count(m.commitViewIdentity(c), "\n") + 1
 	}
 	return commitViewLayoutFor(m.windowWidth, m.windowHeight, lines)
 }
@@ -337,7 +337,7 @@ func (m model) renderCommitView() string {
 		Padding(0, 1).
 		Render(m.commitViewHeader(c)), commitViewTitle)
 
-	identity, identityMarks := scrollLines(commitIdentity(c), m.commitView.detailsScroll, l.detailsRows-2, l.leftWidth-4)
+	identity, identityMarks := scrollLines(m.commitViewIdentity(c), m.commitView.detailsScroll, l.detailsRows-2, l.leftWidth-4)
 	details := commitBox(identity, identityMarks,
 		l.leftWidth, l.detailsRows, "[1]-commit", m.commitView.focus == commitBoxDetails)
 	fileList, fileMarks := m.renderFileList(c, l.leftWidth-4, l.fileRows-2)
@@ -383,6 +383,66 @@ func (m model) commitViewHeader(c commit) string {
 	left := lead + ansi.Truncate(subject, room, "…")
 	gap := width - lipgloss.Width(left) - lipgloss.Width(title)
 	return left + strings.Repeat(" ", max(gap, 2)) + title
+}
+
+// commitViewIdentity is what fills the [1] box: for a commit what it is, and
+// for the uncommitted changes where a commit of them would land, in the same
+// labelled lines.
+//
+// The graph screen says the repository and the branch in its top box, which
+// this screen gives to the commit. Without them nothing here says which
+// repository is being staged in, or which branch "c" would commit to, until
+// the commit box is already open. They are in this box and not the top one
+// because this is where a commit's own fields are, and the top line has the
+// app's name to fit as well.
+func (m model) commitViewIdentity(c commit) string {
+	if !c.WorkingTree {
+		return commitIdentity(c)
+	}
+	var sb strings.Builder
+	sb.WriteString(lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color(theme.Current.Title)).Render("Repo:    "))
+	sb.WriteString(m.repoName)
+	sb.WriteString("\n")
+	sb.WriteString(lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color(theme.Current.Branch)).Render("Branch:  "))
+	sb.WriteString(m.commitTarget())
+	sb.WriteString("\n")
+	sb.WriteString(helpStyle.Render(c.Message + " — not committed yet"))
+	sb.WriteString("\n")
+	return sb.String()
+}
+
+// commitTarget is the branch a commit made now would be on, with how far it
+// is from its upstream, as the graph's top box has it.
+//
+// Where "c" would be refused it says why instead, in the colour of a notice:
+// it goes by the same workingState openCommitPrompt does, so the box cannot
+// name a branch the key then turns down. A rebase leaves HEAD on no branch as
+// well, and is named for what it is rather than as a detached HEAD.
+func (m model) commitTarget() string {
+	warn := lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color(theme.Current.Tag))
+	state := m.workingState
+	// Short, since the box is the narrow one: "main (merging)".
+	if op := state.Operation; op != "" {
+		what, ok := map[string]string{
+			"merge": "merging", "rebase": "rebasing", "cherry-pick": "cherry-picking",
+			"revert": "reverting", "conflict": "conflicts",
+		}[op]
+		if !ok {
+			what = op
+		}
+		if state.Detached {
+			return warn.Render("detached (" + what + ")")
+		}
+		return localBranchStyle.Render(m.currentBranch) + " " + warn.Render("("+what+")")
+	}
+	if state.Detached {
+		return warn.Render("detached at " + m.currentCommit)
+	}
+	target := localBranchStyle.Render(m.currentBranch)
+	if s := syncLabel(m.ahead, m.behind); s != "" {
+		target += " " + s
+	}
+	return target
 }
 
 // fileBoxLabel puts the count in the box's own label, so "how many files did
