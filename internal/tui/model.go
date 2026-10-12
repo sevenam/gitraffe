@@ -46,6 +46,7 @@ type model struct {
 	updatedTo           string         // tag installed this session; read by main after Run returns
 	colourLanes         bool           // tint each graph column differently; see lane_colours.go
 	showWhitespace      bool           // spell out spaces and tabs in a diff; see whitespace.go
+	twoLineNumbers      bool           // the commit view numbers a diff in two columns, old and new; see line_numbers.go
 	showHelp            bool           // key reference overlay, toggled with "?"
 	helpScroll          int            // how far its list is scrolled, in a window too short for it
 	copying             bool           // the copy prompt opened with "y" waits for its answer; see copy.go

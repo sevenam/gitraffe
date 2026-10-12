@@ -202,6 +202,22 @@ the line's number in the file as the commit left it, or for a removed line the n
 it had before. The details panel beside the graph numbers its diff the same way. The
 `@@` header stays, for the name of the function git found above the change.
 
+Press `#` here for two columns instead: the number each line had before the commit,
+then the number it has after. A removed line has only the first and an added line
+only the second, so the two sides can be followed separately:
+
+```
+        @@ -98,3 +98,3 @@ func f() {
+ 98  98  keep
+ 99     -old
+     99 +new
+100 100  last
+```
+
+`#` again goes back to one. The second column costs every line its width, which is
+why one is the default, and why the details panel beside the graph always has one.
+The choice is remembered (see [Remembered preferences](#remembered-preferences)).
+
 It works on uncommitted changes too: the working-tree row opens like any other
 commit, and untracked files are listed — marked `untracked`, since git has never seen
 them and so has nothing to compare them with. Selecting one shows the whole file as
@@ -947,13 +963,14 @@ next run starts where the last one left off:
 | `focused_box` | the panel that had focus, `1` or `2` |
 | `maximised` | whether that panel filled the window (`Enter`) |
 | `whitespace` | whether diffs spell out spaces and tabs (`w`) |
+| `two_line_numbers` | whether the commit view numbers a diff in two columns, old and new (`#`) |
 
 `auto_refresh` and `auto_fetch` live in the same file but are yours to write: see
 [Auto-refresh](#auto-refresh).
 
-`lane_colours`, `focused_box`, `maximised` and `whitespace` are written when gitraffe exits, not as you press the keys, since `L`
+`lane_colours`, `focused_box`, `maximised`, `whitespace` and `two_line_numbers` are written when gitraffe exits, not as you press the keys, since `L`
 and `tab` are pressed often and the file is only read at startup. Delete the file,
-or any single key in it, to go back to the defaults: fullscreen, lane colours on, whitespace
+or any single key in it, to go back to the defaults: fullscreen, lane colours on, one column of line numbers, whitespace
 shown, the graph focused. A `focused_box` naming a panel that doesn't exist is ignored.
 
 ## Uncommitted changes
