@@ -133,16 +133,11 @@ func TestF5Reloads(t *testing.T) {
 	}
 }
 
-func TestStatusLineOffersReload(t *testing.T) {
-	m := testModel()
-	m.windowWidth = 120
-	line := ansi.Strip(m.renderStatusLine())
-	if !strings.Contains(line, "r: reload") {
-		t.Errorf("status line = %q, want it to offer reload", line)
-	}
-	// It has to survive the width the line is written for.
-	if !strings.Contains(line, "q: quit") {
-		t.Errorf("status line = %q, want quit still on it at 120 columns", line)
+// Reload is no longer on the status line, which has room only for what is
+// used most; "?" is then the one place that says r reloads.
+func TestHelpOffersReload(t *testing.T) {
+	if !strings.Contains(strings.Join(helpLines(helpSections), "\n"), "reload this repository") {
+		t.Error("the help does not say how to reload")
 	}
 }
 

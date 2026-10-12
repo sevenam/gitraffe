@@ -466,7 +466,7 @@ func TestViewFillsTheWindowAtEverySize(t *testing.T) {
 			}
 		}
 		// The way out has to stay on screen however little room there is.
-		if last := lines[len(lines)-1]; !strings.Contains(last, "esc: back") {
+		if last := lines[len(lines)-1]; !strings.Contains(last, "space: back") {
 			t.Errorf("%dx%d: last line is %q, want the status line", size[0], size[1], last)
 		}
 	}
