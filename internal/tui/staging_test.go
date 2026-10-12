@@ -1186,3 +1186,72 @@ func TestCommitBoxDoesNotOpenAfterStagingThatFailedOrWasLeft(t *testing.T) {
 		t.Error("the message box opened over the graph")
 	}
 }
+
+// Before anything is committed the screen has to say where it would go: the
+// graph's top box, which names the repository and the branch, is not on it.
+func TestUncommittedChangesSayWhereACommitWouldLand(t *testing.T) {
+	dir, _ := stagingRepo(t)
+	twoHunks(t, dir)
+	m := openedView(t, dir)
+	m.ahead, m.behind = 2, 1
+
+	screen := ansi.Strip(m.View())
+	for _, want := range []string{"Repo:    " + m.repoName, "Branch:  main ↑2 ↓1", "not committed yet"} {
+		if !strings.Contains(screen, want) {
+			t.Errorf("the screen does not show %q:\n%s", want, screen)
+		}
+	}
+	// The box grew by the two lines and the screen did not.
+	for _, size := range [][2]int{{110, 26}, {80, 24}, {60, 12}} {
+		m.windowWidth, m.windowHeight = size[0], size[1]
+		if lines := strings.Split(ansi.Strip(m.View()), "\n"); len(lines) != size[1] {
+			t.Errorf("%dx%d: the screen is %d rows", size[0], size[1], len(lines))
+		}
+	}
+
+	// A commit's box is its own fields, as it was.
+	c := commit{Hash: "abc1234", FullHash: "abc1234abc1234", Message: "subject"}
+	if got := m.commitViewIdentity(c); got != commitIdentity(c) {
+		t.Errorf("a commit's box changed:\n%s", ansi.Strip(got))
+	}
+}
+
+// On no branch "c" is refused, and the box says so in place of a branch name
+// before the key is pressed.
+func TestUncommittedChangesOnADetachedHead(t *testing.T) {
+	dir, gitCmd := stagingRepo(t)
+	gitCmd("checkout", "-q", "--detach")
+	twoHunks(t, dir)
+	m := openedView(t, dir)
+
+	if !m.workingState.Detached {
+		t.Fatal("the repository was not read as detached")
+	}
+	screen := ansi.Strip(m.View())
+	if want := "Branch:  detached at " + m.currentCommit; !strings.Contains(screen, want) {
+		t.Errorf("the screen does not show %q:\n%s", want, screen)
+	}
+	if m = press(m, keyPress("c")); m.commitPrompt.open {
+		t.Error("c opened the commit box on a detached HEAD")
+	}
+}
+
+// What is under way is named where the branch is, since it too is why "c"
+// would be refused. A rebase leaves HEAD detached and is called a rebase.
+func TestUncommittedChangesDuringAnOperation(t *testing.T) {
+	m := testModel()
+	m.currentBranch = "main"
+	for _, tc := range []struct {
+		state git.WorkingState
+		want  string
+	}{
+		{git.WorkingState{Operation: "merge"}, "main (merging)"},
+		{git.WorkingState{Operation: "conflict"}, "main (conflicts)"},
+		{git.WorkingState{Operation: "rebase", Detached: true}, "detached (rebasing)"},
+	} {
+		m.workingState = tc.state
+		if got := ansi.Strip(m.commitTarget()); got != tc.want {
+			t.Errorf("%+v: target = %q, want %q", tc.state, got, tc.want)
+		}
+	}
+}

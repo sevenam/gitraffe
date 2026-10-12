@@ -265,16 +265,22 @@ commit. Nothing else in gitraffe writes a commit, and this only does on `c` then
 
 ```
 ╭[1]-commit─────────────────╮╭[3]-diff────────────────────────────────╮
-│ Uncommitted changes       ││ parser.go  not staged                  │
-│ 2 changed, 1 untracked    ││                                        │
-╰───────────────────────────╯│ @@ -18,6 +18,9 @@                      │
-╭[2]-files-(1-of-3-staged)──╮│  func parse() {                        │
-│   ● README.md       +2 -0 ││ -  amount = -amount                    │
-│ > ○ parser.go       +2 -2 ││ +  if amount < 0 {                     │
+│ Repo:    billing          ││ parser.go  not staged                  │
+│ Branch:  main ↑2          ││                                        │
+│ 2 changed, 1 untracked    ││ @@ -18,6 +18,9 @@                      │
+╰───────────────────────────╯│  func parse() {                        │
+╭[2]-files-(1-of-3-staged)──╮│ -  amount = -amount                    │
+│   ● README.md       +2 -0 ││ +  if amount < 0 {                     │
+│ > ○ parser.go       +2 -2 ││                                        │
 │   ○ notes.txt   untracked ││                                        │
 ╰───────────────────────────╯╰────────────────────────────────────────╯
 ?: help • space: back • s: stage • d: discard • c: commit • w: whitespace
 ```
+
+The box at the top left says where the commit would land: the repository, and the
+branch with how far it is ahead of or behind its upstream. Where `c` would be refused
+it says why in place of a branch: `detached at 4a938a6` on no branch, or
+`main (merging)` while a merge, rebase, cherry-pick or revert is under way.
 
 Each row of the file list says which side it is on: `●` is staged — what the next
 commit will hold — and `○` is not. The files are listed by path whichever side they
