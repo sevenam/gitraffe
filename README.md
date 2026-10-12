@@ -1202,6 +1202,21 @@ git tag v0.1.0 origin/main
 git push --tags
 ```
 
+Add a section for the version at the top of `RELEASE-NOTES.md` in the same commit as
+the version number: the winget package links to it.
+
+### winget
+
+The tag's release run ends with a `winget` job that opens a pull request to
+[microsoft/winget-pkgs](https://github.com/microsoft/winget-pkgs), which is how a
+version gets into winget as `sevenam.gitraffe`. Microsoft reviews it, usually within a
+day or two.
+
+The job needs a repository secret named `WINGET_TOKEN`: a classic personal access token
+with the `public_repo` scope, belonging to the account that holds the fork of
+`winget-pkgs`. Without the secret the job does nothing and says so. When the token has
+expired the job fails; the GitHub release is already made by then and is not affected.
+
 ## License
 
 MIT License - see [LICENSE](LICENSE) file for details.

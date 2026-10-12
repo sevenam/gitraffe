@@ -21,12 +21,18 @@ package you changed with `-run` while iterating, and the full suite once before 
 A release is a tag matching the `version` constant in `main.go`; `release.yml` refuses any other.
 Don't change `version` unless asked. When asked to release:
 
-1. Set `version` in `main.go` to the new number and land that commit on `main` ("bump version to
-   X.Y.Z"). `release.yml` also refuses a tag on a commit that isn't on `main`.
+1. Set `version` in `main.go` to the new number, add a `## X.Y.Z` section at the top of
+   `RELEASE-NOTES.md`, and land that commit on `main` ("bump version to X.Y.Z"). `release.yml`
+   also refuses a tag on a commit that isn't on `main`. The winget manifest links to that
+   section, so a version without one is a link to nowhere.
 2. Tag that commit on `main` as `vX.Y.Z` (a lightweight tag, like the earlier ones) and push only the
    tag: `git tag vX.Y.Z origin/main && git push origin vX.Y.Z`.
 3. The tag push runs `release.yml`: check-tag, the full test suite, then the builds that become the
    GitHub release. Nothing else runs CI, so a red test shows up here first.
+4. Its last job, `winget`, opens the pull request to `microsoft/winget-pkgs` that puts the version
+   in winget as `sevenam.gitraffe`. It needs the repository secret `WINGET_TOKEN` (a classic token
+   with `public_repo`) and does nothing without it. A failure there leaves the GitHub release as
+   it is; Microsoft's review of the pull request takes a day or two.
 
 ## Working here economically
 
