@@ -584,3 +584,58 @@ func TestTheSelectedFileIsAlwaysOnScreen(t *testing.T) {
 		}
 	}
 }
+
+// Each screen says which it is, in the border of its top box, and stepping
+// from one to the other changes the name.
+func TestEachScreenIsNamed(t *testing.T) {
+	m := openedView(t, threeFileRepo(t))
+	top, _, _ := strings.Cut(ansi.Strip(m.View()), "\n")
+	if !strings.HasPrefix(top, "╭"+commitViewTitle+"─") {
+		t.Errorf("the commit view's first line is %q, want it to lead with %q", top, commitViewTitle)
+	}
+
+	m = press(m, keyPress("esc"))
+	top, _, _ = strings.Cut(ansi.Strip(m.View()), "\n")
+	if !strings.HasPrefix(top, "╭"+graphViewTitle+"─") {
+		t.Errorf("the graph's first line is %q, want it to lead with %q", top, graphViewTitle)
+	}
+	if w := ansi.StringWidth(top); w != m.windowWidth {
+		t.Errorf("the named border is %d wide, want the window's %d", w, m.windowWidth)
+	}
+}
+
+// The commit view's top box ends in the app's name and version, as the
+// graph's does, and a long subject is cut to leave them there.
+func TestCommitViewHeaderKeepsTheAppTitle(t *testing.T) {
+	m := openedView(t, threeFileRepo(t))
+	c, _ := m.viewedCommit()
+	c.Message = strings.Repeat("a very long subject ", 20)
+	title := ansi.Strip(m.appTitle())
+
+	for _, width := range []int{200, 110, 80} {
+		m.windowWidth = width
+		got := ansi.Strip(m.commitViewHeader(c))
+		if !strings.HasSuffix(got, title) {
+			t.Errorf("%d columns: header = %q, want it to end in %q", width, got, title)
+		}
+		if w := ansi.StringWidth(got); w != width-4 {
+			t.Errorf("%d columns: header is %d wide, want the box's %d", width, w, width-4)
+		}
+	}
+
+	// Too narrow for both: the commit stays, the title goes.
+	m.windowWidth = 30
+	got := ansi.Strip(m.commitViewHeader(c))
+	if !strings.HasPrefix(got, "Commit: ") || strings.Contains(got, appName) {
+		t.Errorf("30 columns: header = %q, want the commit and no title", got)
+	}
+	if w := ansi.StringWidth(got); w > 26 {
+		t.Errorf("30 columns: header is %d wide, want at most 26", w)
+	}
+
+	c.WorkingTree = true
+	m.windowWidth = 110
+	if got := ansi.Strip(m.commitViewHeader(c)); !strings.HasSuffix(got, title) || !strings.Contains(got, "uncommitted changes") {
+		t.Errorf("uncommitted changes: header = %q, want the title at its end", got)
+	}
+}

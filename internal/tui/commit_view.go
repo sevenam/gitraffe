@@ -333,7 +333,7 @@ func (m model) renderCommitView() string {
 		BorderStyle(lipgloss.RoundedBorder()).
 		BorderForeground(lipgloss.Color(theme.Current.BorderInactive)).
 		Padding(0, 1).
-		Render(m.commitViewHeader(c)), "")
+		Render(m.commitViewHeader(c)), commitViewTitle)
 
 	identity, identityMarks := scrollLines(commitIdentity(c), m.commitView.detailsScroll, l.detailsRows-2, l.leftWidth-4)
 	details := commitBox(identity, identityMarks,
@@ -355,17 +355,32 @@ func (m model) renderCommitView() string {
 //
 // The subject is cut to what is left of the row rather than wrapped: the box
 // is one line tall, and a second line would push every box below it down.
+//
+// The app's name and version stay at the right end, as on the graph, and it
+// is the subject that gives way to them. A window too narrow for both keeps
+// the commit, which is what this screen is for.
 func (m model) commitViewHeader(c commit) string {
-	if c.WorkingTree {
-		return lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color(theme.Current.Title)).Render("Commit: ") +
-			workingTreeStyle.Render("uncommitted changes")
-	}
-	lead := lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color(theme.Current.Title)).Render("Commit: ") +
-		commitHashStyle.Render(c.Hash) + "  "
 	// The box's borders take two columns and its padding two more.
-	room := m.windowWidth - 4 - ansi.StringWidth(ansi.Strip(lead))
-	subject, _, _ := strings.Cut(c.Message, "\n")
-	return lead + ansi.Truncate(subject, max(room, 1), "…")
+	width := m.windowWidth - 4
+	lead := lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color(theme.Current.Title)).Render("Commit: ")
+	subject := ""
+	if c.WorkingTree {
+		lead += workingTreeStyle.Render("uncommitted changes")
+	} else {
+		lead += commitHashStyle.Render(c.Hash) + "  "
+		subject, _, _ = strings.Cut(c.Message, "\n")
+	}
+	leadWidth := ansi.StringWidth(ansi.Strip(lead))
+
+	title := m.appTitle()
+	// A gap of two between whatever is on the left and the title.
+	room := width - leadWidth - lipgloss.Width(title) - 2
+	if room < 0 || (subject != "" && room < 1) {
+		return lead + ansi.Truncate(subject, max(width-leadWidth, 1), "…")
+	}
+	left := lead + ansi.Truncate(subject, room, "…")
+	gap := width - lipgloss.Width(left) - lipgloss.Width(title)
+	return left + strings.Repeat(" ", max(gap, 2)) + title
 }
 
 // fileBoxLabel puts the count in the box's own label, so "how many files did

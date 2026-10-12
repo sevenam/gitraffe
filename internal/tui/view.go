@@ -105,7 +105,7 @@ func (m model) View() (result string) {
 		BorderStyle(lipgloss.RoundedBorder()).
 		BorderForeground(box0Border).
 		Padding(0, 1).
-		Render(repoInfoContent), "")
+		Render(repoInfoContent), graphViewTitle)
 
 	// Calculate dimensions based on actual rendered box 0 height
 	repoInfoHeight := lipgloss.Height(repoInfoBox) // should be 3 (1 content + 2 border)

@@ -137,3 +137,12 @@ func overlayCentre(screen, box string, width, height int) string {
 	}
 	return strings.Join(lines, "\n")
 }
+
+// Each screen is named in the border of its top box, where the other boxes
+// have their labels: it costs no row and no column, and the box under it
+// already says what the screen is about. Hyphens, like those labels, since
+// the name is drawn over the border and a space would break the line.
+const (
+	graphViewTitle  = "Graph-view"
+	commitViewTitle = "Commit-view"
+)
