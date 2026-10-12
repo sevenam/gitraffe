@@ -178,7 +178,7 @@ file is chosen. `Esc` or `q` comes back to the graph, exactly as it was.
 │   …/helper.go +1 -0 ││                                             │
 │   README.md   +2 -0 ││                                             │
 ╰─────────────────────╯╰─────────────────────────────────────────────╯
-esc: back • 1/2/3: focus box • tab: cycle • ↑/↓/j/k: move      1/3 · 33%
+?: help • space: back • o: PR • w: whitespace                1/3 · 33%
 ```
 
 `1`, `2` and `3` choose a box and `tab` cycles them; `↑/↓` or `j/k` then move in the
@@ -257,7 +257,7 @@ commit. Nothing else in gitraffe writes a commit, and this only does on `c` then
 │ > ○ parser.go       +2 -2 ││ +  if amount < 0 {                     │
 │   ○ notes.txt   untracked ││                                        │
 ╰───────────────────────────╯╰────────────────────────────────────────╯
-esc: back • s: stage file • S: all • d: discard • c: commit • 3: diff, for hunks and lines • ?: help
+?: help • space: back • s: stage • d: discard • c: commit • w: whitespace
 ```
 
 Each row of the file list says which side it is on: `●` is staged — what the next

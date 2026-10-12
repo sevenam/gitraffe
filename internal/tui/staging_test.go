@@ -179,7 +179,7 @@ func TestStagingAFileFromTheList(t *testing.T) {
 	if !strings.Contains(screen, "> "+unstagedMarker+" notes.txt") || !strings.Contains(screen, "0-of-3-staged") {
 		t.Errorf("the list does not mark what is staged:\n%s", screen)
 	}
-	if !strings.Contains(screen, "s: stage file") || !strings.Contains(screen, "c: commit") {
+	if !strings.Contains(screen, "s: stage •") || !strings.Contains(screen, "c: commit") {
 		t.Errorf("the status line does not say how to stage and commit:\n%s", screen)
 	}
 
@@ -200,7 +200,7 @@ func TestStagingAFileFromTheList(t *testing.T) {
 	}
 
 	// s again, on what is now a staged entry, takes it back out.
-	if !strings.Contains(ansi.Strip(m.View()), "s: unstage file") {
+	if !strings.Contains(ansi.Strip(m.View()), "s: unstage •") {
 		t.Error("the status line does not say s would unstage")
 	}
 	m = do(t, m, keyPress("s"))
@@ -1021,9 +1021,6 @@ func TestCapitalSInTheDiffTakesOnlyTheFileShown(t *testing.T) {
 	if got := listed(m); got != others+"numbered.txt:staged numbered.txt:unstaged" {
 		t.Fatalf("files = %q, want numbered.txt on both sides", got)
 	}
-	if !strings.Contains(ansi.Strip(m.View()), "S: file") {
-		t.Error("the status line does not say S is the file's here")
-	}
 	cursor := m.commitView.diffCursor
 	m = do(t, m, keyPress("S"))
 	if got := indexed(t, dir, "numbered.txt"); got != changed {
@@ -1035,9 +1032,6 @@ func TestCapitalSInTheDiffTakesOnlyTheFileShown(t *testing.T) {
 	// Nothing jumped: the same file, the same row of its diff.
 	if got := selectedEntry(t, m); got != "numbered.txt:staged" || m.commitView.diffCursor != cursor {
 		t.Errorf("selected %q, cursor %d; want the file shown and the cursor on row %d", got, m.commitView.diffCursor, cursor)
-	}
-	if !strings.Contains(ansi.Strip(m.View()), "S: unstage file") {
-		t.Error("the status line does not say S would take the file back")
 	}
 
 	// With none of it left to stage, S takes all of it back, and only it.

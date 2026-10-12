@@ -540,8 +540,8 @@ func (m model) renderFileDiff(c commit, width, rows int) (string, scrollMarks) {
 	return scrollLines(sb.String(), m.diffTop(rows), rows, width)
 }
 
-// commitViewStatusLine is the view's own bottom line: the keys this screen
-// answers to, with the way out first.
+// commitViewStatusLine is the view's own bottom line: what this screen can do,
+// after the way to the full list and the way out.
 func (m model) commitViewStatusLine() string {
 	// A notice takes the line while there is one, as it does on the graph
 	// screen: it answers the key just pressed, and the hints can wait.
@@ -562,16 +562,22 @@ func (m model) commitViewStatusLine() string {
 			Foreground(lipgloss.Color(theme.Current.Tag)).Render("Committing..."), m.windowWidth)
 	}
 	if m.commitView.workingTree {
-		hints := "esc: back • s: stage file • S: all • d: discard • c: commit • 3: diff, for hunks and lines • ?: help"
-		switch {
-		case m.commitView.selecting:
-			hints = "s: stage these lines • d: discard them • ↑/↓/j/k: pick more • esc: let go • ?: help"
-		case m.commitView.focus == commitBoxDiff:
-			hints = "esc: back • s: stage hunk • v: pick lines • S: file • d: discard • c: commit • 2: files • ?: help"
+		// s is named for what it would take from where the cursor is, since
+		// that changes with the box and with the line. S is left to "?":
+		// the line has room for one way to stage.
+		s := "s: stage"
+		if m.commitView.focus == commitBoxDiff {
+			s = "s: stage hunk"
 			// Below a hunk's header the key takes the one line.
 			if !m.cursorTakesHunk(m.stagingDiff()) {
-				hints = strings.Replace(hints, "s: stage hunk", "s: stage line", 1)
+				s = "s: stage line"
 			}
+		}
+		hints := "?: help • space: back • " + s + " • d: discard • c: commit • w: whitespace"
+		// Picking lines is a mode with keys of its own, and esc leaves it
+		// rather than the view.
+		if m.commitView.selecting {
+			hints = "s: stage these lines • d: discard them • ↑/↓/j/k: pick more • esc: let go • ?: help"
 		}
 		// In the diff box the key goes the way of the line under the
 		// cursor, which may be the file's other side.
@@ -585,14 +591,11 @@ func (m model) commitViewStatusLine() string {
 		if unstage {
 			hints = strings.ReplaceAll(hints, "s: stage", "s: unstage")
 		}
-		// In the diff box "S" is the file's, and goes the other way once
-		// none of the file is left to stage.
-		if _, left := m.stagingDiff().entry(false); !left && m.commitView.focus == commitBoxDiff {
-			hints = strings.Replace(hints, "S: file", "S: unstage file", 1)
-		}
 		return pinRight(hints, m.filePosition(), m.windowWidth)
 	}
-	return pinRight("esc: back • 1/2/3: focus box • tab: cycle • ↑/↓/j/k: move • h: file history • ?: help",
+	// A commit has nothing to stage, so the line is what is left of the
+	// other: the same keys in the same places.
+	return pinRight("?: help • space: back • o: PR • w: whitespace",
 		m.filePosition(), m.windowWidth)
 }
 
