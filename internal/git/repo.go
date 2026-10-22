@@ -93,6 +93,21 @@ func Toplevel(dir string) (string, error) {
 	return filepath.Clean(filepath.FromSlash(strings.TrimSpace(string(out)))), nil
 }
 
+// topOf is Toplevel without asking git when dir plainly is the top already,
+// as the repository gitraffe has open is: a ".git" in it, folder or file,
+// is only ever at the top of a working tree. Staging asks this on every key
+// press, and starting git is what makes a key press slow on Windows (issue
+// #217). The path is dir's own rather than git's, so it is for running git
+// in and finding files under, not for telling two repositories apart.
+func topOf(dir string) (string, error) {
+	if _, err := os.Lstat(filepath.Join(dir, ".git")); err == nil {
+		if abs, err := filepath.Abs(dir); err == nil {
+			return abs, nil
+		}
+	}
+	return Toplevel(dir)
+}
+
 // IsRepoRoot reports whether dir is the root of a git repository. .git is a
 // file rather than a folder in a linked worktree or a submodule.
 func IsRepoRoot(dir string) bool {

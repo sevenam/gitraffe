@@ -39,7 +39,6 @@ func Fingerprint(dir string) (string, error) {
 		return ch
 	}
 
-	rootCh := run("rev-parse", "--show-toplevel")
 	refsCh := run("for-each-ref", "--format=%(objectname) %(refname)")
 	// --no-optional-locks: a plain status refreshes the index and takes its
 	// lock to do so, and a check running unasked in the background must not
@@ -47,8 +46,12 @@ func Fingerprint(dir string) (string, error) {
 	// --branch puts HEAD's name and commit in the same answer.
 	statusCh := run("--no-optional-locks", "status", "--porcelain=v2", "--branch", "-z")
 
-	root, refs, status := <-rootCh, <-refsCh, <-statusCh
-	for _, r := range []result{root, refs, status} {
+	top, err := topOf(dir)
+	refs, status := <-refsCh, <-statusCh
+	if err != nil {
+		return "", err
+	}
+	for _, r := range []result{refs, status} {
 		if r.err != nil {
 			return "", r.err
 		}
@@ -59,7 +62,6 @@ func Fingerprint(dir string) (string, error) {
 	h.Write([]byte{0})
 	h.Write(status.out)
 
-	top := filepath.FromSlash(strings.TrimSpace(string(root.out)))
 	for _, path := range statusPaths(status.out) {
 		info, err := os.Lstat(filepath.Join(top, filepath.FromSlash(path)))
 		if err != nil {
