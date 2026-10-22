@@ -10,6 +10,7 @@ import (
 	"regexp"
 	"strconv"
 	"strings"
+	"sync"
 )
 
 // Staging and committing: the part of gitraffe that writes what you chose
@@ -54,17 +55,40 @@ var (
 )
 
 // ReadWorkingState reads the WorkingState of the repository dir is in.
+//
+// It is asked before every change to the index and again in the reading
+// after it, so its git calls run side by side: one after another they were
+// most of the wait for a key press on Windows, where starting git is slow
+// (issue #217).
 func ReadWorkingState(dir string) WorkingState {
 	var s WorkingState
-	if _, err := Run(dir, "symbolic-ref", "-q", "HEAD"); err != nil {
-		// Only when there is a HEAD to be detached: failing for any other
-		// reason must not read as "on no branch".
-		if _, err := Run(dir, "rev-parse", "--verify", "--quiet", "HEAD"); err == nil {
-			s.Detached = true
-		}
+	var wg sync.WaitGroup
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		s.Operation = readOperation(dir)
+	}()
+	// Both asked at once, though the second only counts when the first
+	// fails: HEAD must exist to be detached, and failing for any other
+	// reason must not read as "on no branch".
+	branchCh, headCh := runAsync(dir, "symbolic-ref", "-q", "HEAD"), runAsync(dir, "rev-parse", "--verify", "--quiet", "HEAD")
+	if branch, head := <-branchCh, <-headCh; branch != nil && head == nil {
+		s.Detached = true
 	}
+	wg.Wait()
+	return s
+}
 
+// readOperation is WorkingState.Operation.
+func readOperation(dir string) string {
+	// ":/" is the whole working tree, from whichever folder of it dir is.
+	unmergedCh := make(chan string, 1)
+	go func() {
+		out, _ := Run(dir, "ls-files", "--unmerged", "--", ":/")
+		unmergedCh <- out
+	}()
 	// The worktree's own git directory, which is where these are kept.
+	op := ""
 	if gitDir, err := Run(dir, "rev-parse", "--absolute-git-dir"); err == nil {
 		exists := func(name string) bool {
 			_, err := os.Stat(filepath.Join(filepath.FromSlash(gitDir), name))
@@ -72,21 +96,30 @@ func ReadWorkingState(dir string) WorkingState {
 		}
 		switch {
 		case exists("rebase-merge"), exists("rebase-apply"):
-			s.Operation = "rebase"
+			op = "rebase"
 		case exists("MERGE_HEAD"):
-			s.Operation = "merge"
+			op = "merge"
 		case exists("CHERRY_PICK_HEAD"):
-			s.Operation = "cherry-pick"
+			op = "cherry-pick"
 		case exists("REVERT_HEAD"):
-			s.Operation = "revert"
+			op = "revert"
 		}
 	}
-	if s.Operation == "" {
-		if unmerged, err := Run(dir, "ls-files", "--unmerged"); err == nil && unmerged != "" {
-			s.Operation = "conflict"
-		}
+	if unmerged := <-unmergedCh; op == "" && unmerged != "" {
+		op = "conflict"
 	}
-	return s
+	return op
+}
+
+// runAsync runs a git command in the background; its channel gives the
+// error it ended with.
+func runAsync(dir string, args ...string) <-chan error {
+	ch := make(chan error, 1)
+	go func() {
+		_, err := Run(dir, args...)
+		ch <- err
+	}()
+	return ch
 }
 
 // runWrite runs a git command that changes the repository, in top, with stdin
@@ -169,23 +202,15 @@ func sectionFiles(top string, staged bool) []FileDiff {
 	return files
 }
 
-// refuseInProgress is the check every change to the index makes first.
-func refuseInProgress(top string) error {
-	if op := ReadWorkingState(top).Operation; op != "" {
-		return fmt.Errorf("%w: %s", ErrInProgress, op)
-	}
-	return nil
-}
-
 // change is the frame every change to the index is made in: from the top of
 // the working tree, and not while an operation is under way.
 func change(dir string, do func(top string) (string, error)) (string, error) {
-	top, err := Toplevel(dir)
+	top, err := topOf(dir)
 	if err != nil {
 		return "", err
 	}
-	if err := refuseInProgress(top); err != nil {
-		return "", err
+	if op := readOperation(top); op != "" {
+		return "", fmt.Errorf("%w: %s", ErrInProgress, op)
 	}
 	return do(top)
 }

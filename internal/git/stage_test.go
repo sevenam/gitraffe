@@ -666,6 +666,26 @@ func conflictedRepo(t *testing.T) string {
 	return dir
 }
 
+// A conflict is seen from any folder of the working tree, not only from the
+// one the conflicted file is in.
+func TestReadWorkingStateFromASubfolder(t *testing.T) {
+	dir := conflictedRepo(t)
+	sub := filepath.Join(dir, "sub")
+	if err := os.Mkdir(sub, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if s := ReadWorkingState(sub); s.Operation != "merge" || s.Detached {
+		t.Errorf("state = %+v, want a merge on a branch", s)
+	}
+	// With the merge forgotten, the unmerged file is all that is left.
+	if err := os.Remove(filepath.Join(dir, ".git", "MERGE_HEAD")); err != nil {
+		t.Fatal(err)
+	}
+	if s := ReadWorkingState(sub); s.Operation != "conflict" {
+		t.Errorf("state = %+v, want a conflict", s)
+	}
+}
+
 // Staging a conflicted file means "resolved", and a commit concludes the
 // merge: neither is what s and c are for, so both are refused.
 func TestStagingRefusedDuringAMerge(t *testing.T) {

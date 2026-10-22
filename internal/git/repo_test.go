@@ -1,7 +1,9 @@
 package git
 
 import (
+	"os"
 	"os/exec"
+	"path/filepath"
 	"strings"
 	"testing"
 
@@ -45,5 +47,37 @@ func TestReadInfoNoCommits(t *testing.T) {
 	dir := gittest.NewRepo(t)
 	if info := ReadInfoCLI(dir); info.HeadHash != "" {
 		t.Errorf("HeadHash = %q, want empty", info.HeadHash)
+	}
+}
+
+// topOf answers as Toplevel does, both at the top, where it does not ask git,
+// and from a folder further down, where it does.
+func TestTopOf(t *testing.T) {
+	dir, git, commit := gittest.Fixture(t)
+	git("init", "-q", "-b", "main")
+	commit("a")
+	sub := filepath.Join(dir, "sub")
+	if err := os.Mkdir(sub, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	want, err := Toplevel(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, from := range []string{dir, sub} {
+		got, err := topOf(from)
+		if err != nil {
+			t.Fatalf("topOf(%q): %v", from, err)
+		}
+		// The temporary folder can be reached through a link, which git
+		// resolves and topOf does not; the same folder is what matters.
+		gotInfo, err1 := os.Stat(got)
+		wantInfo, err2 := os.Stat(want)
+		if err1 != nil || err2 != nil || !os.SameFile(gotInfo, wantInfo) {
+			t.Errorf("topOf(%q) = %q, want %q", from, got, want)
+		}
+	}
+	if _, err := topOf(t.TempDir()); err == nil {
+		t.Error("topOf outside a repository did not fail")
 	}
 }

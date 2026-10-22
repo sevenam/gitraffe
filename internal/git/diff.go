@@ -225,7 +225,7 @@ func WorkingTree(dir string, statWidth int) Diff {
 		return strings.TrimSpace(strings.ReplaceAll(string(out), "\r", ""))
 	}
 
-	top, err := Toplevel(dir)
+	top, err := topOf(dir)
 	if err != nil {
 		top = dir
 	}
