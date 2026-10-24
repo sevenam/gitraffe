@@ -22,10 +22,10 @@ import (
 //
 // With nothing staged, "c" stages everything first and says so for as long
 // as the box is open: someone who staged nothing and asks to commit means all
-// of it, and being sent back to press "S" first was a step that taught
+// of it, and being sent back to press "A" first was a step that taught
 // nothing. It is still only staging, which copies changes into the index and
 // loses none; nothing is committed until enter, and esc leaves a list of
-// staged files that "S" takes back.
+// staged files that "A" takes back.
 //
 // The message is two fields, a subject line and a body, because that is what
 // a commit message is; and because it lets enter mean "commit" where one line
@@ -250,7 +250,7 @@ func (m model) finishCommit(msg commitFinishedMsg) (model, tea.Cmd) {
 	if msg.err != nil {
 		switch {
 		case errors.Is(msg.err, git.ErrNothingStaged):
-			m.notice = "Nothing staged — press s on a file or a hunk to stage it"
+			m.notice = "Nothing staged — press a on a file or a hunk to stage it"
 		case errors.Is(msg.err, git.ErrDetached):
 			m.notice = "Not committed: HEAD is on no branch"
 		case errors.Is(msg.err, git.ErrInProgress):

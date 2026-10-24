@@ -13,16 +13,16 @@ import (
 	"github.com/sevenam/gitraffe/internal/theme"
 )
 
-// Staging: in the commit view of the uncommitted changes, "s" moves what is
+// Staging: in the commit view of the uncommitted changes, "a" moves what is
 // selected into the index or back out of it. On the file list that is a whole
 // file; in the diff box it is the hunk whose header the cursor is on, the one
-// line it is on further down, or the lines picked with "v". "S" is the same
+// line it is on further down, or the lines picked with "v". "A" is the same
 // key a size up: every file from the file list, the whole of the file shown
 // from the diff box. "c" commits what is staged (see commit_prompt.go).
 //
 // A file with staged and unstaged changes is listed twice, once for each, so
-// "s" on a row of the list moves exactly that half. The diff box shows the
-// file whole beside either row, each hunk marked for its side, and "s" there
+// "a" on a row of the list moves exactly that half. The diff box shows the
+// file whole beside either row, each hunk marked for its side, and "a" there
 // moves what the cursor is on whichever way its mark says; see
 // staging_diff.go.
 //
@@ -101,10 +101,10 @@ func (m model) stagingKey(msg tea.KeyMsg) (model, tea.Cmd, bool) {
 		v.selecting = !v.selecting
 		v.diffAnchor = v.diffCursor
 		return m, nil, true
-	case "s":
+	case "a":
 		next, cmd := m.stageSelected()
 		return next, cmd, true
-	case "S":
+	case "A":
 		// As far as the box it is pressed in reaches: the list is every
 		// file, the diff is one.
 		if v.focus == commitBoxDiff {
@@ -119,7 +119,7 @@ func (m model) stagingKey(msg tea.KeyMsg) (model, tea.Cmd, bool) {
 	case "d":
 		return m.discardSelected(), nil, true
 	case "D":
-		// As far as the box reaches, as "S" does.
+		// As far as the box reaches, as "A" does.
 		if v.focus == commitBoxDiff {
 			return m.discardShownFile(), nil, true
 		}
@@ -145,7 +145,7 @@ func (m model) stageSelected() (model, tea.Cmd) {
 	// while any of it is left, so the next hunk moves up under the cursor;
 	// then the same file's other half, which is where what was just moved
 	// went and, the list being in path order, the row the selection is
-	// already on. Staying there means "s" again takes it back, as a slip
+	// already on. Staying there means "a" again takes it back, as a slip
 	// should be undone, and the file being looked at does not change under
 	// the key. Another file is only for when this one has left the list.
 	v.want = []fileKey{keyOf(f), {f.Path, !f.Staged}}
@@ -196,7 +196,7 @@ func (m model) stageEverything() (model, tea.Cmd) {
 }
 
 // stageShownFile stages all of the file the diff box shows, or, when none of
-// it is left to stage, takes all of it back: what "S" does to every file,
+// it is left to stage, takes all of it back: what "A" does to every file,
 // done to one.
 func (m model) stageShownFile() (model, tea.Cmd) {
 	if !m.canStage() {
@@ -252,7 +252,7 @@ func stageCmd(repoPath string, statWidth int, change func(dir string) (string, e
 		msg.detail, msg.err = change(repoPath)
 
 		// All read after the change, and side by side: this is the wait
-		// between pressing "s" and seeing it happen.
+		// between pressing "a" and seeing it happen.
 		var wg sync.WaitGroup
 		wg.Add(2)
 		go func() {
@@ -390,7 +390,7 @@ func (m *model) setWorkingDiff(d git.Diff) {
 	m.followCursor()
 }
 
-// cursorFollow is where the diff's cursor belongs after "s" has moved what
+// cursorFollow is where the diff's cursor belongs after "a" has moved what
 // it was on, the diff having been read again in between.
 //
 // A hunk moved from its header changes its mark where it stands, and the
@@ -398,14 +398,14 @@ func (m *model) setWorkingDiff(d git.Diff) {
 // will be on the other side. Lines moved from inside a hunk leave it for a
 // hunk of their own some rows away, and following them there would take the
 // cursor out of what is still being worked through. So it stays in the hunk
-// they left, on the line that came after them: pressing "s" again takes the
+// they left, on the line that came after them: pressing "a" again takes the
 // next line, and a hunk is staged a line at a time without moving a finger.
 type cursorFollow struct {
 	line   stagingLine
 	across bool
 }
 
-// followAfter says where the cursor should be after "s" on first..last of
+// followAfter says where the cursor should be after "a" on first..last of
 // entry's diff, given the box as it is now.
 func (m model) followAfter(d stagingDiff, entry fileDiff, first, last int) *cursorFollow {
 	l, ok := m.cursorLine(d)
@@ -529,7 +529,7 @@ func (m *model) showFile() {
 	}
 }
 
-// pickedLines is what "s" in the diff box acts on: the entry of the file list
+// pickedLines is what "a" in the diff box acts on: the entry of the file list
 // the lines belong to, and the range of that entry's diff. That is the lines
 // picked with "v"; or else, by where the cursor is, a whole hunk from its
 // header or the one line under it. See cursorTakesHunk.
@@ -580,7 +580,7 @@ func (m model) pickedLines(d stagingDiff, selected fileDiff) (entry fileDiff, fi
 	return entry, first, last
 }
 
-// cursorTakesHunk reports whether "s", with nothing picked, would move a
+// cursorTakesHunk reports whether "a", with nothing picked, would move a
 // whole hunk and not just the line under the cursor. A hunk's header stands
 // for the hunk: on it the key takes all of it, and on a line below it that
 // line alone, so one key reaches both sizes without a mode to enter.
@@ -605,7 +605,7 @@ func (m model) cursorTakesHunk(d stagingDiff) bool {
 
 // linePicked reports whether line i of the diff box is under the cursor or
 // in the selection, and so drawn as a band. A selection only takes the lines
-// of the side it was started on, which are the ones "s" would move.
+// of the side it was started on, which are the ones "a" would move.
 func (m model) linePicked(d stagingDiff, i int) bool {
 	v := m.commitView
 	if !v.workingTree || v.focus != commitBoxDiff || i >= len(d.lines) {

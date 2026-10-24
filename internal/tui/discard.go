@@ -14,7 +14,7 @@ import (
 )
 
 // Discarding: "d" and "D" in the commit view of the uncommitted changes throw
-// away what "s" and "S" there would stage, and "D" on the graph throws away
+// away what "a" and "A" there would stage, and "D" on the graph throws away
 // all of it. It is the one thing gitraffe does that loses work nothing can
 // bring back, so every discard asks first, in a box over the screen rather
 // than on the status line where it could be read past, and only "y" answers
@@ -22,7 +22,7 @@ import (
 //
 // Only unstaged changes are reached (see internal/git/discard.go): what is
 // staged is kept, so staging something is how to put it out of reach of a
-// discard, and "s" again is how to make it discardable.
+// discard, and "a" again is how to make it discardable.
 
 // discardPrompt is the question a discard waits on, and what it does once
 // answered.
@@ -49,7 +49,7 @@ func (m *model) canDiscard() bool {
 	return true
 }
 
-const keptNotice = "Staged changes are kept — unstage them with s first to discard them"
+const keptNotice = "Staged changes are kept — unstage them with a first to discard them"
 
 // discardSelected asks to discard what the focused box has selected, the
 // counterpart of stageSelected.

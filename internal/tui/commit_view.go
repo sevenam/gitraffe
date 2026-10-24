@@ -43,7 +43,7 @@ type commitView struct {
 	// staged, and the message box is to open when it has finished.
 	commitNext bool
 	// follow is where to put the cursor once the diff has been read again
-	// after "s" in the diff box; see cursorFollow.
+	// after "a" in the diff box; see cursorFollow.
 	follow *cursorFollow
 	shown  fileKey // the entry the diff box is about, to find it again in a list read anew
 	// want is where the selection should go once a change has been made and
@@ -639,22 +639,22 @@ func (m model) commitViewStatusLine() string {
 			Foreground(lipgloss.Color(theme.Current.Tag)).Render("Committing..."), m.windowWidth)
 	}
 	if m.commitView.workingTree {
-		// s is named for what it would take from where the cursor is, since
-		// that changes with the box and with the line. S is left to "?":
+		// a is named for what it would take from where the cursor is, since
+		// that changes with the box and with the line. A is left to "?":
 		// the line has room for one way to stage.
-		s := "s: stage"
+		s := "a: stage"
 		if m.commitView.focus == commitBoxDiff {
-			s = "s: stage hunk"
+			s = "a: stage hunk"
 			// Below a hunk's header the key takes the one line.
 			if !m.cursorTakesHunk(m.stagingDiff()) {
-				s = "s: stage line"
+				s = "a: stage line"
 			}
 		}
 		hints := "?: help • space: back • " + s + " • d: discard • c: commit • w: whitespace"
 		// Picking lines is a mode with keys of its own, and esc leaves it
 		// rather than the view.
 		if m.commitView.selecting {
-			hints = "s: stage these lines • d: discard them • ↑/↓/j/k: pick more • esc: let go • ?: help"
+			hints = "a: stage these lines • d: discard them • ↑/↓/j/k: pick more • esc: let go • ?: help"
 		}
 		// In the diff box the key goes the way of the line under the
 		// cursor, which may be the file's other side.
@@ -666,7 +666,7 @@ func (m model) commitViewStatusLine() string {
 			}
 		}
 		if unstage {
-			hints = strings.ReplaceAll(hints, "s: stage", "s: unstage")
+			hints = strings.ReplaceAll(hints, "a: stage", "a: unstage")
 		}
 		return pinRight(hints, m.filePosition(), m.windowWidth)
 	}

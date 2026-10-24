@@ -219,7 +219,7 @@ func (m model) cursorLine(d stagingDiff) (stagingLine, bool) {
 	return d.lines[max(0, min(m.commitView.diffCursor, len(d.lines)-1))], true
 }
 
-// actsOnStaged reports whether "s" in the diff box would take something out
+// actsOnStaged reports whether "a" in the diff box would take something out
 // of the index: the side of the line under the cursor, or of the line the
 // selection was started on, since picked lines are all of one side.
 func (m model) actsOnStaged(d stagingDiff) bool {
