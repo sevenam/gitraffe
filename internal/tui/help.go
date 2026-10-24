@@ -106,11 +106,11 @@ var commitViewHelp = []helpSection{
 // for it, and what is under the fold should be the keys every screen has.
 var stagingViewHelp = []helpSection{
 	{"Uncommitted changes", []keyBinding{
-		{"s", "files: stage or unstage the file"},
-		{"s", "diff: on a hunk's @@ line the hunk, below it the line"},
-		{"v", "diff: pick lines for s, from here to where you move; esc lets go"},
-		{"S", "files: stage or unstage everything; diff: this file"},
-		{"d / D", "discard what s / S would stage, after asking"},
+		{"a", "files: stage or unstage the file"},
+		{"a", "diff: on a hunk's @@ line the hunk, below it the line"},
+		{"v", "diff: pick lines for a, from here to where you move; esc lets go"},
+		{"A", "files: stage or unstage everything; diff: this file"},
+		{"d / D", "discard what a / A would stage, after asking"},
 		{"c", "commit what is staged, or everything when nothing is"},
 		{"1 / 2 / 3  tab", "focus commit / files / diff, or cycle"},
 		{"↑ / ↓  k / j", "move in the focused box"},

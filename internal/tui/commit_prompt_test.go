@@ -35,7 +35,7 @@ func counts(t *testing.T, m model) (subject, body string) {
 func TestCommitBoxCountsDownToFiftyAndSeventyTwo(t *testing.T) {
 	dir, _ := stagingRepo(t)
 	twoHunks(t, dir)
-	m := press(do(t, openedView(t, dir), keyPress("S")), keyPress("c"))
+	m := press(do(t, openedView(t, dir), keyPress("A")), keyPress("c"))
 
 	if s, b := counts(t, m); s != "50" || b != "72" {
 		t.Fatalf("an empty box counts %s and %s, want 50 and 72", s, b)
@@ -95,7 +95,7 @@ func rowsWith(m model, char string) int {
 func TestCommitBoxWrapsTheBodyAtSeventyTwo(t *testing.T) {
 	dir, _ := stagingRepo(t)
 	twoHunks(t, dir)
-	m := press(do(t, openedView(t, dir), keyPress("S")), keyPress("c"))
+	m := press(do(t, openedView(t, dir), keyPress("A")), keyPress("c"))
 
 	m = typeText(press(m, tab), strings.Repeat("y", 72))
 	if _, b := counts(t, m); b != "0" || rowsWith(m, "y") != 1 {

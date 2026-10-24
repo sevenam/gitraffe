@@ -274,7 +274,7 @@ commit. Nothing else in gitraffe writes a commit, and this only does on `c` then
 │ > ○ parser.go       +2 -2 ││                                        │
 │   ○ notes.txt   untracked ││                                        │
 ╰───────────────────────────╯╰────────────────────────────────────────╯
-?: help • space: back • s: stage • d: discard • c: commit • w: whitespace
+?: help • space: back • a: stage • d: discard • c: commit • w: whitespace
 ```
 
 The box at the top left says where the commit would land: the repository, and the
@@ -285,7 +285,7 @@ it says why in place of a branch: `detached at 4a938a6` on no branch, or
 Each row of the file list says which side it is on: `●` is staged — what the next
 commit will hold — and `○` is not. The files are listed by path whichever side they
 are on, so staging one changes its mark and leaves it where it is. A file with some
-changes staged and some not is listed twice, the staged half first, and `s` on a row
+changes staged and some not is listed twice, the staged half first, and `a` on a row
 moves that half.
 
 The diff box shows the file whole beside either row, with the same marks in front
@@ -311,24 +311,24 @@ in view around it.
 
 | Where | Key | Does |
 | --- | --- | --- |
-| files | `s` | stage the selected file, or unstage it if it is staged |
-| diff | `s` on a hunk's `@@` line | stage or unstage that whole hunk |
-| diff | `s` on a line below it | stage or unstage just that line |
-| diff | `v`, move, `s` | pick lines, then stage or unstage just those; `Esc` lets go of them |
-| files | `S` | stage everything; when everything is staged already, unstage it all |
-| diff | `S` | stage all of the file shown; when all of it is staged already, unstage it |
+| files | `a` | stage the selected file, or unstage it if it is staged |
+| diff | `a` on a hunk's `@@` line | stage or unstage that whole hunk |
+| diff | `a` on a line below it | stage or unstage just that line |
+| diff | `v`, move, `a` | pick lines, then stage or unstage just those; `Esc` lets go of them |
+| files | `A` | stage everything; when everything is staged already, unstage it all |
+| diff | `A` | stage all of the file shown; when all of it is staged already, unstage it |
 | any | `c` | commit what is staged |
 | files, diff | `d`, `D` | discard instead of stage (see [Discarding changes](#discarding-changes)) |
 
 Here the diff box has a cursor, which `↑/↓`, `j/k`, the wheel and a click all move; the
-box follows it. Where the cursor is says how much `s` takes: on a hunk's `@@` line,
+box follows it. Where the cursor is says how much `a` takes: on a hunk's `@@` line,
 the whole hunk down to the next `@@`; on a `+` or `-` line below it, that line alone.
 On a line that changes nothing it says there is nothing there to stage. For several
 lines at once, press `v` on a line and move: the lines from there to the cursor are
-picked, and `s` stages the changed ones among them. A new file git has not seen
-before has no `@@` line, so `s` anywhere in it takes the file.
+picked, and `a` stages the changed ones among them. A new file git has not seen
+before has no `@@` line, so `a` anywhere in it takes the file.
 
-`s` goes whichever way the mark under the cursor says: on a `○` hunk or line it
+`a` goes whichever way the mark under the cursor says: on a `○` hunk or line it
 stages, on a `●` one it unstages, and the bottom line says which. Lines picked with
 `v` across a staged hunk and one that is not keep to the side they were started on,
 and the band is only drawn on those.
@@ -336,16 +336,16 @@ and the band is only drawn on those.
 Where the cursor is afterwards depends on what was moved:
 
 - **A file or a whole hunk** stays under the cursor, with its new mark. Nothing
-  jumps: `s` again takes it back, and moving on to the next is yours to do.
+  jumps: `a` again takes it back, and moving on to the next is yours to do.
 - **A line** leaves the cursor in the hunk it was staged from, on the line below
-  it. So `s` pressed again takes the next line, and a hunk can be staged a line at
+  it. So `a` pressed again takes the next line, and a hunk can be staged a line at
   a time without moving; step over a line with `↓` to leave it out.
 
 Lines staged out of the middle of a hunk are drawn as a hunk of their own, a few
 rows from where they were, because that is what they are to git: the box shows the
 two diffs git keeps — the index against the last commit, your files against the
 index — interleaved in file order, and the unchanged lines around a change appear
-with each. To take such a line back, move to it there and press `s`. When the last of a file's changes is
+with each. To take such a line back, move to it there and press `a`. When the last of a file's changes is
 staged, the selection in the file list goes to its staged row rather than to another
 file, and the diff stays as it was.
 
@@ -387,7 +387,7 @@ What it will and won't do:
   all of it: it stages every change, opens the message box, and says so on the
   bottom line for as long as the box is open —
   `Nothing was staged, so all changes were: 3 files in this commit`. Nothing is
-  committed until `Enter`. `Esc` closes the box and leaves the files staged; `S`
+  committed until `Enter`. `Esc` closes the box and leaves the files staged; `A`
   takes them back. Once anything is staged, `c` commits that and no more.
 - **Staging never touches your files.** It copies changes into git's index, and
   unstaging takes them out again; the files on disk stay as they are either way.
@@ -405,12 +405,12 @@ What it will and won't do:
   branch is easy to lose. Check out a branch first (see [Checking out](#checking-out)).
 - **A file that changed since it was read is shown again, not staged.** If you edit a
   file after its diff was drawn, the line numbers on screen are of a diff that no
-  longer exists; `s` then stages nothing and redraws it.
+  longer exists; `a` then stages nothing and redraws it.
 - **A rename is a deletion and an addition here.** They are two rows, staged one at
   a time; git still records it as a rename when both are committed.
 
 A diff longer than 800 lines is cut on screen, and only the lines shown can be picked;
-`s` on the file list stages all of it.
+`a` on the file list stages all of it.
 
 ### Discarding changes
 
@@ -434,7 +434,7 @@ go, and only `y` answers yes; `Esc`, or any other key, leaves everything as it w
 | Where | Key | Discards |
 | --- | --- | --- |
 | files | `d` | the selected file's unstaged changes; an untracked file is deleted |
-| diff | `d` | the hunk, the line or the lines picked with `v`, as `s` would take them |
+| diff | `d` | the hunk, the line or the lines picked with `v`, as `a` would take them |
 | files | `D` | every unstaged change, and every untracked file |
 | diff | `D` | all of the shown file's unstaged changes |
 | graph | `D` | every unstaged change, and every untracked file |
@@ -445,7 +445,7 @@ uncommitted changes with `Space` and use `d` there.
 - **Only what is not staged.** A tracked file goes back to what is staged, which is
   the last commit's version when nothing of it is. Staged changes are never touched,
   so staging something puts it out of reach of a discard; `d` on a `●` row or line
-  says so and does nothing. Unstage it with `s` first to discard it.
+  says so and does nothing. Unstage it with `a` first to discard it.
 - **Untracked files are deleted, whole.** A file git has never seen has no version to
   go back to: `d` on its row deletes it, and lines of it cannot be discarded on their
   own. `D` deletes every untracked file, and any directory left empty by that.
