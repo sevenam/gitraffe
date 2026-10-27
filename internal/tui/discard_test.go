@@ -6,6 +6,7 @@ import (
 	"strings"
 	"testing"
 
+	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 	"github.com/charmbracelet/x/ansi"
 
@@ -31,7 +32,7 @@ func TestDiscardAFileAsksFirst(t *testing.T) {
 		t.Fatalf("files = %q", got)
 	}
 
-	// Anything but y leaves it alone.
+	// Anything but enter or y leaves it alone.
 	m = do(t, m, keyPress("d"))
 	if !strings.Contains(ansi.Strip(m.View()), "The unstaged changes to notes.txt") {
 		t.Fatalf("d did not ask:\n%s", ansi.Strip(m.View()))
@@ -40,9 +41,14 @@ func TestDiscardAFileAsksFirst(t *testing.T) {
 	if fileIs(t, dir, "notes.txt") != "a note, changed\n" || m.notice != "Nothing discarded" {
 		t.Fatalf("n discarded, or did not say it had not (notice %q)", m.notice)
 	}
+	m = do(t, m, keyPress("d"))
+	m = do(t, m, tea.KeyMsg{Type: tea.KeyEsc})
+	if fileIs(t, dir, "notes.txt") != "a note, changed\n" || m.discard.asking {
+		t.Fatalf("esc discarded, or left the question open")
+	}
 
 	m = do(t, m, keyPress("d"))
-	m = do(t, m, keyPress("y"))
+	m = do(t, m, tea.KeyMsg{Type: tea.KeyEnter})
 	if got := fileIs(t, dir, "notes.txt"); got != "a note\n" {
 		t.Errorf("notes.txt is %q, want it as committed", got)
 	}
@@ -163,12 +169,12 @@ func TestDiscardBoxHighlightsItsKeys(t *testing.T) {
 	withTrueColor(t)
 	box := discardPrompt{title: "Discard changes", what: "This hunk of a.txt"}.render(100)
 	key := lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color(theme.Current.SelectedFg))
-	for _, k := range []string{"y", "esc"} {
+	for _, k := range []string{"enter", "esc"} {
 		if !strings.Contains(box, key.Render(k)) {
 			t.Errorf("%q is not drawn in the key colour:\n%q", k, box)
 		}
 	}
-	if !strings.Contains(ansi.Strip(box), "y: discard • esc: cancel") {
+	if !strings.Contains(ansi.Strip(box), "enter: discard • esc: cancel") {
 		t.Errorf("the keys line reads:\n%s", ansi.Strip(box))
 	}
 }

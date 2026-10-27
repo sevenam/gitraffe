@@ -416,7 +416,8 @@ A diff longer than 800 lines is cut on screen, and only the lines shown can be p
 
 `d` and `D` throw changes away, and are the only keys in gitraffe that lose work
 nothing can bring back. Each asks first, in a box over the screen that says what will
-go, and only `y` answers yes; `Esc`, or any other key, leaves everything as it was.
+go, and only `Enter` or `y` answers yes; `Esc`, or any other key, leaves everything as
+it was.
 
 ```
 ╭───────────────────────────────────────────────────╮
@@ -426,7 +427,7 @@ go, and only `y` answers yes; `Esc`, or any other key, leaves everything as it w
 │  This hunk of parser.go                           │
 │  Staged changes are kept. This cannot be undone.  │
 │                                                   │
-│  y: discard • esc: cancel                         │
+│  enter: discard • esc: cancel                     │
 │                                                   │
 ╰───────────────────────────────────────────────────╯
 ```
