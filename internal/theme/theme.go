@@ -37,6 +37,7 @@ type Colors struct {
 	MergedBranch   string `yaml:"merged_branch"`
 	Tag            string `yaml:"tag"`
 	Checkpoint     string `yaml:"checkpoint"` // empty: a pink nothing else uses; see initStyles
+	Stash          string `yaml:"stash"`      // empty: an orange nothing else uses
 	Help           string `yaml:"help"`
 	Error          string `yaml:"error"`
 	SectionHeader  string `yaml:"section_header"`

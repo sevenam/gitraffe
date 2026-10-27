@@ -54,6 +54,9 @@ type stageFinishedMsg struct {
 	// discarded is the status line for a discard once it is done, and ""
 	// for staging; see discard.go.
 	discarded string
+	// stashed is the same for a stash or a pop, and stashFailed what the
+	// status line says first if it fails; see stash.go.
+	stashed, stashFailed string
 }
 
 // canStage says whether the view is one staging works in, and puts the
@@ -124,6 +127,14 @@ func (m model) stagingKey(msg tea.KeyMsg) (model, tea.Cmd, bool) {
 			return m.discardShownFile(), nil, true
 		}
 		return m.discardEverything(), nil, true
+	case "s", "S":
+		// The file, from either box: a stash takes a path whole, so there
+		// is no hunk or line of it to put aside.
+		if !m.canStage() {
+			return m, nil, true
+		}
+		next, cmd := m.openStashBox(msg.String() == "S")
+		return next, cmd, true
 	}
 	return m, nil, false
 }
@@ -279,8 +290,11 @@ func (m model) finishStage(msg stageFinishedMsg) (model, tea.Cmd) {
 	}
 	if msg.err != nil {
 		m.notice = stageFailedNotice(msg)
-		if msg.discarded != "" {
+		switch {
+		case msg.discarded != "":
 			m.notice = discardFailedNotice(msg)
+		case msg.stashed != "":
+			m.notice = stashFailedNotice(msg)
 		}
 		// Nothing moved, so there is nothing for the cursor to follow.
 		m.commitView.follow = nil
@@ -291,6 +305,9 @@ func (m model) finishStage(msg stageFinishedMsg) (model, tea.Cmd) {
 	m.setWorkingDiff(msg.diff)
 	if msg.discarded != "" {
 		return m.finishDiscard(msg)
+	}
+	if msg.stashed != "" {
+		return m.finishStash(msg)
 	}
 
 	// "c" with nothing staged staged everything so as to commit it, and

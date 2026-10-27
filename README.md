@@ -16,6 +16,7 @@ A text-based git command line tool built with Golang, Bubble Tea, go-git, and Li
 - 🔍 A commit view on `Space`: what the commit is, every file it touched, and one file's diff at a time (see [The commit view](#the-commit-view))
 - ✍️ Stage files, hunks or single lines from the commit view and commit them with `c`, without leaving gitraffe (see [Staging and committing](#staging-and-committing))
 - 🧹 Discard unstaged files, hunks or lines there with `d`, or every unstaged change with `D`, always asked about first (see [Discarding changes](#discarding-changes))
+- 📦 Stash the files you tick, under a name of your own, with `s` or `S`, and pop a stash back with `s` on the graph — only when it applies without conflicts (see [Stashing](#stashing))
 - ⬇️ `p` pulls: fetch, then fast-forward your branch — and nothing riskier than that (see [Pulling](#pulling))
 - ⬆️ `P` pushes your branch — never by force — and asks before creating a branch or a tag on the remote (see [Pushing](#pushing))
 - 🔀 `c` checks out the selected commit's branch, and refuses while you have uncommitted changes (see [Checking out](#checking-out))
@@ -94,6 +95,8 @@ in `gitraffe ./update`.
 - `b` - New branch at this commit, switched to (see [Creating a branch](#creating-a-branch))
 - `d` - Delete this commit's branch: local, remote or both (see [Deleting branches](#deleting-branches))
 - `D` - Discard every unstaged change and untracked file, after asking; staged changes are kept (see [Discarding changes](#discarding-changes))
+- `S` - Stash uncommitted changes: every file, or the ones left ticked, under a name (see [Stashing](#stashing))
+- `s` - List the stashes, on the selected one when its row is selected; `Enter` pops one back if it applies cleanly (see [Stashing](#stashing))
 - `o` - Open this commit's pull request in a browser, or start one from its branch (see [Opening a pull request](#opening-a-pull-request))
 - `y` - Copy this commit's hash (`y` again), subject (`s`) or diff (`d`) (see [Copying](#copying))
 - `r` or `F5` - Reload the repository (see [Reloading](#reloading))
@@ -319,6 +322,7 @@ in view around it.
 | diff | `A` | stage all of the file shown; when all of it is staged already, unstage it |
 | any | `c` | commit what is staged |
 | files, diff | `d`, `D` | discard instead of stage (see [Discarding changes](#discarding-changes)) |
+| files, diff | `s`, `S` | stash the selected file, or everything; untick or tick more in the box (see [Stashing](#stashing)) |
 
 Here the diff box has a cursor, which `↑/↓`, `j/k`, the wheel and a click all move; the
 box follows it. Where the cursor is says how much `a` takes: on a hunk's `@@` line,
@@ -455,6 +459,71 @@ uncommitted changes with `Space` and use `d` there.
   as for staging.
 - **A file that changed since it was read is shown again, not discarded**, as for
   staging lines.
+
+### Stashing
+
+A stash puts uncommitted changes aside without losing them, and brings them back later.
+
+| Where | Key | Does |
+| --- | --- | --- |
+| files, diff | `s` | open the stash box with the selected file ticked |
+| files, diff | `S` | open it with every file ticked |
+| graph | `S` | the same |
+| graph | `s` | list the stashes, with the selected one picked when the row selected is a stash; `Enter` pops the one picked, `Esc` closes the list |
+
+```
+╭────────────────────────────────────────────────────────────────────────────╮
+│                                                                            │
+│  Stash                                                                     │
+│                                                                            │
+│  Name  half-done parser                                                    │
+│                                                                            │
+│    [x] new.txt  (untracked)                                                │
+│  > [ ] notes.txt                                                           │
+│    [x] numbered.txt                                                        │
+│                                                                            │
+│  enter: stash 2 files • tab: name/files • space: tick • esc: cancel        │
+│                                                                            │
+╰────────────────────────────────────────────────────────────────────────────╯
+```
+
+The name has the keyboard when the box opens, so `s` then `Enter` stashes the selected
+file at once. `Tab` moves between the name and the files, where `↑/↓` move and `Space`
+ticks or unticks one; `Enter` stashes from either, and `Esc` stashes nothing.
+
+- **A file is stashed whole**, its staged and unstaged changes together, or the file
+  itself if git has never seen it: a file with both is one row in the box, though it
+  is two in the file list. Its staged changes come back unstaged when popped, as
+  `git stash pop` brings them, and the box says so when a ticked file has any.
+- **Every file ticked stashes everything**, as `git stash push --include-untracked`
+  with no paths, so nothing the list had not read yet is left behind. From the graph
+  the box opens before the files have been read, standing for every file, and fills
+  them in once they have.
+- **The name is optional.** Left empty, a stash of some files is called after them
+  (`parser.go, notes.txt`, or `parser.go and 6 more files`), and a stash of everything
+  takes git's own `WIP on main: …`.
+- Stashing is not asked about: nothing is lost, since the changes stay in the stash
+  until they are popped. Ignored files are never stashed.
+- **The newest stash is on the graph**, labelled `stash/` and its name in orange. With its row selected, `s`
+  then `Enter` pops it. Older stashes have no row of their own and are reached from
+  the list.
+
+Popping is a merge, and a merge can stop in conflicts that leave files to be resolved
+by hand, which gitraffe leaves to a terminal. So before popping, gitraffe tries the
+merge where it cannot touch anything, and pops only when it would apply cleanly:
+
+- **A pop that would conflict is refused**, with the commits made since the stash or
+  with what is staged now. The stash stays in the list; `git stash pop` in a terminal
+  is the way to pop it and resolve what conflicts.
+- **An untracked file in the stash that is already in the working tree** refuses the
+  pop too. Move that file away and pop again.
+- **Unstaged changes to a file the stash also changes** are refused by git itself,
+  before anything is touched.
+- **Staged changes in the stash come back unstaged**, as `git stash pop` brings them.
+- **The check needs git 2.40 or later.** With an older git a pop is refused rather than
+  risked.
+- **Not during a merge, rebase, cherry-pick or revert, or with unresolved conflicts**,
+  as for staging.
 
 ### Jumping to a branch or tag
 
@@ -1080,6 +1149,7 @@ Refs are coloured by what they are:
 | Tag (`v1.0`) | yellow | `tag` |
 | Merged-and-deleted branch | dim grey | `merged_branch` |
 | Checkpoint (`entire/checkpoints/v1`) | pink | `checkpoint` |
+| Stash (`stash/lunch`) | orange | `stash` |
 | Ahead count (`↑3`) | cyan | `ahead` (defaults to `author`) |
 | Behind count (`↓1`) | red | `behind` (defaults to `diff_del`) |
 
@@ -1092,6 +1162,10 @@ Entire's `entire/checkpoints/v1`. Any branch, local or remote, with `checkpoints
 `checkpoint` as one part of its name counts as one. Checkpoints are listed after the
 tags, in a pink no other label or graph lane uses, so they are not mistaken for
 someone's work. A theme that paints a light `background` gets a darker pink.
+
+The newest stash is labelled `stash/` and the name it was stashed under, or plain
+`stash` when it was given none, in an orange of its own after everything else: it is
+no branch, and cannot be checked out. A light `background` gets a darker orange.
 
 Existing themes need no changes — `local_branch` falls back to that theme's `date`
 colour, so the pairing stays coherent whatever palette you use.

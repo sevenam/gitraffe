@@ -9,8 +9,9 @@ import (
 	"github.com/sevenam/gitraffe/internal/theme"
 )
 
-// A checkpoint's colour is the one thing telling it from a branch, so in no
-// bundled theme may it be a colour another label or a graph lane already has.
+// A checkpoint's or the stash's colour is the one thing telling it from a
+// branch, so in no bundled theme may it be a colour another label or a graph
+// lane already has.
 func TestCheckpointColourIsItsOwn(t *testing.T) {
 	defer setTheme(theme.DefaultName, theme.Default())
 
@@ -40,6 +41,10 @@ func TestCheckpointColourIsItsOwn(t *testing.T) {
 		}
 		if what, ok := taken[colour(checkpointStyle)]; ok {
 			t.Errorf("%s: checkpoints are %s, the colour of %s", choice.Name, colour(checkpointStyle), what)
+		}
+		taken[colour(checkpointStyle)] = "checkpoints"
+		if what, ok := taken[colour(stashStyle)]; ok {
+			t.Errorf("%s: the stash is %s, the colour of %s", choice.Name, colour(stashStyle), what)
 		}
 	}
 }
