@@ -19,8 +19,15 @@ var (
 	remoteBranchStyle lipgloss.Style
 	mergedBranchStyle lipgloss.Style
 	tagStyle          lipgloss.Style
+	checkpointStyle   lipgloss.Style
 	workingTreeStyle  lipgloss.Style
 	helpStyle         lipgloss.Style
+)
+
+// The checkpoint colour when the theme sets none; see initStyles.
+const (
+	checkpointDefault        = "#ff79c6"
+	checkpointDefaultOnLight = "#b0175f"
 )
 
 func initStyles() {
@@ -78,6 +85,18 @@ func initStyles() {
 
 	tagStyle = lipgloss.NewStyle().
 		Foreground(lipgloss.Color(theme.Current.Tag)).
+		Bold(true)
+
+	// Checkpoints need a colour of their own, and every hue the theme keys
+	// give the other labels (green, blue, yellow, grey, cyan, red) is taken.
+	// The fallback is a pink that is none of them, nor one of the lane
+	// colours, darkened like those on a theme that paints a light background.
+	checkpointColour := checkpointDefault
+	if theme.IsLight(theme.Current.Background) {
+		checkpointColour = checkpointDefaultOnLight
+	}
+	checkpointStyle = lipgloss.NewStyle().
+		Foreground(lipgloss.Color(firstColour(theme.Current.Checkpoint, checkpointColour))).
 		Bold(true)
 
 	helpStyle = lipgloss.NewStyle().

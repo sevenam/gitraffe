@@ -17,6 +17,7 @@ const (
 	labelLocal labelKind = iota
 	labelRemote
 	labelTag
+	labelCheckpoint
 	labelMerged
 )
 
@@ -53,15 +54,28 @@ func labelSeparator(segs []labelSegment, i int) string {
 }
 
 // refSegments lists a commit's refs: local branches, remote-tracking branches,
-// then tags. Tag sync state is shown as a mark rather than a colour, because
-// colour already says "this is a tag".
+// tags, then checkpoints. Tag sync state is shown as a mark rather than a
+// colour, because colour already says "this is a tag".
+//
+// Checkpoints, local or remote, go last and in a colour of their own: they are
+// an agent's snapshots, not anyone's work, and in the branch colours they
+// would be taken for branches.
 func refSegments(c commit) []labelSegment {
 	local, remote, tags := git.ParseRefs(c.Refs)
 	segs := make([]labelSegment, 0, len(local)+len(remote)+len(tags)+len(c.RemoteOnlyTags))
+	var checkpoints []labelSegment
 	for _, b := range local {
+		if git.IsCheckpoint(b) {
+			checkpoints = append(checkpoints, labelSegment{text: b, style: checkpointStyle, kind: labelCheckpoint})
+			continue
+		}
 		segs = append(segs, labelSegment{text: b, style: localBranchStyle, kind: labelLocal})
 	}
 	for _, b := range remote {
+		if git.IsCheckpoint(b) {
+			checkpoints = append(checkpoints, labelSegment{text: b, style: checkpointStyle, kind: labelCheckpoint})
+			continue
+		}
 		segs = append(segs, labelSegment{text: b, style: remoteBranchStyle, kind: labelRemote})
 	}
 	for _, t := range tags {
@@ -73,7 +87,7 @@ func refSegments(c commit) []labelSegment {
 	for _, t := range c.RemoteOnlyTags {
 		segs = append(segs, labelSegment{text: t + tagRemoteOnlyMark, style: tagStyle, kind: labelTag})
 	}
-	return segs
+	return append(segs, checkpoints...)
 }
 
 // labelSegments is refSegments plus the name of a deleted branch this commit was

@@ -19,6 +19,9 @@ func TestLabelText(t *testing.T) {
 		{"a tag only the remote has", commit{
 			Refs: "tag: refs/tags/v1", RemoteOnlyTags: []string{"v2"},
 		}, "v1, v2" + tagRemoteOnlyMark},
+		{"checkpoints go last, local and remote together", commit{
+			Refs: "refs/heads/entire/checkpoints/v1, refs/heads/main, refs/remotes/origin/entire/checkpoints/v1, tag: refs/tags/v1",
+		}, "main  v1  entire/checkpoints/v1, origin/entire/checkpoints/v1"},
 		{"merged only", commit{MergedBranch: "feature-x"}, "feature-x"},
 		{"all kinds", commit{
 			Refs:         "HEAD -> refs/heads/main, refs/remotes/origin/main, tag: refs/tags/v1.0",

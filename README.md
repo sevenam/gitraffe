@@ -1079,12 +1079,19 @@ Refs are coloured by what they are:
 | Remote-tracking branch (`origin/main`) | blue | `branch` |
 | Tag (`v1.0`) | yellow | `tag` |
 | Merged-and-deleted branch | dim grey | `merged_branch` |
+| Checkpoint (`entire/checkpoints/v1`) | pink | `checkpoint` |
 | Ahead count (`↑3`) | cyan | `ahead` (defaults to `author`) |
 | Behind count (`↓1`) | red | `behind` (defaults to `diff_del`) |
 
 Local and remote are told apart by their full ref path, so a local branch called
 `feature/foo` is never mistaken for a branch `foo` on a remote named `feature`.
 `origin/HEAD` is hidden, since it only ever duplicates the remote's default branch.
+
+A checkpoint is a branch an AI coding agent saves snapshots of its session to, such as
+Entire's `entire/checkpoints/v1`. Any branch, local or remote, with `checkpoints` or
+`checkpoint` as one part of its name counts as one. Checkpoints are listed after the
+tags, in a pink no other label or graph lane uses, so they are not mistaken for
+someone's work. A theme that paints a light `background` gets a darker pink.
 
 Existing themes need no changes — `local_branch` falls back to that theme's `date`
 colour, so the pairing stays coherent whatever palette you use.

@@ -52,6 +52,21 @@ func ParseRefs(refs string) (local, remote, tags []string) {
 	return
 }
 
+// IsCheckpoint reports whether a ref name, as ParseRefs gives it, is a
+// checkpoint: a branch an AI coding agent saves snapshots of its session to,
+// such as Entire's "entire/checkpoints/v1". To git they are branches, but
+// nobody works on them, so the interface sets them apart from the branches
+// that are someone's work. A whole path segment is matched, not a substring,
+// so a branch like "fix-checkpoint-page" stays an ordinary branch.
+func IsCheckpoint(name string) bool {
+	for _, part := range strings.Split(name, "/") {
+		if part == "checkpoints" || part == "checkpoint" {
+			return true
+		}
+	}
+	return false
+}
+
 // mergedBranchName recovers the branch name recorded in a merge commit's subject.
 //
 // Git stores no branch name on a commit — a branch is just a ref, and deleting it

@@ -139,6 +139,22 @@ func TestParseRefs(t *testing.T) {
 	}
 }
 
+func TestIsCheckpoint(t *testing.T) {
+	for name, want := range map[string]bool{
+		"entire/checkpoints/v1":        true,
+		"origin/entire/checkpoints/v1": true,
+		"checkpoints/session-42":       true, // refs/checkpoints/..., which ParseRefs strips to this
+		"agent/checkpoint":             true,
+		"main":                         false,
+		"fix-checkpoint-page":          false,
+		"feature/checkpointing":        false,
+	} {
+		if got := IsCheckpoint(name); got != want {
+			t.Errorf("IsCheckpoint(%q) = %v, want %v", name, got, want)
+		}
+	}
+}
+
 // The depth has to be counted in the order the graph is drawn in: git log
 // --graph implies --topo-order, and the date order git otherwise uses puts
 // commits somewhere else.
