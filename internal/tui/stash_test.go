@@ -10,7 +10,20 @@ import (
 	"github.com/sevenam/gitraffe/internal/git"
 )
 
-// "s" in the view takes the selected file aside, and only that file.
+func ticks(b stashBox) string {
+	var out []string
+	for _, f := range b.files {
+		mark := "[ ]"
+		if f.ticked {
+			mark = "[x]"
+		}
+		out = append(out, mark+f.path)
+	}
+	return strings.Join(out, " ")
+}
+
+// "s" in the view opens the box on the selected file alone; enter with no
+// name stashes that file, called after it.
 func TestStashAFileFromTheView(t *testing.T) {
 	dir, _ := stagingRepo(t)
 	write(t, dir, "notes.txt", "a note, changed\n")
@@ -20,7 +33,14 @@ func TestStashAFileFromTheView(t *testing.T) {
 		t.Fatalf("selected %q", got)
 	}
 
-	m = do(t, m, keyPress("s"))
+	m = press(m, keyPress("s"))
+	if got := ticks(m.stashBox); got != "[x]notes.txt [ ]numbered.txt" {
+		t.Fatalf("the box ticks %q", got)
+	}
+	if !strings.Contains(ansi.Strip(m.View()), "enter: stash 1 file") {
+		t.Fatalf("the box is not on screen:\n%s", ansi.Strip(m.View()))
+	}
+	m = do(t, m, tea.KeyMsg{Type: tea.KeyEnter})
 	// A stash moves refs/stash, so the graph is read again behind the view.
 	m = res(m.Update(loadRepo(dir)()))
 	m = withDiff(t, m)
@@ -33,27 +53,104 @@ func TestStashAFileFromTheView(t *testing.T) {
 	if got := listed(m); got != "numbered.txt:unstaged" || !m.commitView.open {
 		t.Errorf("files = %q, view open %v", got, m.commitView.open)
 	}
-	if !strings.Contains(m.notice, "Stashed notes.txt") {
+	if !strings.Contains(m.notice, "Stashed 1 file as “notes.txt”") {
 		t.Errorf("notice = %q", m.notice)
 	}
-	if stashes, _ := git.ListStashes(dir); len(stashes) != 1 {
-		t.Errorf("stashes = %+v, want one", stashes)
+	if stashes, _ := git.ListStashes(dir); len(stashes) != 1 || !strings.HasSuffix(stashes[0].Subject, ": notes.txt") {
+		t.Errorf("stashes = %+v, want one called after the file", stashes)
 	}
 }
 
-// "S" on the graph puts everything aside, and "s" there lists it and pops it
+// "S" ticks every file; tab and space untick one, and the name typed is the
+// stash's.
+func TestStashSomeFilesUnderAName(t *testing.T) {
+	dir, _ := stagingRepo(t)
+	write(t, dir, "notes.txt", "a note, changed\n")
+	twoHunks(t, dir)
+	write(t, dir, "new.txt", "fresh\n")
+	m := openedView(t, dir)
+
+	m = press(m, keyPress("S"))
+	if got := ticks(m.stashBox); got != "[x]new.txt [x]notes.txt [x]numbered.txt" {
+		t.Fatalf("the box ticks %q", got)
+	}
+	m = typeText(m, "the parser")
+	m = press(m, keyPress("tab"), keyPress("j"), keyPress(" "))
+	if got := ticks(m.stashBox); got != "[x]new.txt [ ]notes.txt [x]numbered.txt" {
+		t.Fatalf("after unticking: %q", got)
+	}
+	if got := m.stashBox.name.Value(); got != "the parser" {
+		t.Fatalf("space on the files went to the name: %q", got)
+	}
+	m = do(t, m, tea.KeyMsg{Type: tea.KeyEnter})
+
+	if fileIs(t, dir, "notes.txt") != "a note, changed\n" {
+		t.Error("the unticked file went into the stash")
+	}
+	if fileIs(t, dir, "numbered.txt") != numberedLines(30) || fileIs(t, dir, "new.txt") != "" {
+		t.Error("the ticked files are still changed")
+	}
+	stashes, _ := git.ListStashes(dir)
+	if len(stashes) != 1 || !strings.HasSuffix(stashes[0].Subject, ": the parser") {
+		t.Errorf("stashes = %+v, want one called “the parser”", stashes)
+	}
+}
+
+// With nothing ticked, enter says so and leaves the box open.
+func TestStashBoxWantsAFile(t *testing.T) {
+	dir, _ := stagingRepo(t)
+	write(t, dir, "notes.txt", "a note, changed\n")
+	m := press(openedView(t, dir), keyPress("s"), keyPress("tab"), keyPress(" "), keyPress("enter"))
+	if !m.stashBox.open || m.stashBox.failure == "" {
+		t.Errorf("open %v, failure %q", m.stashBox.open, m.stashBox.failure)
+	}
+	m = press(m, keyPress("esc"))
+	if m.stashBox.open || fileIs(t, dir, "notes.txt") != "a note, changed\n" {
+		t.Error("esc did not close the box, or stashed")
+	}
+}
+
+func TestDefaultStashName(t *testing.T) {
+	for _, tc := range []struct {
+		paths []string
+		want  string
+	}{
+		{[]string{"a.go"}, "a.go"},
+		{[]string{"a.go", "b.go"}, "a.go, b.go"},
+		{[]string{"internal/tui/stash.go", "internal/tui/stash_test.go", "internal/git/stash.go"},
+			"internal/tui/stash.go and 2 more files"},
+	} {
+		if got := defaultStashName(tc.paths); got != tc.want {
+			t.Errorf("defaultStashName(%v) = %q, want %q", tc.paths, got, tc.want)
+		}
+	}
+}
+
+// "S" on the graph opens the box at once, standing for every file until they
+// have been read, and puts everything aside; "s" there lists it and pops it
 // back with enter.
 func TestStashEverythingAndPopFromTheGraph(t *testing.T) {
 	dir, _ := stagingRepo(t)
 	body := twoHunks(t, dir)
 	write(t, dir, "new.txt", "fresh\n")
-	m := withDiff(t, loadedModel(t, dir))
+	m := loadedModel(t, dir)
+	m.windowWidth, m.windowHeight = 110, 26
 
-	m = do(t, m, keyPress("S"))
+	next, cmd := m.Update(keyPress("S"))
+	m = next.(model)
+	if !m.stashBox.open || !m.stashBox.waiting || !strings.Contains(ansi.Strip(m.View()), "Every uncommitted change") {
+		t.Fatalf("S did not open the box before the files were read:\n%s", ansi.Strip(m.View()))
+	}
+	m = res(m.Update(cmd()))
+	if got := ticks(m.stashBox); got != "[x]new.txt [x]numbered.txt" {
+		t.Fatalf("once read, the box ticks %q", got)
+	}
+	m = typeText(m, "lunch")
+	m = do(t, m, tea.KeyMsg{Type: tea.KeyEnter})
 	if out, _ := git.Run(dir, "status", "--porcelain"); out != "" {
 		t.Fatalf("status after S = %q, want nothing", out)
 	}
-	if !strings.Contains(m.notice, "Stashed all uncommitted changes") {
+	if !strings.Contains(m.notice, "Stashed all uncommitted changes as “lunch”") {
 		t.Errorf("notice = %q", m.notice)
 	}
 

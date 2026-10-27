@@ -127,13 +127,13 @@ func (m model) stagingKey(msg tea.KeyMsg) (model, tea.Cmd, bool) {
 			return m.discardShownFile(), nil, true
 		}
 		return m.discardEverything(), nil, true
-	case "s":
+	case "s", "S":
 		// The file, from either box: a stash takes a path whole, so there
 		// is no hunk or line of it to put aside.
-		next, cmd := m.stashSelected()
-		return next, cmd, true
-	case "S":
-		next, cmd := m.stashEverything()
+		if !m.canStage() {
+			return m, nil, true
+		}
+		next, cmd := m.openStashBox(msg.String() == "S")
 		return next, cmd, true
 	}
 	return m, nil, false

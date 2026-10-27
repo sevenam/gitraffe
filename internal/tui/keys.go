@@ -58,6 +58,9 @@ func (m model) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	if m.commitPrompt.open {
 		return m.updateCommitPrompt(msg)
 	}
+	if m.stashBox.open {
+		return m.updateStashBox(msg)
+	}
 
 	if m.picker.open {
 		return m.updateThemePicker(msg)
@@ -226,12 +229,13 @@ func (m model) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		// and nothing is popped until a row there is picked with enter.
 		return m.openStashList()
 	case "S":
-		// Not asked about, unlike "D": the changes go somewhere, and "s"
-		// brings them back.
+		// The box it opens names the stash and can untick files; it is not
+		// a question, unlike "D": the changes go somewhere, and "s" brings
+		// them back.
 		if !m.ready {
 			return m, nil
 		}
-		return m.stashEverything()
+		return m.openStashBox(true)
 	case "w":
 		return m.toggleWhitespace(), nil
 	case "L":

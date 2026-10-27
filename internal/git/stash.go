@@ -54,21 +54,34 @@ func ListStashes(dir string) ([]Stash, error) {
 	return stashes, nil
 }
 
-// StashFile puts aside all of a file's uncommitted changes, staged and
-// unstaged, or the file itself if git has never seen it. Its message is the
-// path, so the list says which file it was.
-func StashFile(dir, path string) (string, error) {
+// StashPaths puts aside all of the uncommitted changes to the files named,
+// staged and unstaged, and the files themselves where git has never seen
+// them, as one stash called message.
+//
+// The paths go to git on its standard input rather than its command line,
+// which on Windows holds 32,767 characters and a long selection would not fit.
+func StashPaths(dir, message string, paths []string) (string, error) {
+	if len(paths) == 0 {
+		return "", errors.New("no files to stash")
+	}
 	return change(dir, func(top string) (string, error) {
-		return runWrite(top, "", "--literal-pathspecs", "stash", "push", "--include-untracked",
-			"--quiet", "--message", path, "--", path)
+		return runWrite(top, strings.Join(paths, "\x00")+"\x00",
+			"--literal-pathspecs", "stash", "push", "--include-untracked", "--quiet",
+			"--message", message, "--pathspec-from-file=-", "--pathspec-file-nul")
 	})
 }
 
-// StashAll puts aside every uncommitted change, untracked files included.
-// Ignored files stay where they are.
-func StashAll(dir string) (string, error) {
+// StashAll puts aside every uncommitted change, untracked files included,
+// as one stash called message, or by git's own "WIP on <branch>: ..." when
+// message is "". Naming no paths is what makes it everything, including
+// whatever the screen had not read yet. Ignored files stay where they are.
+func StashAll(dir, message string) (string, error) {
 	return change(dir, func(top string) (string, error) {
-		return runWrite(top, "", "stash", "push", "--include-untracked", "--quiet")
+		args := []string{"stash", "push", "--include-untracked", "--quiet"}
+		if message != "" {
+			args = append(args, "--message", message)
+		}
+		return runWrite(top, "", args...)
 	})
 }
 

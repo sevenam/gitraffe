@@ -89,7 +89,7 @@ func (m model) canReloadUnasked() bool {
 		!m.fetching && !m.pulling && m.updateState == updateIdle &&
 		!m.showHelp && !m.picker.open && !m.switcher.open && !m.refs.open && !m.search.active &&
 		!m.files.open && !m.checkout.open && !m.switching &&
-		!m.deletePicker.open && !m.deleting && !m.stashPicker.open &&
+		!m.deletePicker.open && !m.deleting && !m.stashPicker.open && !m.stashBox.open &&
 		!m.commitPrompt.open && !m.staging && !m.committing && !m.discard.asking &&
 		!m.push.open() && !m.pushing &&
 		!m.branchPrompt.open

@@ -88,6 +88,7 @@ func (m model) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			// The uncommitted changes are read again and again, and an
 			// open view has a selection to keep through each reading.
 			m.setWorkingDiff(git.Diff{Stat: msg.diffStat, Body: msg.diffBody, Files: msg.diffFiles, State: msg.state})
+			m.fillStashBox()
 			return m, nil
 		}
 		if msg.commitIdx >= 0 && msg.commitIdx < len(m.commits) {

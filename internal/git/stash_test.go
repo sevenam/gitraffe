@@ -17,9 +17,9 @@ func onlyStash(t *testing.T, dir string) Stash {
 	return stashes[0]
 }
 
-// A file stashed takes both its halves with it and leaves every other file
-// alone; one git has never seen goes too.
-func TestStashFile(t *testing.T) {
+// The files named go into one stash under the name given, both halves of
+// each, untracked ones too, and every other file is left alone.
+func TestStashPaths(t *testing.T) {
 	dir, git := stageRepo(t)
 	write(t, dir, "other.txt", "other\n")
 	git("add", "other.txt")
@@ -32,8 +32,8 @@ func TestStashFile(t *testing.T) {
 	write(t, dir, "other.txt", "changed\n")
 	write(t, dir, "new.txt", "never seen\n")
 
-	if out, err := StashFile(dir, "numbered.txt"); err != nil {
-		t.Fatalf("StashFile: %v: %s", err, out)
+	if out, err := StashPaths(dir, "half done", []string{"numbered.txt", "new.txt"}); err != nil {
+		t.Fatalf("StashPaths: %v: %s", err, out)
 	}
 	if got := read(t, dir, "numbered.txt"); got != numbered(30) {
 		t.Errorf("numbered.txt is:\n%s\nwant it as committed", got)
@@ -41,18 +41,33 @@ func TestStashFile(t *testing.T) {
 	if got := indexed(t, dir, "numbered.txt"); got != numbered(30) {
 		t.Error("the staged half of numbered.txt is still staged")
 	}
-	if got := read(t, dir, "other.txt"); got != "changed\n" {
-		t.Error("another file's changes went with it")
-	}
-	if s := onlyStash(t, dir); !strings.HasSuffix(s.Subject, ": numbered.txt") || s.Ref != "stash@{0}" {
-		t.Errorf("the stash is %+v, want it named after the file", s)
-	}
-
-	if out, err := StashFile(dir, "new.txt"); err != nil {
-		t.Fatalf("StashFile on an untracked file: %v: %s", err, out)
-	}
 	if exists(dir, "new.txt") {
 		t.Error("the untracked file is still there")
+	}
+	if got := read(t, dir, "other.txt"); got != "changed\n" {
+		t.Error("a file not named went with them")
+	}
+	if s := onlyStash(t, dir); !strings.HasSuffix(s.Subject, ": half done") || s.Ref != "stash@{0}" {
+		t.Errorf("the stash is %+v, want it called what it was given", s)
+	}
+}
+
+// Everything goes, under the name given, or git's own when there is none.
+func TestStashAllNames(t *testing.T) {
+	dir, _ := stageRepo(t)
+	write(t, dir, "new.txt", "never seen\n")
+	if out, err := StashAll(dir, "before lunch"); err != nil {
+		t.Fatalf("StashAll: %v: %s", err, out)
+	}
+	if s := onlyStash(t, dir); !strings.HasSuffix(s.Subject, ": before lunch") {
+		t.Errorf("the stash is called %q", s.Subject)
+	}
+	write(t, dir, "new.txt", "again\n")
+	if out, err := StashAll(dir, ""); err != nil {
+		t.Fatalf("StashAll: %v: %s", err, out)
+	}
+	if stashes, _ := ListStashes(dir); len(stashes) != 2 || !strings.HasPrefix(stashes[0].Subject, "WIP on main: ") {
+		t.Errorf("stashes = %+v, want the newest called by git", stashes)
 	}
 }
 
@@ -62,7 +77,7 @@ func TestStashAllAndPop(t *testing.T) {
 	write(t, dir, "numbered.txt", changed)
 	write(t, dir, "new.txt", "never seen\n")
 
-	if out, err := StashAll(dir); err != nil {
+	if out, err := StashAll(dir, ""); err != nil {
 		t.Fatalf("StashAll: %v: %s", err, out)
 	}
 	if read(t, dir, "numbered.txt") != numbered(30) || exists(dir, "new.txt") {
