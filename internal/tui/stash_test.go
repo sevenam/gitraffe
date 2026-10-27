@@ -228,6 +228,35 @@ func TestStashListOpensOnTheSelectedStash(t *testing.T) {
 	}
 }
 
+// The stash's row is labelled with the name it was stashed under, as a stash
+// and not as a local branch; one stashed without a name is plain "stash".
+func TestStashIsLabelledByName(t *testing.T) {
+	dir, gitCmd := stagingRepo(t)
+	label := func() []labelSegment {
+		t.Helper()
+		stashes, _ := git.ListStashes(dir)
+		for _, c := range loadedModel(t, dir).commits {
+			if c.FullHash == stashes[0].Hash {
+				return labelSegments(c)
+			}
+		}
+		t.Fatal("the newest stash is not drawn on the graph")
+		return nil
+	}
+
+	write(t, dir, "notes.txt", "lunch\n")
+	gitCmd("stash", "push", "-q", "-m", "lunch")
+	if segs := label(); len(segs) != 1 || segs[0].text != "stash/lunch" || segs[0].kind != labelStash {
+		t.Errorf("labels = %+v, want stash/lunch as a stash", segs)
+	}
+
+	write(t, dir, "notes.txt", "unnamed\n")
+	gitCmd("stash", "push", "-q")
+	if segs := label(); len(segs) != 1 || segs[0].text != "stash" || segs[0].kind != labelStash {
+		t.Errorf("labels = %+v, want plain stash", segs)
+	}
+}
+
 func TestNothingToStashOrPop(t *testing.T) {
 	dir, _ := stagingRepo(t)
 	m := do(t, loadedModel(t, dir), keyPress("s"))

@@ -171,3 +171,17 @@ func TestPopStashRefusesAMovedStash(t *testing.T) {
 		t.Error("the newer stash was popped")
 	}
 }
+
+func TestStashName(t *testing.T) {
+	for subject, want := range map[string]string{
+		"On main: lunch":                    "lunch",
+		"On feature/x: a: b":                "a: b",
+		"On (no branch): detached":          "detached",
+		"WIP on main: 1a2b3c4 last subject": "",
+		"On main: ":                         "",
+	} {
+		if got := StashName(subject); got != want {
+			t.Errorf("StashName(%q) = %q, want %q", subject, got, want)
+		}
+	}
+}

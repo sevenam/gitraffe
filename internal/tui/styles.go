@@ -20,14 +20,17 @@ var (
 	mergedBranchStyle lipgloss.Style
 	tagStyle          lipgloss.Style
 	checkpointStyle   lipgloss.Style
+	stashStyle        lipgloss.Style
 	workingTreeStyle  lipgloss.Style
 	helpStyle         lipgloss.Style
 )
 
-// The checkpoint colour when the theme sets none; see initStyles.
+// The checkpoint and stash colours when the theme sets none; see initStyles.
 const (
 	checkpointDefault        = "#ff79c6"
 	checkpointDefaultOnLight = "#b0175f"
+	stashDefault             = "#ff9e64"
+	stashDefaultOnLight      = "#a34a00"
 )
 
 func initStyles() {
@@ -97,6 +100,16 @@ func initStyles() {
 	}
 	checkpointStyle = lipgloss.NewStyle().
 		Foreground(lipgloss.Color(firstColour(theme.Current.Checkpoint, checkpointColour))).
+		Bold(true)
+
+	// The stash is no branch either, and is told from the checkpoints too: an
+	// orange, between the tag yellow and the lane red and like neither.
+	stashColour := stashDefault
+	if theme.IsLight(theme.Current.Background) {
+		stashColour = stashDefaultOnLight
+	}
+	stashStyle = lipgloss.NewStyle().
+		Foreground(lipgloss.Color(firstColour(theme.Current.Stash, stashColour))).
 		Bold(true)
 
 	helpStyle = lipgloss.NewStyle().

@@ -154,3 +154,16 @@ func firstNonEmptyLine(s, fallback string) string {
 	}
 	return fallback
 }
+
+// StashName is the name a stash was given, read from its subject: git writes
+// "On main: lunch" for a stash with a message and "WIP on main: 1a2b3c4 the
+// last subject" for one without, which has no name and gets "". A branch name
+// cannot hold a colon, so the first ": " is where the name begins.
+func StashName(subject string) string {
+	rest, ok := strings.CutPrefix(subject, "On ")
+	if !ok {
+		return ""
+	}
+	_, name, _ := strings.Cut(rest, ": ")
+	return name
+}

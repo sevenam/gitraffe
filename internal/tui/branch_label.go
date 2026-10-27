@@ -18,6 +18,7 @@ const (
 	labelRemote
 	labelTag
 	labelCheckpoint
+	labelStash
 	labelMerged
 )
 
@@ -54,17 +55,25 @@ func labelSeparator(segs []labelSegment, i int) string {
 }
 
 // refSegments lists a commit's refs: local branches, remote-tracking branches,
-// tags, then checkpoints. Tag sync state is shown as a mark rather than a
+// tags, checkpoints, then the stash. Tag sync state is shown as a mark rather than a
 // colour, because colour already says "this is a tag".
 //
 // Checkpoints, local or remote, go last and in a colour of their own: they are
 // an agent's snapshots, not anyone's work, and in the branch colours they
 // would be taken for branches.
+//
+// refs/stash comes out of ParseRefs as a local branch called "stash", and is
+// no branch: it is labelled with the name it was stashed under, in a colour of
+// its own, so it is not taken for a branch somebody could check out.
 func refSegments(c commit) []labelSegment {
 	local, remote, tags := git.ParseRefs(c.Refs)
 	segs := make([]labelSegment, 0, len(local)+len(remote)+len(tags)+len(c.RemoteOnlyTags))
-	var checkpoints []labelSegment
+	var checkpoints, stash []labelSegment
 	for _, b := range local {
+		if b == "stash" {
+			stash = append(stash, labelSegment{text: stashRefLabel(c.Message), style: stashStyle, kind: labelStash})
+			continue
+		}
 		if git.IsCheckpoint(b) {
 			checkpoints = append(checkpoints, labelSegment{text: b, style: checkpointStyle, kind: labelCheckpoint})
 			continue
@@ -87,7 +96,15 @@ func refSegments(c commit) []labelSegment {
 	for _, t := range c.RemoteOnlyTags {
 		segs = append(segs, labelSegment{text: t + tagRemoteOnlyMark, style: tagStyle, kind: labelTag})
 	}
-	return append(segs, checkpoints...)
+	return append(append(segs, checkpoints...), stash...)
+}
+
+// stashRefLabel is "stash/<name>", or "stash" for one stashed without a name.
+func stashRefLabel(subject string) string {
+	if name := git.StashName(subject); name != "" {
+		return "stash/" + name
+	}
+	return "stash"
 }
 
 // labelSegments is refSegments plus the name of a deleted branch this commit was

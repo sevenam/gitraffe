@@ -504,7 +504,7 @@ ticks or unticks one; `Enter` stashes from either, and `Esc` stashes nothing.
   takes git's own `WIP on main: …`.
 - Stashing is not asked about: nothing is lost, since the changes stay in the stash
   until they are popped. Ignored files are never stashed.
-- **The newest stash is on the graph**, labelled `stash`. With its row selected, `s`
+- **The newest stash is on the graph**, labelled `stash/` and its name in orange. With its row selected, `s`
   then `Enter` pops it. Older stashes have no row of their own and are reached from
   the list.
 
@@ -1149,6 +1149,7 @@ Refs are coloured by what they are:
 | Tag (`v1.0`) | yellow | `tag` |
 | Merged-and-deleted branch | dim grey | `merged_branch` |
 | Checkpoint (`entire/checkpoints/v1`) | pink | `checkpoint` |
+| Stash (`stash/lunch`) | orange | `stash` |
 | Ahead count (`↑3`) | cyan | `ahead` (defaults to `author`) |
 | Behind count (`↓1`) | red | `behind` (defaults to `diff_del`) |
 
@@ -1161,6 +1162,10 @@ Entire's `entire/checkpoints/v1`. Any branch, local or remote, with `checkpoints
 `checkpoint` as one part of its name counts as one. Checkpoints are listed after the
 tags, in a pink no other label or graph lane uses, so they are not mistaken for
 someone's work. A theme that paints a light `background` gets a darker pink.
+
+The newest stash is labelled `stash/` and the name it was stashed under, or plain
+`stash` when it was given none, in an orange of its own after everything else: it is
+no branch, and cannot be checked out. A light `background` gets a darker orange.
 
 Existing themes need no changes — `local_branch` falls back to that theme's `date`
 colour, so the pairing stays coherent whatever palette you use.
