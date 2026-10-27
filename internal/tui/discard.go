@@ -17,8 +17,8 @@ import (
 // away what "a" and "A" there would stage, and "D" on the graph throws away
 // all of it. It is the one thing gitraffe does that loses work nothing can
 // bring back, so every discard asks first, in a box over the screen rather
-// than on the status line where it could be read past, and only "y" answers
-// yes; esc, or any other key, leaves everything as it was.
+// than on the status line where it could be read past, and only enter or "y"
+// answers yes; esc, or any other key, leaves everything as it was.
 //
 // Only unstaged changes are reached (see internal/git/discard.go): what is
 // staged is kept, so staging something is how to put it out of reach of a
@@ -173,15 +173,16 @@ func (m model) discardEverything() model {
 	return m
 }
 
-// answerDiscard discards on "y" and on nothing else: a key pressed by
-// mistake costs nothing.
+// answerDiscard discards on enter or "y" and on nothing else: a key pressed
+// by mistake costs nothing. Enter is the key the box shows, as in every other
+// box that asks something; "y" still works for whoever learnt it first.
 func (m model) answerDiscard(msg tea.KeyMsg) (model, tea.Cmd) {
 	p := m.discard
 	m.discard = discardPrompt{}
 	switch msg.String() {
 	case "ctrl+c":
 		return m, tea.Quit
-	case "y", "Y":
+	case "enter", "y", "Y":
 	default:
 		m.notice = "Nothing discarded"
 		return m, nil
@@ -246,7 +247,7 @@ func discardFailedNotice(msg stageFinishedMsg) string {
 // read at a glance.
 func (p discardPrompt) render(windowWidth int) string {
 	const note = "Staged changes are kept. This cannot be undone."
-	keys := [][2]string{{"y", "discard"}, {"esc", "cancel"}}
+	keys := [][2]string{{"enter", "discard"}, {"esc", "cancel"}}
 	key := lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color(theme.Current.SelectedFg))
 	var plain, footer []string
 	for _, k := range keys {

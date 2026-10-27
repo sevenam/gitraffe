@@ -184,7 +184,7 @@ new helpers.
   into the index and back, never touching a file; a commit holds only what was staged (`c` with nothing staged stages everything
   first, and says so), is made only by `c` then `Enter`, runs the repository's hooks and never skips one, and is
   refused on a detached HEAD or during a merge or rebase. The one exception is
-  discarding (`d`/`D`, issue #201): it asks on every use, takes only `y` as yes, and
+  discarding (`d`/`D`, issue #201): it asks on every use, takes only `Enter` or `y` as yes, and
   reaches only unstaged changes and untracked files, never the index, so staging is
   how a change is kept out of its reach. A push names the one branch or
   tag it sends, so no push setting can widen it, runs the `pre-push` hook, and is refused
