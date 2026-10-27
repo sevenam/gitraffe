@@ -201,6 +201,9 @@ func (m model) View() (result string) {
 	if m.deletePicker.open {
 		output = overlayCentre(output, m.deletePicker.render(m.windowHeight-10), m.windowWidth, m.windowHeight)
 	}
+	if m.stashPicker.open {
+		output = overlayCentre(output, m.stashPicker.render(m.windowHeight-10, m.windowWidth), m.windowWidth, m.windowHeight)
+	}
 	if m.refs.open {
 		// The same room the theme list leaves for its title, footer and border.
 		output = overlayCentre(output, m.refs.render(m.windowHeight-10), m.windowWidth, m.windowHeight)

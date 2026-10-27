@@ -65,6 +65,9 @@ func (m model) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	if m.deletePicker.open {
 		return m.updateDeletePicker(msg)
 	}
+	if m.stashPicker.open {
+		return m.updateStashPicker(msg)
+	}
 	if m.switcher.open {
 		return m.updateRepoSwitcher(msg)
 	}
@@ -218,6 +221,17 @@ func (m model) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 			return m, nil
 		}
 		return m.discardEverything(), nil
+	case "s":
+		// Lower case although a pop changes files: it only opens the list,
+		// and nothing is popped until a row there is picked with enter.
+		return m.openStashList()
+	case "S":
+		// Not asked about, unlike "D": the changes go somewhere, and "s"
+		// brings them back.
+		if !m.ready {
+			return m, nil
+		}
+		return m.stashEverything()
 	case "w":
 		return m.toggleWhitespace(), nil
 	case "L":

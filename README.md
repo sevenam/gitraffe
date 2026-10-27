@@ -16,6 +16,7 @@ A text-based git command line tool built with Golang, Bubble Tea, go-git, and Li
 - 🔍 A commit view on `Space`: what the commit is, every file it touched, and one file's diff at a time (see [The commit view](#the-commit-view))
 - ✍️ Stage files, hunks or single lines from the commit view and commit them with `c`, without leaving gitraffe (see [Staging and committing](#staging-and-committing))
 - 🧹 Discard unstaged files, hunks or lines there with `d`, or every unstaged change with `D`, always asked about first (see [Discarding changes](#discarding-changes))
+- 📦 Stash a file with `s` there, or everything with `S`, and pop a stash back with `s` on the graph — only when it applies without conflicts (see [Stashing](#stashing))
 - ⬇️ `p` pulls: fetch, then fast-forward your branch — and nothing riskier than that (see [Pulling](#pulling))
 - ⬆️ `P` pushes your branch — never by force — and asks before creating a branch or a tag on the remote (see [Pushing](#pushing))
 - 🔀 `c` checks out the selected commit's branch, and refuses while you have uncommitted changes (see [Checking out](#checking-out))
@@ -94,6 +95,8 @@ in `gitraffe ./update`.
 - `b` - New branch at this commit, switched to (see [Creating a branch](#creating-a-branch))
 - `d` - Delete this commit's branch: local, remote or both (see [Deleting branches](#deleting-branches))
 - `D` - Discard every unstaged change and untracked file, after asking; staged changes are kept (see [Discarding changes](#discarding-changes))
+- `S` - Stash every uncommitted change (see [Stashing](#stashing))
+- `s` - List the stashes; `Enter` pops one back if it applies cleanly (see [Stashing](#stashing))
 - `o` - Open this commit's pull request in a browser, or start one from its branch (see [Opening a pull request](#opening-a-pull-request))
 - `y` - Copy this commit's hash (`y` again), subject (`s`) or diff (`d`) (see [Copying](#copying))
 - `r` or `F5` - Reload the repository (see [Reloading](#reloading))
@@ -319,6 +322,7 @@ in view around it.
 | diff | `A` | stage all of the file shown; when all of it is staged already, unstage it |
 | any | `c` | commit what is staged |
 | files, diff | `d`, `D` | discard instead of stage (see [Discarding changes](#discarding-changes)) |
+| files, diff | `s`, `S` | stash the selected file, or everything (see [Stashing](#stashing)) |
 
 Here the diff box has a cursor, which `↑/↓`, `j/k`, the wheel and a click all move; the
 box follows it. Where the cursor is says how much `a` takes: on a hunk's `@@` line,
@@ -455,6 +459,38 @@ uncommitted changes with `Space` and use `d` there.
   as for staging.
 - **A file that changed since it was read is shown again, not discarded**, as for
   staging lines.
+
+### Stashing
+
+A stash puts uncommitted changes aside without losing them, and brings them back later.
+
+| Where | Key | Does |
+| --- | --- | --- |
+| files, diff | `s` | stash the selected file: its staged and unstaged changes, or the file itself if git has never seen it |
+| files, diff | `S` | stash every uncommitted change, untracked files included |
+| graph | `S` | the same |
+| graph | `s` | list the stashes; `Enter` pops the one picked, `Esc` closes the list |
+
+Stashing is not asked about: nothing is lost, since the changes stay in the stash
+until they are popped. A file stashed with `s` is named after its path in the list.
+Ignored files are never stashed.
+
+Popping is a merge, and a merge can stop in conflicts that leave files to be resolved
+by hand, which gitraffe leaves to a terminal. So before popping, gitraffe tries the
+merge where it cannot touch anything, and pops only when it would apply cleanly:
+
+- **A pop that would conflict is refused**, with the commits made since the stash or
+  with what is staged now. The stash stays in the list; `git stash pop` in a terminal
+  is the way to pop it and resolve what conflicts.
+- **An untracked file in the stash that is already in the working tree** refuses the
+  pop too. Move that file away and pop again.
+- **Unstaged changes to a file the stash also changes** are refused by git itself,
+  before anything is touched.
+- **Staged changes in the stash come back unstaged**, as `git stash pop` brings them.
+- **The check needs git 2.40 or later.** With an older git a pop is refused rather than
+  risked.
+- **Not during a merge, rebase, cherry-pick or revert, or with unresolved conflicts**,
+  as for staging.
 
 ### Jumping to a branch or tag
 

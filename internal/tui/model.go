@@ -54,6 +54,7 @@ type model struct {
 	switching           bool           // a checkout is running
 	deletePicker        deletePicker   // the list "d" opens; see branch_delete.go
 	deleting            bool           // a branch delete is running
+	stashPicker         stashPicker    // the list "s" opens; see stash.go
 	picker              themePicker
 	refs                refPicker // the branch and tag list opened with "B"
 	switcher            repoSwitcher
