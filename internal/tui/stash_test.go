@@ -194,6 +194,40 @@ func TestPopThatWouldConflictIsRefused(t *testing.T) {
 	}
 }
 
+// On a stash's row, "s" opens the list with that stash picked.
+func TestStashListOpensOnTheSelectedStash(t *testing.T) {
+	dir, gitCmd := stagingRepo(t)
+	write(t, dir, "notes.txt", "older\n")
+	gitCmd("stash", "push", "-q")
+	write(t, dir, "notes.txt", "newer\n")
+	gitCmd("stash", "push", "-q")
+	stashes, _ := git.ListStashes(dir)
+
+	m := loadedModel(t, dir)
+	row := -1
+	for i, c := range m.commits {
+		if c.FullHash == stashes[0].Hash {
+			row = i
+		}
+	}
+	if row < 0 {
+		t.Fatal("the newest stash is not drawn on the graph")
+	}
+	m.selected = row
+	_, cmd := m.Update(keyPress("s"))
+	msg := cmd().(stashListMsg)
+	if msg.selected != stashes[0].Hash {
+		t.Fatalf("the list was asked for on %q, want the stash's row", msg.selected)
+	}
+
+	// Only the newest stash has a row, so the rest of the list is what
+	// says the cursor follows the hash rather than starting at the top.
+	msg.selected = stashes[1].Hash
+	if got := m.showStashList(msg).stashPicker.cursor; got != 1 {
+		t.Errorf("the list opened on row %d, want the stash selected (1)", got)
+	}
+}
+
 func TestNothingToStashOrPop(t *testing.T) {
 	dir, _ := stagingRepo(t)
 	m := do(t, loadedModel(t, dir), keyPress("s"))

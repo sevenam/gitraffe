@@ -39,6 +39,9 @@ type stashListMsg struct {
 	repoPath string // the repository listed; see the handler
 	stashes  []git.Stash
 	err      error
+	// selected is the full hash of the commit selected on the graph when
+	// "s" was pressed: on a stash's row, the list opens on that stash.
+	selected string
 }
 
 // canStash is canDiscard, and nothing moving HEAD under the change.
@@ -387,14 +390,23 @@ func stashFailedNotice(msg stageFinishedMsg) string {
 }
 
 // openStashList reads the stashes; the list opens when they have been read.
+//
+// On a stash's own row — the newest stash is drawn, labelled "stash" — the
+// list opens with that stash picked, so popping what is selected is "s" then
+// enter, as acting on the selection is with every lower-case key. Popping
+// stays in the list rather than on a key of its own: the list shows what is
+// about to come back, and enter is the one key that brings it.
 func (m model) openStashList() (model, tea.Cmd) {
 	if !m.ready || m.err != nil {
 		return m, nil
 	}
-	repoPath := m.repoPath
+	repoPath, selected := m.repoPath, ""
+	if c, ok := m.commitOnScreen(); ok && !c.WorkingTree {
+		selected = c.FullHash
+	}
 	return m, func() tea.Msg {
 		stashes, err := git.ListStashes(repoPath)
-		return stashListMsg{repoPath: repoPath, stashes: stashes, err: err}
+		return stashListMsg{repoPath: repoPath, stashes: stashes, err: err, selected: selected}
 	}
 }
 
@@ -406,6 +418,11 @@ func (m model) showStashList(msg stashListMsg) model {
 		m.notice = "No stashes — S puts all uncommitted changes in one"
 	default:
 		m.stashPicker = stashPicker{open: true, stashes: msg.stashes}
+		for i, s := range msg.stashes {
+			if s.Hash == msg.selected {
+				m.stashPicker.cursor = i
+			}
+		}
 	}
 	return m
 }

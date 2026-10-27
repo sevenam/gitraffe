@@ -96,7 +96,7 @@ in `gitraffe ./update`.
 - `d` - Delete this commit's branch: local, remote or both (see [Deleting branches](#deleting-branches))
 - `D` - Discard every unstaged change and untracked file, after asking; staged changes are kept (see [Discarding changes](#discarding-changes))
 - `S` - Stash uncommitted changes: every file, or the ones left ticked, under a name (see [Stashing](#stashing))
-- `s` - List the stashes; `Enter` pops one back if it applies cleanly (see [Stashing](#stashing))
+- `s` - List the stashes, on the selected one when its row is selected; `Enter` pops one back if it applies cleanly (see [Stashing](#stashing))
 - `o` - Open this commit's pull request in a browser, or start one from its branch (see [Opening a pull request](#opening-a-pull-request))
 - `y` - Copy this commit's hash (`y` again), subject (`s`) or diff (`d`) (see [Copying](#copying))
 - `r` or `F5` - Reload the repository (see [Reloading](#reloading))
@@ -469,7 +469,7 @@ A stash puts uncommitted changes aside without losing them, and brings them back
 | files, diff | `s` | open the stash box with the selected file ticked |
 | files, diff | `S` | open it with every file ticked |
 | graph | `S` | the same |
-| graph | `s` | list the stashes; `Enter` pops the one picked, `Esc` closes the list |
+| graph | `s` | list the stashes, with the selected one picked when the row selected is a stash; `Enter` pops the one picked, `Esc` closes the list |
 
 ```
 ╭────────────────────────────────────────────────────────────────────────────╮
@@ -504,6 +504,9 @@ ticks or unticks one; `Enter` stashes from either, and `Esc` stashes nothing.
   takes git's own `WIP on main: …`.
 - Stashing is not asked about: nothing is lost, since the changes stay in the stash
   until they are popped. Ignored files are never stashed.
+- **The newest stash is on the graph**, labelled `stash`. With its row selected, `s`
+  then `Enter` pops it. Older stashes have no row of their own and are reached from
+  the list.
 
 Popping is a merge, and a merge can stop in conflicts that leave files to be resolved
 by hand, which gitraffe leaves to a terminal. So before popping, gitraffe tries the

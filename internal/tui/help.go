@@ -38,7 +38,7 @@ var helpSections = []helpSection{
 		{"d", "delete this commit's branch: local, remote or both"},
 		{"D", "discard all unstaged changes, after asking"},
 		{"S", "stash uncommitted changes: name it, untick files"},
-		{"s", "list the stashes; enter pops one, if it applies cleanly"},
+		{"s", "list the stashes, on this one if it is a stash; enter pops"},
 		{"o", "open this commit's pull request in a browser, or start one"},
 		{"y", "copy this commit's hash (y), subject (s) or diff (d)"},
 		{"B", "jump to a branch or tag"},
