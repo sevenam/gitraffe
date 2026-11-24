@@ -140,6 +140,14 @@ func (m model) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 		return m.finishBranch(msg)
 
+	case cherryPickedMsg:
+		// As a commit: it is the branch of the repository it ran in that
+		// has a new commit.
+		if msg.repoPath != m.repoPath {
+			return m, nil
+		}
+		return m.finishCherryPick(msg)
+
 	case switchFinishedMsg:
 		// A switch is answered by the repository it ran in; the one on
 		// screen now has its own HEAD, which this says nothing about.

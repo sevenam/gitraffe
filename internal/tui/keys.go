@@ -55,6 +55,9 @@ func (m model) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	if m.branchPrompt.open {
 		return m.updateBranchPrompt(msg)
 	}
+	if m.cherryPick.open {
+		return m.updateCherryPick(msg)
+	}
 	if m.commitPrompt.open {
 		return m.updateCommitPrompt(msg)
 	}
@@ -212,6 +215,10 @@ func (m model) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		// opens the box, and nothing is made until a name there is given
 		// with enter.
 		return m.openBranchPrompt()
+	case "C":
+		// Capital, and asked about: it makes a commit on the branch checked
+		// out, which "c" next to it only ever switches between.
+		return m.openCherryPick()
 	case "d":
 		// Lower case although it deletes: it only opens the list, and
 		// nothing goes until a row there is picked with enter.

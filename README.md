@@ -21,6 +21,7 @@ A text-based git command line tool built with Golang, Bubble Tea, go-git, and Li
 - ⬆️ `P` pushes your branch — never by force — and asks before creating a branch or a tag on the remote (see [Pushing](#pushing))
 - 🔀 `c` checks out the selected commit's branch, and refuses while you have uncommitted changes (see [Checking out](#checking-out))
 - 🌱 `b` starts a new branch at the selected commit and switches to it (see [Creating a branch](#creating-a-branch))
+- 🍒 `C` cherry-picks the selected commit onto your branch, after asking — only when it applies without conflicts (see [Cherry-picking](#cherry-picking))
 - 🗑️ `d` deletes the selected commit's branch — local, remote or both — and refuses when its commits are on no other branch (see [Deleting branches](#deleting-branches))
 - 🌐 `o` opens the commit's pull request in your browser, on GitHub or Azure DevOps, read from the merge subject and the remote — or the page that starts one, for a branch that has none yet (see [Opening a pull request](#opening-a-pull-request))
 - 📋 `y` copies the commit's hash, subject or whole diff (see [Copying](#copying))
@@ -93,6 +94,7 @@ in `gitraffe ./update`.
 - `P` - Push this branch, or the selected commit's unpushed tag (see [Pushing](#pushing))
 - `c` - Check out this commit's branch (see [Checking out](#checking-out))
 - `b` - New branch at this commit, switched to (see [Creating a branch](#creating-a-branch))
+- `C` - Cherry-pick this commit onto the branch checked out, after asking (see [Cherry-picking](#cherry-picking))
 - `d` - Delete this commit's branch: local, remote or both (see [Deleting branches](#deleting-branches))
 - `D` - Discard every unstaged change and untracked file, after asking; staged changes are kept (see [Discarding changes](#discarding-changes))
 - `S` - Stash uncommitted changes: every file, or the ones left ticked, under a name (see [Stashing](#stashing))
@@ -907,6 +909,49 @@ makes the branch and switches to it, and the bottom line says
   started on, so the bottom line says to finish it first.
 
 It is `git switch --no-track -c <name> <commit>`.
+
+### Cherry-picking
+
+Press `C` (capital) on a commit to copy its changes onto the branch you have checked
+out, as a new commit there with the original's message and author. A box asks
+first, naming the commit and the branch; `Enter` (or `y`) cherry-picks, and `Esc`, or
+any other key, leaves everything as it was.
+
+```
+╭─────────────────────────────────────────╮
+│                                         │
+│  Cherry-pick                            │
+│                                         │
+│  4a938a6  fix the sign flip on refunds  │
+│  onto main, as a new commit             │
+│                                         │
+│  enter: cherry-pick • esc: cancel       │
+│                                         │
+╰─────────────────────────────────────────╯
+```
+
+Afterwards the bottom line says `Cherry-picked 4a938a6 onto main as 9c1e2f0`, and the
+new commit is selected.
+
+- **Only when it applies cleanly.** The cherry-pick is tried out first inside git's
+  object store, where nothing can be harmed, and goes ahead only when it would apply
+  without conflicts. One that would conflict is refused with nothing changed —
+  `Not cherry-picked: 4a938a6 would conflict with main — resolve that in a terminal` —
+  and so is one whose changes the branch already has.
+- **Not with uncommitted changes.** Like [checking out](#checking-out), it is turned
+  down while any tracked file has uncommitted changes, before the box opens, so the
+  new commit holds the picked changes and nothing of yours. Untracked files don't
+  count, unless the commit would overwrite one; git refuses that itself.
+- **Not a merge commit**, which would need a choice of parent to count its changes
+  from, **not a commit already on the branch**, and **not the first commit** of a
+  history.
+- **Only onto a branch**: on a detached HEAD the new commit would belong to nothing,
+  so it is refused. So is a cherry-pick during a merge or a rebase.
+- **Nothing is left half done.** If git stops after the trial said it would go
+  through, the cherry-pick is aborted and the repository is as it was.
+
+It is `git cherry-pick <commit>`, after `git merge-tree` has said it applies cleanly
+(which needs git 2.40 or later; an older git refuses rather than risks it).
 
 ### Deleting branches
 

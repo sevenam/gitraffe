@@ -198,6 +198,9 @@ func (m model) View() (result string) {
 	if m.branchPrompt.open {
 		output = overlayCentre(output, m.branchPrompt.render(m.windowWidth), m.windowWidth, m.windowHeight)
 	}
+	if m.cherryPick.open {
+		output = overlayCentre(output, m.cherryPick.render(m.windowWidth), m.windowWidth, m.windowHeight)
+	}
 	if m.checkout.open {
 		output = overlayCentre(output, m.checkout.render(m.windowHeight-10, m.windowWidth), m.windowWidth, m.windowHeight)
 	}
