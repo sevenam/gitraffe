@@ -62,6 +62,8 @@ func (m model) branchBlocked() string {
 		return "A checkout"
 	case m.committing:
 		return "A commit"
+	case m.picking:
+		return "A cherry-pick"
 	}
 	return ""
 }

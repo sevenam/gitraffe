@@ -84,6 +84,9 @@ type model struct {
 
 	branchPrompt branchPrompt // the name "b" asks for; see branch_create.go
 
+	cherryPick cherryPickPrompt // the question "C" asks; see cherry_pick.go
+	picking    bool             // a cherry-pick is running
+
 	configDir    string // gitraffe's config directory; "" means a picked theme can't be saved
 	notice       string // one-off status line text, e.g. the theme just saved; cleared by the next key
 	loadedNotice string // takes over from notice once the repository has loaded; see refresh

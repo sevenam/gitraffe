@@ -192,6 +192,11 @@ func (m model) startSwitch(target git.SwitchTarget) (model, tea.Cmd) {
 		m.notice = "A delete is running — check out again when it has finished"
 		return m, nil
 	}
+	// Nor under a cherry-pick, whose commit goes onto the branch left.
+	if m.picking {
+		m.notice = "A cherry-pick is running — check out again when it has finished"
+		return m, nil
+	}
 	m.switching = true
 	return m, switchCmd(m.repoPath, target)
 }
