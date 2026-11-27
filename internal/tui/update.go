@@ -201,6 +201,20 @@ func (m model) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 		return m.finishPullRequest(msg), nil
 
+	case editorReadyMsg:
+		// Worked out for the repository on screen; another one's file is
+		// not the one picked.
+		if msg.repoPath != m.repoPath {
+			return m, nil
+		}
+		return m.startEditor(msg)
+
+	case editorClosedMsg:
+		if msg.repoPath != m.repoPath {
+			return m, tea.EnableMouseCellMotion
+		}
+		return m.finishEditor(msg)
+
 	case stageFinishedMsg:
 		// The index it changed and the files it read are the repository's
 		// it ran in.

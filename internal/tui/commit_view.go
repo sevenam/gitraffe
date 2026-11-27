@@ -686,7 +686,7 @@ func (m model) commitViewStatusLine() string {
 				s = "a: stage line"
 			}
 		}
-		hints := "?: help • space: back • " + s + " • d: discard • c: commit • w: whitespace"
+		hints := "?: help • space: back • " + s + " • d: discard • c: commit • e: edit • w: whitespace"
 		// Picking lines is a mode with keys of its own, and esc leaves it
 		// rather than the view.
 		if m.commitView.selecting {

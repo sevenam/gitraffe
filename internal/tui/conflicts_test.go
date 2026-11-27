@@ -83,7 +83,7 @@ func TestConflictViewShowsWhereTheMergeStands(t *testing.T) {
 		"=======",
 		"B, their way",
 		">>>>>>> feature/login",
-		"o: keep main • t: take feature/login • a: mark resolved • A: abort",
+		"o: keep main • t: take feature/login • e: edit • a: mark resolved • A: abort",
 	} {
 		if !strings.Contains(screen, want) {
 			t.Errorf("the screen lacks %q:\n%s", want, screen)
