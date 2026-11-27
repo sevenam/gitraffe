@@ -33,6 +33,10 @@ type checkoutPrompt struct {
 	// current is the branch checked out, which the list marks: picking it
 	// would only be told "Already on".
 	current string
+	// merge says the list is the one "m" opens, the same question asked to
+	// merge rather than to switch; see merge.go. The branch checked out is
+	// not on it then, and enter merges the branch picked.
+	merge bool
 }
 
 type switchFinishedMsg struct {
@@ -80,7 +84,7 @@ func (m model) updateCheckout(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	switch msg.String() {
 	case "ctrl+c":
 		return m, tea.Quit
-	case "esc", "q", "c":
+	case "esc", "q", "c", "m":
 		m.checkout = checkoutPrompt{}
 	case "j", "down":
 		p.cursor = min(p.cursor+1, len(p.targets)-1)
@@ -91,8 +95,11 @@ func (m model) updateCheckout(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	case "G", "end":
 		p.cursor = len(p.targets) - 1
 	case "enter":
-		target := p.targets[p.cursor]
+		target, merge := p.targets[p.cursor], p.merge
 		m.checkout = checkoutPrompt{}
+		if merge {
+			return m.planMerge(target)
+		}
 		return m.startSwitch(target)
 	}
 	return m, nil
@@ -103,6 +110,9 @@ func (m model) updateCheckout(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 // that ends up checked out is not the one on the row.
 func (p checkoutPrompt) label(t git.SwitchTarget) (name, note string) {
 	switch {
+	case p.merge:
+		// Merged as it is: nothing is made of a remote branch.
+		return t.Name, ""
 	case t.Kind == git.SwitchRemote:
 		_, branch, _ := strings.Cut(t.Name, "/")
 		return t.Name, "new local branch " + branch
@@ -116,7 +126,10 @@ func (p checkoutPrompt) label(t git.SwitchTarget) (name, note string) {
 // how many branches are listed at once, and the box is kept inside a window
 // windowWidth wide by cutting the names short.
 func (p checkoutPrompt) render(maxRows, windowWidth int) string {
-	footer := "↑/↓: choose • enter: check out • esc: cancel"
+	title, footer := "Check out", "↑/↓: choose • enter: check out • esc: cancel"
+	if p.merge {
+		title, footer = "Merge into "+p.current, "↑/↓: choose • enter: merge • esc: cancel"
+	}
 	contentWidth := ansi.StringWidth(footer)
 	for _, t := range p.targets {
 		name, note := p.label(t)
@@ -142,7 +155,7 @@ func (p checkoutPrompt) render(maxRows, windowWidth int) string {
 	end := min(len(p.targets), start+maxRows)
 
 	var sb strings.Builder
-	sb.WriteString(titleStyle.Padding(0).Render(ansi.Truncate("Check out", contentWidth, "…")))
+	sb.WriteString(titleStyle.Padding(0).Render(ansi.Truncate(title, contentWidth, "…")))
 	sb.WriteString("\n")
 	for i := start; i < end; i++ {
 		sb.WriteString("\n")
@@ -195,6 +208,11 @@ func (m model) startSwitch(target git.SwitchTarget) (model, tea.Cmd) {
 	// Nor under a cherry-pick, whose commit goes onto the branch left.
 	if m.picking {
 		m.notice = "A cherry-pick is running — check out again when it has finished"
+		return m, nil
+	}
+	// Nor under a merge, for the same reason.
+	if m.merging {
+		m.notice = "A merge is running — check out again when it has finished"
 		return m, nil
 	}
 	m.switching = true

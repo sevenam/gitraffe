@@ -201,6 +201,11 @@ func (m model) View() (result string) {
 	if m.cherryPick.open {
 		output = overlayCentre(output, m.cherryPick.render(m.windowWidth), m.windowWidth, m.windowHeight)
 	}
+	if m.merge.editing {
+		output = overlayCentre(output, m.merge.renderMessage(m.windowWidth), m.windowWidth, m.windowHeight)
+	} else if m.merge.open {
+		output = overlayCentre(output, m.merge.render(m.windowWidth), m.windowWidth, m.windowHeight)
+	}
 	if m.checkout.open {
 		output = overlayCentre(output, m.checkout.render(m.windowHeight-10, m.windowWidth), m.windowWidth, m.windowHeight)
 	}
