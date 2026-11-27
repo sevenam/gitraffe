@@ -115,6 +115,40 @@ func TestPullLeavesADivergedBranchAlone(t *testing.T) {
 	}
 }
 
+// A diverged pull says how git pull would have caught up, from the settings
+// it reads, and the upstream's full name, for a merge to be offered by.
+func TestPullReportsHowGitPullWouldReconcile(t *testing.T) {
+	for _, c := range []struct {
+		config [][2]string
+		want   PullReconcile
+	}{
+		{nil, PullMerges},
+		{[][2]string{{"pull.ff", "false"}}, PullMerges},
+		{[][2]string{{"pull.ff", "only"}}, PullFastForwardOnly},
+		{[][2]string{{"pull.rebase", "true"}}, PullRebases},
+		{[][2]string{{"pull.rebase", "interactive"}}, PullRebases},
+		{[][2]string{{"pull.rebase", "false"}}, PullMerges},
+		{[][2]string{{"pull.rebase", "true"}, {"branch.main.rebase", "false"}}, PullMerges},
+		{[][2]string{{"branch.main.rebase", "merges"}}, PullRebases},
+		{[][2]string{{"pull.rebase", "true"}, {"pull.ff", "only"}}, PullFastForwardOnly},
+	} {
+		dir, git, commit, pushElsewhere := pullRepo(t)
+		for _, kv := range c.config {
+			git("config", kv[0], kv[1])
+		}
+		commit("mine")
+		pushElsewhere("theirs.txt")
+		r, err := Pull(dir)
+		if err != nil || r.Outcome != PullDiverged || r.Reconcile != c.want {
+			t.Errorf("%v: result = %+v (%v), want diverged, reconciled as %d", c.config, r, err, c.want)
+		}
+		upstream, _ := Run(dir, "rev-parse", "origin/main")
+		if r.UpstreamRef != "refs/remotes/origin/main" || r.UpstreamCommit != upstream {
+			t.Errorf("%v: upstream %q at %q, want refs/remotes/origin/main at %s", c.config, r.UpstreamRef, r.UpstreamCommit, upstream)
+		}
+	}
+}
+
 // A setting that makes "git pull" rebase must not make this one rebase.
 func TestPullIgnoresPullRebaseConfig(t *testing.T) {
 	dir, git, commit, pushElsewhere := pullRepo(t)

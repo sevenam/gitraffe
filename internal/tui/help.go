@@ -31,7 +31,7 @@ var helpSections = []helpSection{
 		{"1 / 2", "focus graph / details"},
 		{"enter", "one panel or both"},
 		{"space", "open the commit view"},
-		{"p", "pull: fetch, then fast-forward this branch"},
+		{"p", "pull: fetch, then fast-forward, or offer a merge"},
 		{"P", "push this branch, or this commit's unpushed tag"},
 		{"c", "check out this commit's branch"},
 		{"b", "new branch at this commit, and switch to it"},

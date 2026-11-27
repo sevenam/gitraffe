@@ -75,7 +75,7 @@ release build and the release version check all depend on it being there.
 | `refs.go` | `ParseRefs`, merged-branch names, `ListRefs`, `CommitDepth` |
 | `diff.go` | `ShowCommit`, `WorkingTree` (its files in path order, whichever side of the index they are on), `Status`, splitting a patch per file, `Patch` (uncut, for copying) |
 | `sync.go` | ahead/behind counts, `Fetch` |
-| `pull.go` | `Pull`: fetch, then fast-forward or nothing |
+| `pull.go` | `Pull`: fetch, then fast-forward or nothing; a diverged branch reports how `git pull` would reconcile it (`Reconcile`) |
 | `push.go` | `Push`, `PushNewBranch`, `PushTag`: one branch or one tag, moved forward or created, never forced; `ReadPushPlan` (what the branch tracks and where a new one would go) |
 | `switch.go` | `Switch`, `SwitchTargets`: checking out a branch, refused while there are uncommitted changes |
 | `branch.go` | `CreateBranch`: a new branch at a commit, switched to, tracking nothing, refused like `Switch` unless the commit is HEAD's; `BranchExists` |
@@ -101,7 +101,7 @@ release build and the release version check all depend on it being there.
 | --- | --- |
 | Entry and state | `run.go` (`Run`, `Version`, `LogPath`), `model.go` (all state), `types.go` (aliases for the git types), `messages.go` |
 | Event loop | `update.go` (`Init`, `Update`, message handling), `keys.go` (`handleKey`: who owns the keyboard, and every key binding), `mouse.go` |
-| Loading | `load.go` (repository into model), `diff_load.go`, `reload.go`, `auto_refresh.go` (the refresh and fetch timers), `focus_watch.go` and `console_input_windows.go` (focus on Windows, where Bubble Tea drops it), `more_commits.go`, `fetch.go`, `pull.go`, `push.go` (`P`, its tag-or-branch question and the new-branch box), `checkout.go`, `branch_create.go` (`b` and its name box), `cherry_pick.go` (`C` and its question), `merge.go` (`m`, its box, the message `e` edits there, the commit box a squash opens, and the conflict view a merge that conflicts opens), `branch_delete.go` (the `d` list and the delete), `remote_tags.go`, `working_tree.go` |
+| Loading | `load.go` (repository into model), `diff_load.go`, `reload.go`, `auto_refresh.go` (the refresh and fetch timers), `focus_watch.go` and `console_input_windows.go` (focus on Windows, where Bubble Tea drops it), `more_commits.go`, `fetch.go`, `pull.go` (`p`, and the merge box it opens on a diverged branch), `push.go` (`P`, its tag-or-branch question and the new-branch box), `checkout.go`, `branch_create.go` (`b` and its name box), `cherry_pick.go` (`C` and its question), `merge.go` (`m`, its box, the message `e` edits there, the commit box a squash opens, and the conflict view a merge that conflicts opens), `branch_delete.go` (the `d` list and the delete), `remote_tags.go`, `working_tree.go` |
 | Screen assembly | `view.go` (`View`), `layout.go` (`currentLayout`: how the width is shared), `boxes.go` (clipping, labels, overlays, `trimToHeight`), `scroll_marks.go`, `background.go` (`paintBackground`) |
 | Main screen | `repo_info.go` (top box), `graph_panel.go` (commit list and `graphWindow`), `branch_label.go`, `details_panel.go` (`fitDetails`), `line_numbers.go` (the number column in front of a diff, here and in the commit view), `status_line.go` |
 | Other screens and overlays | `commit_view.go`, `staging.go` (`a`, `A`, `v` and the diff box's cursor on uncommitted changes), `discard.go` (`d` and `D` there, `D` on the graph, and the question they ask), `stash.go` (the stash box `s`/`S` open there and on the graph, and the list `s` opens on the graph), `staging_diff.go` (the diff box's lines there: a file's staged and unstaged hunks together, each marked), `conflicts.go` (the conflict view: the same screen while a merge or cherry-pick is stopped; `o`/`t` take a side of a file, `a` marks it resolved, `u` puts it back, `A` aborts and `c` commits), `conflict_blocks.go` (`o`/`t`/`b`/`B` on one conflict block in the diff box, `n`/`N` between blocks, `u`'s memory of each choice and its question when there is none), `commit_prompt.go` (the `c` message box and the commit), `editor.go` (`e`: the selected file in the user's editor through `tea.Exec`, the Windows console reader paused meanwhile; `editor:` in settings.yml), `ref_picker.go`, `repo_switcher.go`, `theme_picker.go`, `search.go`, `filter.go` (the file-history filter and its `h` picker), `help.go`, `pull_request.go` (also opens the browser), `copy.go` (the `y` prompt and the clipboard) |
@@ -188,7 +188,8 @@ new helpers.
   committing, a stash, a pop of a stash that `merge-tree` finds applies cleanly, a cherry-pick of
   one commit onto the branch checked out that `merge-tree` finds applies cleanly (asked
   about first, refused with uncommitted changes), a merge into the branch checked out
-  (said first in the `m` box, refused with uncommitted changes) or a squash of one that
+  (said first in the `m` box, or the same box `p` opens on the upstream when the branch has
+  diverged and `git pull` would merge, refused with uncommitted changes) or a squash of one that
   `merge-tree` finds goes through cleanly, which only stages its changes, and a push that moves a remote branch forward or creates a branch or a tag;
   a rebase or a forced push is not. A merge may stop in conflicts only when the `m`
   box has said it would, naming the files, and `Enter` there asked for it; only from a
