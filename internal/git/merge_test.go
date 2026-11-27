@@ -262,27 +262,150 @@ func TestMergeRefusals(t *testing.T) {
 		}, ErrMergeUnrelated},
 	}
 	for _, tc := range cases {
-		t.Run(tc.name, func(t *testing.T) {
-			dir, git, feature := pickRepo(t)
-			target := tc.setup(t, dir, git, feature)
-			head, _ := Run(dir, "rev-parse", "HEAD")
-			file := read(t, dir, "numbered.txt")
-			op := ReadWorkingState(dir).Operation
+		for _, squash := range []bool{false, true} {
+			name := tc.name
+			if squash {
+				name += " (squash)"
+			}
+			t.Run(name, func(t *testing.T) {
+				dir, git, feature := pickRepo(t)
+				target := tc.setup(t, dir, git, feature)
+				head, _ := Run(dir, "rev-parse", "HEAD")
+				file := read(t, dir, "numbered.txt")
+				op := ReadWorkingState(dir).Operation
+				staged, _ := Run(dir, "diff", "--cached", "--name-only")
 
-			_, detail, err := Merge(dir, target, MergeOptions{})
-			if !errors.Is(err, tc.want) {
-				t.Fatalf("Merge = %v (%s), want %v", err, detail, tc.want)
+				_, detail, err := Merge(dir, target, MergeOptions{Squash: squash})
+				if !errors.Is(err, tc.want) {
+					t.Fatalf("Merge = %v (%s), want %v", err, detail, tc.want)
+				}
+				if after, _ := Run(dir, "rev-parse", "HEAD"); after != head {
+					t.Error("HEAD moved")
+				}
+				if got := read(t, dir, "numbered.txt"); got != file {
+					t.Error("numbered.txt changed")
+				}
+				if after, _ := Run(dir, "diff", "--cached", "--name-only"); after != staged {
+					t.Errorf("staged %q, was %q", after, staged)
+				}
+				if after := ReadWorkingState(dir).Operation; after != op {
+					t.Errorf("left in %q, was in %q", after, op)
+				}
+			})
+		}
+	}
+}
+
+// squashed checks that a squash left HEAD at head, the repository in no
+// merge, and want staged; and returns the message it leaves for the commit.
+func squashed(t *testing.T, dir, head string, newHead string, want ...string) {
+	t.Helper()
+	if newHead != head {
+		t.Errorf("returned %s, want HEAD as it was, %s", newHead, head)
+	}
+	if after, _ := Run(dir, "rev-parse", "HEAD"); after != head {
+		t.Error("HEAD moved")
+	}
+	if op := ReadWorkingState(dir).Operation; op != "" {
+		t.Errorf("left in a %s", op)
+	}
+	if got, _ := Run(dir, "diff", "--cached", "--name-only"); got != strings.Join(want, "\n") {
+		t.Errorf("staged %q, want %q", got, want)
+	}
+	if got, _ := Run(dir, "diff", "--name-only"); got != "" {
+		t.Errorf("unstaged changes %q, want none", got)
+	}
+}
+
+func TestMergeSquash(t *testing.T) {
+	dir, _, _ := pickRepo(t)
+	head, _ := Run(dir, "rev-parse", "HEAD")
+	newHead, detail, err := Merge(dir, "feature", MergeOptions{Squash: true})
+	if err != nil {
+		t.Fatalf("Merge: %v: %s", err, detail)
+	}
+	squashed(t, dir, head, newHead, "numbered.txt")
+
+	msg := SquashMessage(dir, "Squash branch 'feature'")
+	subject, _ := Run(dir, "log", "-1", "--format=%B", "feature")
+	if msg != strings.TrimSpace(subject) {
+		t.Errorf("message %q, want the one commit's, %q", msg, subject)
+	}
+
+	// The commit is an ordinary one: one parent, and the branch still
+	// unmerged, which is what a squash is.
+	result, err := CommitStaged(dir, msg)
+	if err != nil {
+		t.Fatalf("CommitStaged: %v: %s", err, result.Output)
+	}
+	if got := parents(t, dir); len(got) != 1 || got[0] != head {
+		t.Errorf("parents %v, want only %s", got, head)
+	}
+	if _, err := Run(dir, "merge-base", "--is-ancestor", "feature", "HEAD"); err == nil {
+		t.Error("feature reads as merged")
+	}
+	if SquashMessage(dir, "x") != "" {
+		t.Error("SQUASH_MSG outlived the commit")
+	}
+}
+
+// A branch that could be fast-forwarded to is squashed all the same, and
+// merge.ff, which is about moving the branch, does not stop it.
+func TestMergeSquashIgnoresFF(t *testing.T) {
+	for _, ff := range []string{"", "false", "only"} {
+		t.Run("merge.ff="+ff, func(t *testing.T) {
+			dir, git, _ := ffRepo(t)
+			if ff != "" {
+				git("config", "merge.ff", ff)
 			}
-			if after, _ := Run(dir, "rev-parse", "HEAD"); after != head {
-				t.Error("HEAD moved")
+			head, _ := Run(dir, "rev-parse", "HEAD")
+			newHead, detail, err := Merge(dir, "feature", MergeOptions{Squash: true, NoFF: true})
+			if err != nil {
+				t.Fatalf("Merge: %v: %s", err, detail)
 			}
-			if got := read(t, dir, "numbered.txt"); got != file {
-				t.Error("numbered.txt changed")
-			}
-			if after := ReadWorkingState(dir).Operation; after != op {
-				t.Errorf("left in %q, was in %q", after, op)
-			}
+			squashed(t, dir, head, newHead, "numbered.txt")
 		})
+	}
+}
+
+// Several commits make one message: the subject asked for, and the commits'
+// subjects listed oldest first.
+func TestSquashMessageOfSeveralCommits(t *testing.T) {
+	dir, git, _ := pickRepo(t)
+	git("switch", "-q", "feature")
+	write(t, dir, "second.txt", "two\n")
+	git("add", "second.txt")
+	git("commit", "-qm", "second on feature", "-m", "with a body")
+	write(t, dir, "third.txt", "three\n")
+	git("add", "third.txt")
+	git("commit", "-qm", "third on feature")
+	git("switch", "-q", "main")
+	head, _ := Run(dir, "rev-parse", "HEAD")
+
+	newHead, detail, err := Merge(dir, "feature", MergeOptions{Squash: true})
+	if err != nil {
+		t.Fatalf("Merge: %v: %s", err, detail)
+	}
+	squashed(t, dir, head, newHead, "numbered.txt", "second.txt", "third.txt")
+	first, _ := Run(dir, "log", "-1", "--format=%s", "feature~2")
+	want := "Squash branch 'feature'\n\n* " + first + "\n* second on feature\n* third on feature"
+	if got := SquashMessage(dir, "Squash branch 'feature'"); got != want {
+		t.Errorf("message\n%s\nwant\n%s", got, want)
+	}
+}
+
+func TestSquashedMessages(t *testing.T) {
+	raw := "Squashed commit of the following:\n\n" +
+		"commit 2222\nMerge: 1 2\ngpg: Signature made\nAuthor: A <a@example.com>\nDate:   now\n\n" +
+		"    newer\n\n    its body\n    second line\n\n" +
+		"commit 1111\nAuthor: A <a@example.com>\nDate:   then\n\n    older\n"
+	got := squashedMessages(raw)
+	want := []string{"newer\n\nits body\nsecond line", "older"}
+	if strings.Join(got, "|") != strings.Join(want, "|") {
+		t.Errorf("got %q, want %q", got, want)
+	}
+	if got := squashedMessages("no commits here\n"); len(got) != 0 {
+		t.Errorf("got %q from no commits", got)
 	}
 }
 

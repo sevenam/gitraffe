@@ -82,7 +82,7 @@ release build and the release version check all depend on it being there.
 | `stage.go` | `StageFile`, `UnstageFile`, `StageAll`, `StageLines` (a patch of picked lines for `git apply --cached`; see `buildPatch`), `CommitStaged`, `WorkingState` (a merge or rebase in progress, a detached HEAD) |
 | `discard.go` | `DiscardFile`, `DiscardLines`, `DiscardAll`: unstaged changes thrown away, never staged ones |
 | `cherry_pick.go` | `CherryPick`: one commit copied onto the branch checked out, refused unless `merge-tree` says it applies cleanly |
-| `merge.go` | `MergePlan` (up to date, fast-forward or merge commit, honouring `merge.ff`; conflicts from `merge-tree`; git's own message), `Merge`: refused unless it goes through cleanly, aborted if git stops anyway |
+| `merge.go` | `MergePlan` (up to date, fast-forward or merge commit, honouring `merge.ff`; conflicts from `merge-tree`; git's own message), `Merge`: refused unless it goes through cleanly, aborted if git stops anyway; `opts.Squash` stages instead, and `SquashMessage` makes the commit's message from `SQUASH_MSG` |
 | `delete.go` | `DeleteBranch`, `DeleteTargets`: deleting a local or remote branch, refused when its commits are on no other branch |
 | `stash.go` | `StashPaths`, `StashAll`, `ListStashes`, `PopStash` (refused unless `merge-tree` says it applies cleanly) |
 | `remote_tags.go` | which tags the remotes hold |
@@ -98,7 +98,7 @@ release build and the release version check all depend on it being there.
 | --- | --- |
 | Entry and state | `run.go` (`Run`, `Version`, `LogPath`), `model.go` (all state), `types.go` (aliases for the git types), `messages.go` |
 | Event loop | `update.go` (`Init`, `Update`, message handling), `keys.go` (`handleKey`: who owns the keyboard, and every key binding), `mouse.go` |
-| Loading | `load.go` (repository into model), `diff_load.go`, `reload.go`, `auto_refresh.go` (the refresh and fetch timers), `focus_watch.go` and `console_input_windows.go` (focus on Windows, where Bubble Tea drops it), `more_commits.go`, `fetch.go`, `pull.go`, `push.go` (`P`, its tag-or-branch question and the new-branch box), `checkout.go`, `branch_create.go` (`b` and its name box), `cherry_pick.go` (`C` and its question), `merge.go` (`m`, its box and the message `e` edits there), `branch_delete.go` (the `d` list and the delete), `remote_tags.go`, `working_tree.go` |
+| Loading | `load.go` (repository into model), `diff_load.go`, `reload.go`, `auto_refresh.go` (the refresh and fetch timers), `focus_watch.go` and `console_input_windows.go` (focus on Windows, where Bubble Tea drops it), `more_commits.go`, `fetch.go`, `pull.go`, `push.go` (`P`, its tag-or-branch question and the new-branch box), `checkout.go`, `branch_create.go` (`b` and its name box), `cherry_pick.go` (`C` and its question), `merge.go` (`m`, its box, the message `e` edits there, and the commit box a squash opens), `branch_delete.go` (the `d` list and the delete), `remote_tags.go`, `working_tree.go` |
 | Screen assembly | `view.go` (`View`), `layout.go` (`currentLayout`: how the width is shared), `boxes.go` (clipping, labels, overlays, `trimToHeight`), `scroll_marks.go`, `background.go` (`paintBackground`) |
 | Main screen | `repo_info.go` (top box), `graph_panel.go` (commit list and `graphWindow`), `branch_label.go`, `details_panel.go` (`fitDetails`), `line_numbers.go` (the number column in front of a diff, here and in the commit view), `status_line.go` |
 | Other screens and overlays | `commit_view.go`, `staging.go` (`a`, `A`, `v` and the diff box's cursor on uncommitted changes), `discard.go` (`d` and `D` there, `D` on the graph, and the question they ask), `stash.go` (the stash box `s`/`S` open there and on the graph, and the list `s` opens on the graph), `staging_diff.go` (the diff box's lines there: a file's staged and unstaged hunks together, each marked), `commit_prompt.go` (the `c` message box and the commit), `ref_picker.go`, `repo_switcher.go`, `theme_picker.go`, `search.go`, `filter.go` (the file-history filter and its `h` picker), `help.go`, `pull_request.go` (also opens the browser), `copy.go` (the `y` prompt and the clipboard) |
@@ -186,10 +186,10 @@ new helpers.
   one commit onto the branch checked out that `merge-tree` finds applies cleanly (asked
   about first, refused with uncommitted changes), a merge into the branch checked out
   that `merge-tree` finds goes through cleanly (said first in the `m` box, refused with
-  uncommitted changes), and a push that moves a remote branch forward or creates a branch or a tag;
+  uncommitted changes) or a squash of one, which only stages its changes, and a push that moves a remote branch forward or creates a branch or a tag;
   a merge that would conflict, a rebase or a forced push is not. Staging only copies changes
   into the index and back, never touching a file; a commit holds only what was staged (`c` with nothing staged stages everything
-  first, and says so), is made only by `c` then `Enter`, runs the repository's hooks and never skips one, and is
+  first, and says so), is made only by `Enter` in the message box (`c`, or the one a squash opens), runs the repository's hooks and never skips one, and is
   refused on a detached HEAD or during a merge or rebase. The one exception is
   discarding (`d`/`D`, issue #201): it asks on every use, takes only `Enter` or `y` as yes, and
   reaches only unstaged changes and untracked files, never the index, so staging is

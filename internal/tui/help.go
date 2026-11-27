@@ -36,7 +36,7 @@ var helpSections = []helpSection{
 		{"c", "check out this commit's branch"},
 		{"b", "new branch at this commit, and switch to it"},
 		{"C", "cherry-pick this commit onto your branch, after asking"},
-		{"m", "merge this commit's branch into yours, after saying how"},
+		{"m", "merge or squash this commit's branch into yours"},
 		{"d", "delete this commit's branch: local, remote or both"},
 		{"D", "discard all unstaged changes, after asking"},
 		{"S", "stash uncommitted changes: name it, untick files"},

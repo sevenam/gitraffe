@@ -17,10 +17,13 @@ import (
 //
 // It opens a box that says what enter will do before anything is done: move
 // the branch forward to the commit, or make a merge commit. That is git's own
-// answer, merge.ff included, so enter does what "git merge" would; tab is the
-// one choice offered, a merge commit even where a fast-forward would do
-// (--no-ff), and back. It is lower case, unlike "C", because the box is the
-// question: a slip opens it and esc closes it.
+// answer, merge.ff included, so enter does what "git merge" would. Tab steps
+// through the other choices: a merge commit even where a fast-forward would do
+// (--no-ff), and a squash, which stages the branch's changes and commits
+// nothing (--squash). A squash then opens the commit box on the uncommitted
+// changes with a message made from the squashed commits, so enter commits
+// them, and esc leaves them staged like any others. It is lower case, unlike
+// "C", because the box is the question: a slip opens it and esc closes it.
 //
 // The branch is the one "c" would check out, and with several on the commit
 // the same list asks which. A commit with none is merged as a commit.
@@ -40,7 +43,8 @@ type mergePrompt struct {
 	short string // the commit's short hash, which a fast-forward moves to
 	into  string // the branch checked out
 	plan  git.PlannedMerge
-	noFF  bool // tab: a merge commit where the plan would fast-forward
+	// choice is what tab has picked; see choices.
+	choice mergeChoice
 	// message is the merge commit's message as "e" left it; "" is the plan's.
 	message string
 	// editing says the message box "e" opens is over this one, holding the
@@ -48,6 +52,18 @@ type mergePrompt struct {
 	editing bool
 	editor  commitPrompt
 }
+
+// mergeChoice is one of the ways the box can merge.
+type mergeChoice int
+
+const (
+	// mergeDefault is the plan's: git's own answer, merge.ff included.
+	mergeDefault mergeChoice = iota
+	// mergeNoFF is a merge commit asked for in so many words (--no-ff).
+	mergeNoFF
+	// mergeSquash stages the changes and commits nothing (--squash).
+	mergeSquash
+)
 
 type mergePlannedMsg struct {
 	repoPath string // the repository planned in; see the handler
@@ -62,28 +78,74 @@ type mergedMsg struct {
 	repoPath    string // the repository merged in; see the handler
 	name, into  string
 	fastForward bool
-	newHash     string
-	detail      string
-	err         error
+	squash      bool
+	// squashMessage is the message for the commit of what a squash staged.
+	squashMessage string
+	newHash       string
+	detail        string
+	err           error
+}
+
+// choices are the ways tab steps through, in order. A merge commit is
+// offered on its own only where the plan's answer is something else: a
+// fast-forward, or nothing at all under merge.ff=only.
+func (p mergePrompt) choices() []mergeChoice {
+	if p.plan.Kind == git.MergeFastForward || p.onlyBlocks() {
+		return []mergeChoice{mergeDefault, mergeNoFF, mergeSquash}
+	}
+	return []mergeChoice{mergeDefault, mergeSquash}
+}
+
+// step moves the choice along the list by delta, round from the end.
+func (p *mergePrompt) step(delta int) {
+	choices := p.choices()
+	at := 0
+	for i, c := range choices {
+		if c == p.choice {
+			at = i
+		}
+	}
+	p.choice = choices[((at+delta)%len(choices)+len(choices))%len(choices)]
+}
+
+// onlyBlocks says merge.ff is "only" and the branch cannot be moved forward,
+// so the plan's own answer is to do nothing.
+func (p mergePrompt) onlyBlocks() bool {
+	return !p.plan.CanFastForward && p.plan.FastForward == git.FastForwardOnly
 }
 
 // fastForward says what enter would do as the box stands now.
 func (p mergePrompt) fastForward() bool {
-	return p.plan.Kind == git.MergeFastForward && !p.noFF
+	return p.plan.Kind == git.MergeFastForward && p.choice == mergeDefault
+}
+
+// squash says enter would stage the changes rather than commit them.
+func (p mergePrompt) squash() bool {
+	return p.choice == mergeSquash
 }
 
 // blocked says enter would only be refused: merge.ff is "only" and the
 // branch cannot be moved forward. Tab is still offered, since a merge commit
-// asked for in so many words is what --no-ff means to git as well.
+// asked for in so many words is what --no-ff means to git as well, and a
+// squash moves no branch.
 func (p mergePrompt) blocked() bool {
-	return !p.noFF && !p.plan.CanFastForward && p.plan.FastForward == git.FastForwardOnly
+	return p.choice == mergeDefault && p.onlyBlocks()
 }
 
-// canToggle says tab has a choice to make: there is a fast-forward to turn
-// into a merge commit, or merge.ff=only to overrule.
-func (p mergePrompt) canToggle() bool {
-	return p.plan.Kind == git.MergeFastForward || p.noFF ||
-		(!p.plan.CanFastForward && p.plan.FastForward == git.FastForwardOnly)
+// makesCommit says enter would make a merge commit, whose message "e" edits.
+func (p mergePrompt) makesCommit() bool {
+	return !p.fastForward() && !p.blocked() && !p.squash()
+}
+
+// squashSubject is the subject of the commit of a squash of several commits:
+// the merge commit's, with the word for what it is changed. One commit
+// squashed keeps its own message; see git.SquashMessage.
+func (p mergePrompt) squashSubject() string {
+	subject, _, _ := strings.Cut(p.plan.Message, "\n")
+	if rest, ok := strings.CutPrefix(subject, "Merge "); ok {
+		return "Squash " + rest
+	}
+	return "Squash " + p.name
 }
 
 // commitMessage is the merge commit's message as it will be made.
@@ -224,13 +286,14 @@ func (m model) updateMerge(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	switch msg.String() {
 	case "ctrl+c":
 		return m, tea.Quit
-	case "tab", "shift+tab":
-		if p.canToggle() {
-			p.noFF = !p.noFF
-		}
+	case "tab":
+		p.step(1)
+		return m, nil
+	case "shift+tab":
+		p.step(-1)
 		return m, nil
 	case "e":
-		if p.fastForward() || p.blocked() {
+		if !p.makesCommit() {
 			return m, nil
 		}
 		return m.openMergeMessage(), nil
@@ -257,11 +320,15 @@ func (m model) startMerge() (model, tea.Cmd) {
 	}
 	m.merging = true
 	repoPath := m.repoPath
-	opts := git.MergeOptions{NoFF: p.noFF, Message: p.message}
+	opts := git.MergeOptions{NoFF: p.choice == mergeNoFF, Squash: p.squash(), Message: p.message}
 	return m, func() tea.Msg {
 		newHash, detail, err := git.Merge(repoPath, p.ref, opts)
-		return mergedMsg{repoPath: repoPath, name: p.name, into: p.into,
-			fastForward: p.fastForward(), newHash: newHash, detail: detail, err: err}
+		msg := mergedMsg{repoPath: repoPath, name: p.name, into: p.into,
+			fastForward: p.fastForward(), squash: opts.Squash, newHash: newHash, detail: detail, err: err}
+		if err == nil && opts.Squash {
+			msg.squashMessage = git.SquashMessage(repoPath, p.squashSubject())
+		}
+		return msg
 	}
 }
 
@@ -329,6 +396,15 @@ func (m model) finishMerge(msg mergedMsg) (model, tea.Cmd) {
 		return m, nil
 	}
 	next, cmd := m.reloadRepo()
+	if msg.squash {
+		// HEAD has not moved; the changes are the uncommitted ones, which
+		// the reload puts at the top.
+		next.reselect = ""
+		message := msg.squashMessage
+		next.squashed = &message
+		next.notice = "Squashed " + msg.name + " onto " + msg.into + ", staged — enter commits it, esc leaves it staged"
+		return next, cmd
+	}
 	next.reselect = msg.newHash
 	if msg.fastForward {
 		next.notice = "Fast-forwarded " + msg.into + " to " + shortHash(msg.newHash)
@@ -336,6 +412,28 @@ func (m model) finishMerge(msg mergedMsg) (model, tea.Cmd) {
 		next.notice = "Merged " + msg.name + " into " + msg.into + " as " + shortHash(msg.newHash)
 	}
 	return next, cmd
+}
+
+// applySquashed opens the commit box on the changes a squash has just
+// staged, once the reload has read them: the commit view of the uncommitted
+// changes, and the box over it holding the squash's message. With a file's
+// history on screen there is no row of uncommitted changes to open, and the
+// changes wait, staged, for the filter to be left.
+func (m *model) applySquashed() {
+	message := m.squashed
+	m.squashed = nil
+	if message == nil || len(m.commits) == 0 || !m.commits[0].WorkingTree {
+		return
+	}
+	m.selected = 0
+	m.commitView = commitView{open: true, commit: 0, workingTree: true, focus: commitBoxFiles}
+	m.showFile()
+	// Whatever was typed before is not about these changes.
+	m.commitPrompt = commitPrompt{}
+	*m = m.showCommitPrompt(0)
+	subject, body, _ := strings.Cut(*message, "\n")
+	m.commitPrompt.subject.SetValue(strings.TrimSpace(subject))
+	m.commitPrompt.body.SetValue(strings.TrimSpace(body))
 }
 
 func mergeFailedNotice(msg mergedMsg) string {
@@ -371,7 +469,9 @@ func (p mergePrompt) what() string {
 		return "nothing: merge.ff is only, and this is not a fast-forward"
 	case p.fastForward():
 		return "fast-forward " + p.into + " to " + p.short
-	case p.noFF && p.plan.Kind == git.MergeFastForward, p.noFF && p.plan.FastForward == git.FastForwardOnly:
+	case p.squash():
+		return "squash: its changes staged, to commit (--squash)"
+	case p.choice == mergeNoFF:
 		return "as a merge commit (--no-ff)"
 	}
 	return "as a merge commit"
@@ -381,23 +481,34 @@ func (p mergePrompt) what() string {
 // lists them.
 func (p mergePrompt) keys() [][2]string {
 	var keys [][2]string
-	if !p.blocked() {
+	switch {
+	case p.squash():
+		keys = append(keys, [2]string{"enter", "squash"})
+	case !p.blocked():
 		keys = append(keys, [2]string{"enter", "merge"})
 	}
-	if p.canToggle() {
-		switch {
-		case !p.noFF:
-			keys = append(keys, [2]string{"tab", "merge commit"})
-		case p.plan.CanFastForward:
-			keys = append(keys, [2]string{"tab", "fast-forward"})
-		default:
-			keys = append(keys, [2]string{"tab", "no merge commit"})
-		}
-	}
-	if !p.fastForward() && !p.blocked() {
+	next := p
+	next.step(1)
+	keys = append(keys, [2]string{"tab", next.choiceName()})
+	if p.makesCommit() {
 		keys = append(keys, [2]string{"e", "message"})
 	}
 	return append(keys, [2]string{"esc", "cancel"})
+}
+
+// choiceName is what the footer calls the choice, as tab would pick it.
+func (p mergePrompt) choiceName() string {
+	switch {
+	case p.choice == mergeSquash:
+		return "squash"
+	case p.choice == mergeNoFF:
+		return "merge commit"
+	case p.fastForward():
+		return "fast-forward"
+	case p.blocked():
+		return "no merge commit"
+	}
+	return "merge commit"
 }
 
 // render draws the box over the screen, made like the cherry-pick question:
@@ -414,7 +525,7 @@ func (p mergePrompt) render(windowWidth int) string {
 
 	what := p.what()
 	subject, _, _ := strings.Cut(p.commitMessage(), "\n")
-	showMessage := !p.fastForward() && !p.blocked()
+	showMessage := p.makesCommit()
 	into := p.name + "  into  " + p.into
 	// The border and the padding take six columns.
 	width := max(ansi.StringWidth(into), ansi.StringWidth(what), footerWidth)
