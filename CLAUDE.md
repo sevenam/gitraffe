@@ -83,6 +83,7 @@ release build and the release version check all depend on it being there.
 | `discard.go` | `DiscardFile`, `DiscardLines`, `DiscardAll`: unstaged changes thrown away, never staged ones |
 | `cherry_pick.go` | `CherryPick`: one commit copied onto the branch checked out, refused unless `merge-tree` says it applies cleanly |
 | `merge.go` | `MergePlan` (up to date, fast-forward or merge commit, honouring `merge.ff`; conflicts from `merge-tree`; git's own message), `Merge`: refused unless it goes through cleanly, aborted if git stops anyway; `opts.Squash` stages instead, and `SquashMessage` makes the commit's message from `SQUASH_MSG` |
+| `conflicts.go` | a merge or cherry-pick that stopped: `Conflicts` (unmerged files, each kind, both sides' names), `ConflictMarkers`, `MarkResolved`, `AbortMerge`, `ContinueMerge` (refused while anything is unmerged or holds markers), `MergeMessage` |
 | `delete.go` | `DeleteBranch`, `DeleteTargets`: deleting a local or remote branch, refused when its commits are on no other branch |
 | `stash.go` | `StashPaths`, `StashAll`, `ListStashes`, `PopStash` (refused unless `merge-tree` says it applies cleanly) |
 | `remote_tags.go` | which tags the remotes hold |
