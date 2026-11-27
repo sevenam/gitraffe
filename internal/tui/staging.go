@@ -86,6 +86,9 @@ func (m model) stagingKey(msg tea.KeyMsg) (model, tea.Cmd, bool) {
 	if !m.commitView.workingTree {
 		return m, nil, false
 	}
+	if m.inConflict() {
+		return m.conflictKey(msg)
+	}
 	v := &m.commitView
 	switch msg.String() {
 	case "esc":
@@ -359,6 +362,7 @@ func (m *model) setWorkingDiff(d git.Diff) {
 	c.DiffLoaded = true
 	c.DiffStat, c.DiffBody, c.DiffFiles = d.Stat, d.Body, d.Files
 	m.workingState = d.State
+	m.conflict = d.Conflict
 
 	v := &m.commitView
 	if !v.open || !v.workingTree {

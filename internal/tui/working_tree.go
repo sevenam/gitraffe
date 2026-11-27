@@ -87,11 +87,27 @@ func (m *model) workingTreeSummary() (string, bool) {
 
 // summariseWorkingTree is workingTreeSummary for a command running in the
 // background, which has a path and no model.
+//
+// While a merge or cherry-pick is under way it says that instead, with the
+// files still in conflict, and the row is there even with nothing changed:
+// a merge waiting to be committed or aborted is not something to miss.
 func summariseWorkingTree(repoPath string) (string, bool) {
+	var state git.WorkingState
+	done := make(chan struct{})
+	go func() {
+		state = git.ReadWorkingState(repoPath)
+		close(done)
+	}()
 	changed, untracked, err := git.Status(repoPath)
+	<-done
 	if err != nil {
 		log.Printf("Working tree: status failed: %v", err)
 		return "", false
+	}
+	if op := state.Operation; op == "merge" || op == "cherry-pick" {
+		if c, err := git.Conflicts(repoPath); err == nil {
+			return conflictSummary(op, len(c.Files)), true
+		}
 	}
 	if changed == 0 && untracked == 0 {
 		return "", false
@@ -112,6 +128,6 @@ func summariseWorkingTree(repoPath string) (string, bool) {
 func loadWorkingDiffCmd(repoPath string, statWidth int) tea.Cmd {
 	return func() tea.Msg {
 		d := git.WorkingTree(repoPath, statWidth)
-		return diffLoadedMsg{repoPath: repoPath, commitIdx: 0, diffStat: d.Stat, diffBody: d.Body, diffFiles: d.Files, workingTree: true, state: d.State}
+		return diffLoadedMsg{repoPath: repoPath, commitIdx: 0, diffStat: d.Stat, diffBody: d.Body, diffFiles: d.Files, workingTree: true, state: d.State, conflict: d.Conflict}
 	}
 }

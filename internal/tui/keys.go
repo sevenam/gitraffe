@@ -43,6 +43,9 @@ func (m model) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	if m.discard.asking {
 		return m.answerDiscard(msg)
 	}
+	if m.abortMerge.asking {
+		return m.answerAbort(msg)
+	}
 	if m.push.asking {
 		return m.answerPush(msg)
 	}

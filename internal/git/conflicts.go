@@ -1,6 +1,7 @@
 package git
 
 import (
+	"bytes"
 	"errors"
 	"fmt"
 	"os"
@@ -448,4 +449,205 @@ func MarkResolved(dir, path string) (string, error) {
 		return "", markersError(markers)
 	}
 	return runWrite(top, "", "--literal-pathspecs", "add", "--", path)
+}
+
+// conflictFiles is WorkingTree's file list while a merge or cherry-pick is
+// under way: every file that conflicted, then what merged cleanly or was
+// changed since, as the two sides of the index list it.
+//
+// A file still unmerged is its contents on disk, which is where git put the
+// markers. One resolved since (git add in a terminal) is its staged entry,
+// marked as having conflicted: git no longer counts it as unmerged, and it
+// is told from a file that merged cleanly by the record the index keeps of
+// the conflict it had (see resolvedFiles).
+//
+// The diffs are read only for the files that are not unmerged: git writes
+// an unmerged path as a line of its own in one and as a combined diff in
+// the other, neither of which is a file's diff to stage.
+func conflictFiles(top string) ([]FileDiff, ConflictState) {
+	state, err := Conflicts(top)
+	if err != nil {
+		return nil, state
+	}
+	unmerged := map[string]bool{}
+	var files []FileDiff
+	for _, c := range state.Files {
+		unmerged[c.Path] = true
+		files = append(files, conflictedFile(top, c))
+	}
+	theirs := "MERGE_HEAD"
+	if state.Operation == "cherry-pick" {
+		theirs = "CHERRY_PICK_HEAD"
+	}
+	resolved := map[string]ConflictKind{}
+	if list, err := resolvedFiles(top, theirs, unmerged); err == nil {
+		for _, c := range list {
+			resolved[c.Path] = c.Kind
+		}
+	}
+
+	for _, staged := range []bool{true, false} {
+		names, err := rawOutput(top, sectionArgs(staged, "--name-only", "-z")...)
+		if err != nil {
+			continue
+		}
+		var paths []string
+		for _, p := range strings.Split(strings.TrimRight(names, "\x00"), "\x00") {
+			if p != "" && !unmerged[p] {
+				paths = append(paths, p)
+			}
+		}
+		if len(paths) == 0 {
+			continue
+		}
+		for _, f := range sectionFiles(top, staged, paths...) {
+			if kind, ok := resolved[f.Path]; ok && staged {
+				f.Conflicted, f.Resolved, f.Kind = true, true, kind
+				delete(resolved, f.Path)
+			}
+			files = append(files, f)
+		}
+	}
+	// Resolved to what HEAD already has, so the index holds nothing HEAD
+	// lacks and there is no diff to show: still listed, as the conflict it
+	// was.
+	for path, kind := range resolved {
+		files = append(files, FileDiff{Path: path, Staged: true, Conflicted: true, Resolved: true, Kind: kind})
+	}
+	return files, state
+}
+
+// conflictedFile is an unmerged file as the conflict view shows it: what is
+// on disk, cut where an untracked file's contents are. Where there is nothing
+// to read, Binary is set and Body says why, as it does for a binary diff.
+func conflictedFile(top string, c ConflictFile) FileDiff {
+	f := FileDiff{Path: c.Path, Conflicted: true, Kind: c.Kind}
+	full := filepath.Join(top, filepath.FromSlash(c.Path))
+	info, err := os.Lstat(full)
+	switch {
+	case os.IsNotExist(err):
+		f.Binary, f.Body = true, "Not in the working tree."
+		return f
+	case err != nil:
+		f.Binary, f.Body = true, "Could not be read."
+		return f
+	case !info.Mode().IsRegular():
+		// A symbolic link has no markers written into it.
+		f.Binary, f.Body = true, "Not a regular file, so git wrote no conflict markers into it."
+		return f
+	}
+	data, err := os.ReadFile(full)
+	switch {
+	case err != nil:
+		f.Binary, f.Body = true, "Could not be read."
+	case bytes.IndexByte(data[:min(len(data), 8000)], 0) >= 0:
+		f.Binary, f.Body = true, "Binary file, so git wrote no conflict markers into it."
+	case len(data) > 0:
+		text := strings.TrimSuffix(strings.ReplaceAll(string(data), "\r", ""), "\n")
+		lines := strings.Split(text, "\n")
+		if len(lines) > MaxFileDiffLines {
+			lines = append(lines[:MaxFileDiffLines], "... (truncated)")
+		}
+		f.Body = strings.Join(lines, "\n")
+	}
+	return f
+}
+
+// resolvedFiles are the files of the merge or cherry-pick under way that
+// conflicted and have been resolved since, each with the kind of conflict it
+// was. git add and git rm keep a resolved file's unmerged stages in the
+// index ("resolve-undo", which git checkout -m reads to bring a conflict
+// back), and that is what is read here.
+//
+// The record outlives the merge: it is still there after the commit, until
+// the next merge that stops replaces the index. So a file counts only when
+// its stages are the two sides of this merge, HEAD's and theirs' (the
+// commit being merged or picked), which a record left from another merge
+// will not be. Files still unmerged are left out.
+func resolvedFiles(top, theirs string, unmerged map[string]bool) ([]ConflictFile, error) {
+	out, err := rawOutput(top, "ls-files", "--resolve-undo", "-z")
+	if err != nil {
+		return nil, err
+	}
+	type stages struct{ blob [4]string }
+	byPath := map[string]*stages{}
+	var order []string
+	for _, entry := range strings.Split(out, "\x00") {
+		// <mode> <object> <stage>\t<path>
+		meta, path, ok := strings.Cut(entry, "\t")
+		if !ok || unmerged[path] {
+			continue
+		}
+		fields := strings.Fields(meta)
+		if len(fields) != 3 || len(fields[2]) != 1 || fields[2][0] < '1' || fields[2][0] > '3' {
+			continue
+		}
+		s := byPath[path]
+		if s == nil {
+			s = &stages{}
+			byPath[path] = s
+			order = append(order, path)
+		}
+		s.blob[fields[2][0]-'0'] = fields[1]
+	}
+	if len(order) == 0 {
+		return nil, nil
+	}
+	ours, err := treeBlobs(top, "HEAD", order)
+	if err != nil {
+		return nil, err
+	}
+	their, err := treeBlobs(top, theirs, order)
+	if err != nil {
+		return nil, err
+	}
+
+	var files []ConflictFile
+	for _, path := range order {
+		s := byPath[path]
+		if s.blob[2] != ours[path] || s.blob[3] != their[path] {
+			continue
+		}
+		files = append(files, ConflictFile{Path: path, Kind: kindOfStages(s.blob[1] != "", s.blob[2] != "", s.blob[3] != "")})
+	}
+	return files, nil
+}
+
+// treeBlobs is the object each of paths is in rev's tree, with no entry for
+// a path the tree does not have.
+func treeBlobs(top, rev string, paths []string) (map[string]string, error) {
+	args := append([]string{"--literal-pathspecs", "ls-tree", "-r", "-z", "--full-tree", rev, "--"}, paths...)
+	out, err := rawOutput(top, args...)
+	if err != nil {
+		return nil, err
+	}
+	blobs := map[string]string{}
+	for _, entry := range strings.Split(out, "\x00") {
+		// <mode> <type> <object>\t<path>
+		meta, path, ok := strings.Cut(entry, "\t")
+		if fields := strings.Fields(meta); ok && len(fields) == 3 {
+			blobs[path] = fields[2]
+		}
+	}
+	return blobs, nil
+}
+
+// kindOfStages is the conflict a file was, from which of its stages the
+// index had: the base, ours and theirs.
+func kindOfStages(base, ours, theirs bool) ConflictKind {
+	switch {
+	case ours && theirs && !base:
+		return BothAdded
+	case base && theirs && !ours:
+		return DeletedByUs
+	case base && ours && !theirs:
+		return DeletedByThem
+	case ours && !theirs && !base:
+		return AddedByUs
+	case theirs && !ours && !base:
+		return AddedByThem
+	case base && !ours && !theirs:
+		return BothDeleted
+	}
+	return BothModified
 }

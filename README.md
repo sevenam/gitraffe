@@ -23,6 +23,7 @@ A text-based git command line tool built with Golang, Bubble Tea, go-git, and Li
 - 🌱 `b` starts a new branch at the selected commit and switches to it (see [Creating a branch](#creating-a-branch))
 - 🍒 `C` cherry-picks the selected commit onto your branch, after asking — only when it applies without conflicts (see [Cherry-picking](#cherry-picking))
 - 🤝 `m` merges the selected commit's branch into yours, saying first whether it fast-forwards, makes a merge commit or squashes — only when it goes through without conflicts (see [Merging](#merging))
+- 🧩 A merge or cherry-pick stopped in conflicts shows what is left to resolve, each side of a conflict in its own colour, and is committed with `c` or aborted with `A` (see [Conflicts](#conflicts))
 - 🗑️ `d` deletes the selected commit's branch — local, remote or both — and refuses when its commits are on no other branch (see [Deleting branches](#deleting-branches))
 - 🌐 `o` opens the commit's pull request in your browser, on GitHub or Azure DevOps, read from the merge subject and the remote — or the page that starts one, for a branch that has none yet (see [Opening a pull request](#opening-a-pull-request))
 - 📋 `y` copies the commit's hash, subject or whole diff (see [Copying](#copying))
@@ -405,10 +406,11 @@ What it will and won't do:
 - **The message is committed as typed.** It is passed to git directly, no editor
   opens, and a line starting with `#` is kept: there is no template whose comments
   would need stripping.
-- **Not during a merge, rebase, cherry-pick or revert, or with unresolved
-  conflicts.** There, staging a file means "this conflict is resolved" and a commit
-  concludes the operation; both are refused, with the reason on the bottom line, and
-  the files are listed as one diff to read. Finish it in a terminal.
+- **Not during a rebase or a revert, or with conflicts left by anything else.**
+  There, staging a file means "this conflict is resolved" and a commit goes on with
+  the operation; both are refused, with the reason on the bottom line, and the files
+  are listed as one diff to read. Finish it in a terminal. A merge or a cherry-pick
+  that stopped in conflicts has a view of its own (see [Conflicts](#conflicts)).
 - **Not on a detached HEAD.** You can stage, but `c` is refused: a commit made on no
   branch is easy to lose. Check out a branch first (see [Checking out](#checking-out)).
 - **A file that changed since it was read is shown again, not staged.** If you edit a
@@ -419,6 +421,61 @@ What it will and won't do:
 
 A diff longer than 800 lines is cut on screen, and only the lines shown can be picked;
 `a` on the file list stages all of it.
+
+#### Conflicts
+
+A merge or a cherry-pick started in a terminal can stop part-way, with files git could
+not merge on its own. The graph's top row then says so, whatever else has changed —
+`merge in progress — 2 conflicts` — and opening it (`Space`) shows where the merge
+stands:
+
+```
+╭Commit-view──────────────────────────────────────────────────────────────────╮
+│ Merging feature/login into main — 2 of 3 files still in conflict            │
+╰─────────────────────────────────────────────────────────────────────────────╯
+╭[1]-commit─────────────────────────╮╭[3]-diff────────────────────────────────╮
+│ Repo:    billing                  ││ login.go  in conflict — both modified  │
+│ Branch:  main (merging)           ││                                        │
+│ merge in progress — 2 conflicts   ││ 11 func check() {                      │
+╰───────────────────────────────────╯│ 12 <<<<<<< HEAD                        │
+╭[2]-files-(3-of-5-staged)──────────╮│ 13   return ok                         │
+│ > ✗ login.go        both modified ││ 14 =======                             │
+│   ✓ README.md       both modified ││ 15   return ok && fresh                │
+│   ✗ old.go deleted by feature/lo… ││ 16 >>>>>>> feature/login               │
+│   ● session.go              +12 -3││ 17 }                                   │
+│   ● token.go                 +4 -0││                                        │
+╰───────────────────────────────────╯╰────────────────────────────────────────╯
+?: help • space: back • c: commit the merge • A: abort it • w: whitespace
+```
+
+The files that conflicted come first, in path order: `✗` is still in conflict and `✓`
+is resolved, each with what happened to it — `both modified`, `both added`, or
+`deleted by` and `added by` with the side named, so you are not left to work out who
+"them" is. Resolving a file changes its mark and not its row. Then come the files that
+merged cleanly, already staged as `●`.
+
+A file still in conflict is shown as it is on disk, the markers git wrote into it
+included: your branch's side, the side coming in, and between them the base (with
+`merge.conflictStyle` set to `diff3` or `zdiff3`), each in a colour of its own. The
+names in the header are in the same colours. A resolved file shows what the commit
+will change in it, as a staged file does.
+
+| Key | Does |
+| --- | --- |
+| `c` | commit the merge, once no file is left in conflict: a box opens holding git's own message (`Merge branch 'feature/login'`), to change or keep; `Enter` commits |
+| `A` | abort the merge, after asking: everything goes back to how it was before it started, files you resolved included. Only `Enter` or `y` aborts |
+| `Space`, `Esc` | back to the graph, the merge still in progress |
+
+Resolving is done in a terminal for now: edit the file, then `git add` it (or
+`git rm` it, to keep a deletion). The view picks that up on its own (see
+[Auto-refresh](#auto-refresh)), or on `r`, and the file's `✗` turns to `✓`. Until then
+the keys that stage, discard or stash (`a`, `d`, `s`, `v`) say so and do nothing:
+during a merge, staging a file is what marks it resolved.
+
+The commit is `git commit` with the message from the box, and runs the repository's
+hooks as any commit does. It is refused while a file is still unmerged or still holds
+conflict markers, and on a detached HEAD. A cherry-pick reads the same way —
+`Cherry-picking 4a938a6 onto main` — and its commit keeps the picked commit's author.
 
 ### Discarding changes
 
@@ -1199,7 +1256,9 @@ shown, the graph focused. A `focused_box` naming a panel that doesn't exist is i
 
 When the working tree isn't clean, a row sits above the newest commit with a hollow
 marker and a count — `3 changed, 1 untracked` — so the graph answers "what have I
-got in progress" as well as "where am I". A clean tree adds no row.
+got in progress" as well as "where am I". A clean tree adds no row. During a merge or
+a cherry-pick the row says that instead — `merge in progress — 2 conflicts` — and is
+there even when nothing has changed (see [Conflicts](#conflicts)).
 
 Staged and unstaged changes are one number: both are work in progress. Select the row
 and it shows the stats and the diff of everything against `HEAD`, staged changes
@@ -1298,6 +1357,11 @@ Refs are coloured by what they are:
 | Stash (`stash/lunch`) | orange | `stash` |
 | Ahead count (`↑3`) | cyan | `ahead` (defaults to `author`) |
 | Behind count (`↓1`) | red | `behind` (defaults to `diff_del`) |
+
+A file in conflict (see [Conflicts](#conflicts)) has colours of its own for its two
+sides and the base between them: `conflict_ours` for the branch checked out (defaults
+to `branch`), `conflict_theirs` for the side coming in (defaults to `hash`), and
+`conflict_base` (defaults to `help`).
 
 Local and remote are told apart by their full ref path, so a local branch called
 `feature/foo` is never mistaken for a branch `foo` on a remote named `feature`.

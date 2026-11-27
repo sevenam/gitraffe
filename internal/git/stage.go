@@ -167,19 +167,24 @@ func rawOutput(top string, args ...string) (string, error) {
 	return string(out), err
 }
 
-// sectionFiles lists one half of the uncommitted changes, a file at a time.
-func sectionFiles(top string, staged bool) []FileDiff {
+// sectionFiles lists one half of the uncommitted changes, a file at a time:
+// of the paths given, or of every file when none are.
+func sectionFiles(top string, staged bool, paths ...string) []FileDiff {
+	var only []string
+	if len(paths) > 0 {
+		only = append([]string{"--"}, paths...)
+	}
 	// The two readings are of the same thing and take as long as each other,
 	// so they run side by side.
 	namesCh := make(chan string, 1)
 	go func() {
-		names, err := rawOutput(top, sectionArgs(staged, "--name-only", "-z")...)
+		names, err := rawOutput(top, sectionArgs(staged, append([]string{"--name-only", "-z"}, only...)...)...)
 		if err != nil {
 			names = ""
 		}
 		namesCh <- names
 	}()
-	raw, err := rawOutput(top, sectionArgs(staged)...)
+	raw, err := rawOutput(top, sectionArgs(staged, only...)...)
 	names := <-namesCh
 	if err != nil {
 		return nil

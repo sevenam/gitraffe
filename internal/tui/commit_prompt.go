@@ -46,6 +46,10 @@ type commitPrompt struct {
 	// autoStaged is how many files "c" staged itself, nothing having been
 	// staged when it was pressed; 0 when the box holds what the user staged.
 	autoStaged int
+	// merge says the box concludes the merge or cherry-pick under way
+	// (git.ContinueMerge), opened by "c" in the conflict view, rather than
+	// committing what is staged.
+	merge bool
 }
 
 type commitFinishedMsg struct {
@@ -100,6 +104,11 @@ func (p commitPrompt) bodyRoom() int {
 func (m model) openCommitPrompt() (model, tea.Cmd) {
 	if !m.commitView.workingTree || m.staging || m.committing {
 		return m, nil
+	}
+	// A message for a merge that has since been finished elsewhere is not
+	// one for this commit.
+	if m.commitPrompt.merge {
+		m.commitPrompt = commitPrompt{}
 	}
 	switch {
 	case m.workingState.Operation != "":
@@ -231,6 +240,9 @@ func (m model) updateCommitPrompt(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		}
 		p.open, p.failure = false, ""
 		m.committing = true
+		if p.merge {
+			return m, continueCmd(m.repoPath, p.message())
+		}
 		return m, commitCmd(m.repoPath, p.message())
 	}
 

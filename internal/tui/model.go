@@ -83,6 +83,11 @@ type model struct {
 	// until the reload opens the commit box on them; see applySquashed.
 	squashed *string
 	discard  discardPrompt // the question "d" and "D" ask first; see discard.go
+	// The merge or cherry-pick under way, as last read with the uncommitted
+	// changes; its Operation is "" when there is none. See conflicts.go.
+	conflict   git.ConflictState
+	abortMerge abortPrompt // the question "A" asks there
+	aborting   bool        // an abort is running
 	// Pushing; see push.go.
 	push    pushPrompt // what "P" has to ask before it pushes
 	pushing bool       // a push is running

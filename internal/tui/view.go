@@ -72,10 +72,16 @@ func (m model) View() (result string) {
 		}
 		if m.commitPrompt.open {
 			box := m.commitPrompt.render(m.windowWidth, stagedCount(m.viewedFiles()), m.currentBranch)
+			if m.commitPrompt.merge {
+				box = m.renderContinuePrompt()
+			}
 			screen = overlayCentre(screen, box, m.windowWidth, m.windowHeight)
 		}
 		if m.discard.asking {
 			screen = overlayCentre(screen, m.discard.render(m.windowWidth), m.windowWidth, m.windowHeight)
+		}
+		if m.abortMerge.asking {
+			screen = overlayCentre(screen, m.abortMerge.render(m.windowWidth), m.windowWidth, m.windowHeight)
 		}
 		if m.stashBox.open {
 			screen = overlayCentre(screen, m.stashBox.render(m.windowHeight-16, m.windowWidth), m.windowWidth, m.windowHeight)
