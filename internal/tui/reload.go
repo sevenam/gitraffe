@@ -2,6 +2,8 @@ package tui
 
 import (
 	tea "github.com/charmbracelet/bubbletea"
+
+	"github.com/sevenam/gitraffe/internal/git"
 )
 
 // reloadRepo reads the open repository again, picking up commits made since it
@@ -28,6 +30,9 @@ func (m model) reloadRepo() (model, tea.Cmd) {
 	// the last answer is a better guess than no marks at all.
 	next.remoteTags = m.remoteTags
 	next.autoFetchStopped = m.autoFetchStopped
+	// A fetch still running outlives the reload: its answer is checked against
+	// the repository, not the model, and the status line must go on saying so.
+	next.fetching, next.autoFetching = m.fetching, m.autoFetching
 	prev := m
 	prev.stale = nil
 	next.stale = &prev
@@ -58,11 +63,22 @@ func (m model) reloadRepo() (model, tea.Cmd) {
 // refresh is the reload the user asked for with "r". The bottom line is the
 // only thing that changes while it runs, and it changes twice so that asking
 // again when it already says "Refreshed" still visibly does something.
+//
+// It also fetches (issue #254), but without waiting for it: what changed on
+// this machine is on screen at once, and the fetch runs behind it, says
+// "Fetching" on the bottom line and reloads again when it is done. A slow,
+// offline or locked-out remote then costs a line of text, not a refresh that
+// hangs. A repository with no remote just reloads, without complaint, and a
+// fetch already under way (the timer's, or one f started) is the one used.
 func (m model) refresh() (model, tea.Cmd) {
 	next, cmd := m.reloadRepo()
 	next.notice = "Refreshing…"
 	next.loadedNotice = "Refreshed"
-	return next, cmd
+	if next.fetching || len(git.Remotes(next.repoPath)) == 0 {
+		return next, cmd
+	}
+	next, fetch := next.startFetch()
+	return next, tea.Batch(cmd, fetch)
 }
 
 // applyReselect puts the selection back on the commit that was selected before

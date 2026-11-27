@@ -53,7 +53,7 @@ var helpSections = []helpSection{
 		{"w", "show or hide whitespace in diffs"},
 		{"t", "choose a colour theme"},
 		{"O", "open another repository"},
-		{"r / f5", "reload this repository"},
+		{"r / f5", "reload this repository, and fetch behind it"},
 		{"f", "fetch from the remote, then reload"},
 		{"U", "update to the latest release"},
 		{"mouse wheel", "scroll the panel under the pointer"},

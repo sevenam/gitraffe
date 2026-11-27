@@ -103,7 +103,7 @@ in `gitraffe ./update`.
 - `s` - List the stashes, on the selected one when its row is selected; `Enter` pops one back if it applies cleanly (see [Stashing](#stashing))
 - `o` - Open this commit's pull request in a browser, or start one from its branch (see [Opening a pull request](#opening-a-pull-request))
 - `y` - Copy this commit's hash (`y` again), subject (`s`) or diff (`d`) (see [Copying](#copying))
-- `r` or `F5` - Reload the repository (see [Reloading](#reloading))
+- `r` or `F5` - Reload the repository, and fetch in the background (see [Reloading](#reloading))
 - `f` - Fetch from the remote, then reload (see [Fetching](#fetching))
 - `/` - Search commits, then `n` / `N` for next and previous (see [Searching](#searching))
 - `h` - Show only the commits that changed a file or directory, picked from a list; `Esc` for all of them again (see [A file's history](#a-files-history))
@@ -747,8 +747,8 @@ makes the ahead/behind counts and the tag marks true as of now rather than as of
 last fetch.
 
 Fetching writes to your repository, so unless you turn
-on [auto-fetch](#auto-refresh) it only ever happens when you press the key — never on
-a timer, and never at startup. What it writes is limited to remote-tracking refs: your
+on [auto-fetch](#auto-refresh) it only ever happens when you press a key — `f`, or `r`,
+which [fetches behind its reload](#reloading) — never on a timer, and never at startup. What it writes is limited to remote-tracking refs: your
 branches, your tags and your working
 tree are not touched, and `--prune` only drops `origin/...` refs whose branch the
 remote no longer has.
@@ -1090,6 +1090,14 @@ Press `r` or `F5` to read the repository again: the graph, the ahead/behind coun
 and the tag marks are all rebuilt together. Changes made on this machine are picked
 up without asking (see [Auto-refresh](#auto-refresh)), so the key is for when you
 don't want to wait, or have turned that off.
+
+It also starts the same fetch as [`f`](#fetching), but doesn't wait for it: what
+changed on this machine is on screen at once, the bottom line says
+`Fetching from the remote...` while the fetch runs, and the repository is read again
+when it finishes, bringing in branches and commits that are new on the remote and
+dropping the ones it has deleted. A fetch that fails — no network, a VPN that is
+down, a key that needs unlocking — says so on the bottom line and leaves the reload
+as it was. A repository with no remote is just reloaded.
 
 The screen stays as it is while that happens: only the bottom line changes, to
 `Refreshing…` and then `Refreshed`, so a refresh that found nothing new leaves
