@@ -98,8 +98,15 @@ type MergeOptions struct {
 	// NoFF makes a merge commit even where a fast-forward is possible. It
 	// overrides merge.ff, as --no-ff does on git's command line.
 	NoFF bool
-	// Message is the merge commit's message; empty is the plan's.
+	// Message is the merge commit's message; empty is the plan's. A
+	// squash makes no commit, so it has none.
 	Message string
+	// Squash stages every change the ref makes instead of committing
+	// them (--squash): HEAD stays where it is, and the ref is not
+	// recorded as merged. The changes are then committed like any other.
+	// It ignores NoFF and merge.ff, since there is no commit and no move
+	// of the branch for either to decide.
+	Squash bool
 }
 
 // MergePlan reads what merging ref into HEAD would do. It refuses as Merge
@@ -208,8 +215,12 @@ func mergeName(top, ref, commit string) (name, message string) {
 // detached HEAD, where a merge commit would belong to no branch; while
 // tracked files have uncommitted changes; on a branch with no commits; when
 // the ref is already on the branch; when merge.ff=only and no fast-forward is
-// possible (unless NoFF asks for a merge commit); and when it would conflict.
-// See the top of this file.
+// possible (unless NoFF asks for a merge commit, or Squash for no commit);
+// and when it would conflict. See the top of this file.
+//
+// With Squash, newHead is HEAD as it was: nothing is committed, and the
+// changes are left staged, with git's message for them in SQUASH_MSG (see
+// SquashMessage).
 func Merge(dir, ref string, opts MergeOptions) (newHead, detail string, err error) {
 	state := ReadWorkingState(dir)
 	switch {
@@ -243,6 +254,8 @@ func Merge(dir, ref string, opts MergeOptions) (newHead, detail string, err erro
 		return "", "", ErrMergeUpToDate
 	case plan.Conflicts:
 		return "", "", ErrMergeConflicts
+	case opts.Squash:
+		return squash(top, head, plan.Ref)
 	case !fastForward && !opts.NoFF && plan.FastForward == FastForwardOnly:
 		return "", "", ErrMergeNotFastForward
 	}
@@ -276,4 +289,100 @@ func Merge(dir, ref string, opts MergeOptions) (newHead, detail string, err erro
 	}
 	newHead, _ = Run(top, "rev-parse", "HEAD")
 	return newHead, "", nil
+}
+
+// squash is Merge with Squash, once Merge has refused what it refuses.
+func squash(top, head, ref string) (newHead, detail string, err error) {
+	// --ff on the command line overrides merge.ff: git refuses --squash
+	// with a merge.ff=false it would read as --no-ff, and with merge.ff=only
+	// it refuses whatever is not a fast-forward, though a squash moves
+	// nothing. --squash on the command line also outranks a --no-squash
+	// in branch.<name>.mergeOptions.
+	out, err := runWrite(top, "",
+		"-c", "merge.autoStash=false",
+		"merge", "--squash", "--ff", "--no-autostash", "--end-of-options", ref)
+	if err != nil {
+		// A squash leaves no MERGE_HEAD to abort, so whatever it staged
+		// before it stopped is put back with reset --merge, which, the
+		// working tree having been clean, touches only what the squash
+		// wrote. Untracked files are kept.
+		if _, derr := Run(top, "diff-index", "--cached", "--quiet", head, "--"); derr != nil {
+			_, _ = runWrite(top, "", "reset", "--merge", "-q", head)
+		}
+		removeSquashMessage(top)
+		return "", out, err
+	}
+	return head, "", nil
+}
+
+// SquashMessage is the message for a commit of the changes a squash staged,
+// made from SQUASH_MSG, or "" when there is none. git writes there a log of
+// every commit squashed, newest first, headers and all, which is a poor
+// message as it stands. With one commit this is that commit's message; with
+// several it is subject, and a body that lists the commits' subjects, oldest
+// first, as their history reads.
+func SquashMessage(dir, subject string) string {
+	gitDir, err := Run(dir, "rev-parse", "--absolute-git-dir")
+	if err != nil {
+		return ""
+	}
+	raw, err := os.ReadFile(filepath.Join(filepath.FromSlash(gitDir), "SQUASH_MSG"))
+	if err != nil {
+		return ""
+	}
+	messages := squashedMessages(string(raw))
+	switch len(messages) {
+	case 0:
+		return ""
+	case 1:
+		return messages[0]
+	}
+	var sb strings.Builder
+	sb.WriteString(subject + "\n")
+	for i := len(messages) - 1; i >= 0; i-- {
+		first, _, _ := strings.Cut(messages[i], "\n")
+		sb.WriteString("\n* " + first)
+	}
+	return sb.String()
+}
+
+// squashedMessages reads the commits' messages out of SQUASH_MSG, in its
+// order. Each commit there is a "commit <hash>" line, headers that config
+// can add to (Merge:, a signature), a blank line, and the message indented
+// by four spaces.
+func squashedMessages(raw string) []string {
+	var messages []string
+	var current []string
+	inCommit, inMessage := false, false
+	flush := func() {
+		if inCommit {
+			if msg := strings.TrimSpace(strings.Join(current, "\n")); msg != "" {
+				messages = append(messages, msg)
+			}
+		}
+		current, inMessage = nil, false
+	}
+	for _, line := range strings.Split(strings.ReplaceAll(raw, "\r\n", "\n"), "\n") {
+		switch {
+		case strings.HasPrefix(line, "commit "):
+			flush()
+			inCommit = true
+		case !inCommit:
+		case strings.HasPrefix(line, "    "):
+			inMessage = true
+			current = append(current, strings.TrimPrefix(line, "    "))
+		case inMessage && strings.TrimSpace(line) == "":
+			current = append(current, "")
+		}
+	}
+	flush()
+	return messages
+}
+
+// removeSquashMessage throws away SQUASH_MSG, which git leaves behind when a
+// squash stops after writing it.
+func removeSquashMessage(top string) {
+	if gitDir, err := Run(top, "rev-parse", "--absolute-git-dir"); err == nil {
+		_ = os.Remove(filepath.Join(filepath.FromSlash(gitDir), "SQUASH_MSG"))
+	}
 }

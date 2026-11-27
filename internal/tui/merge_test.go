@@ -67,7 +67,7 @@ func TestMergeFastForwards(t *testing.T) {
 }
 
 // Tab turns the fast-forward into a merge commit, says so, and offers the
-// message; tab again turns it back.
+// message; tab again is a squash, and once more the fast-forward again.
 func TestMergeTabMakesAMergeCommit(t *testing.T) {
 	dir, _ := ffRepo(t)
 	before, _ := git.Run(dir, "rev-parse", "main")
@@ -75,13 +75,16 @@ func TestMergeTabMakesAMergeCommit(t *testing.T) {
 
 	m = press(m, tea.KeyMsg{Type: tea.KeyTab})
 	screen := ansi.Strip(m.View())
-	for _, want := range []string{"as a merge commit (--no-ff)", "Merge branch 'feature'", "tab: fast-forward", "e: message"} {
+	for _, want := range []string{"as a merge commit (--no-ff)", "Merge branch 'feature'", "tab: squash", "e: message"} {
 		if !strings.Contains(screen, want) {
 			t.Errorf("after tab the box does not say %q:\n%s", want, screen)
 		}
 	}
-	if back := press(m, tea.KeyMsg{Type: tea.KeyTab}); !back.merge.fastForward() {
-		t.Error("tab again did not go back to the fast-forward")
+	if back := press(m, tea.KeyMsg{Type: tea.KeyTab}, tea.KeyMsg{Type: tea.KeyTab}); !back.merge.fastForward() {
+		t.Error("tab twice more did not go back to the fast-forward")
+	}
+	if back := press(m, tea.KeyMsg{Type: tea.KeyShiftTab}); !back.merge.fastForward() {
+		t.Error("shift+tab did not go back to the fast-forward")
 	}
 
 	m, _ = step(t, m, tea.KeyMsg{Type: tea.KeyEnter})
@@ -97,7 +100,7 @@ func TestMergeTabMakesAMergeCommit(t *testing.T) {
 	}
 }
 
-// Diverged branches make a merge commit, with nothing to choose; "e" opens
+// Diverged branches make a merge commit, or a squash; "e" opens
 // the message box with git's message in it, and enter there merges with
 // what was written.
 func TestMergeCommitWithEditedMessage(t *testing.T) {
@@ -110,8 +113,8 @@ func TestMergeCommitWithEditedMessage(t *testing.T) {
 	if !strings.Contains(screen, "as a merge commit\n") && !strings.Contains(screen, "as a merge commit ") {
 		t.Errorf("the box does not say it makes a merge commit:\n%s", screen)
 	}
-	if strings.Contains(screen, "tab:") {
-		t.Errorf("tab is offered with nothing to choose:\n%s", screen)
+	if !strings.Contains(screen, "tab: squash") {
+		t.Errorf("tab does not offer a squash:\n%s", screen)
 	}
 
 	m = press(m, keyPress("e"))
@@ -237,5 +240,95 @@ func TestMergeAsksWhichBranch(t *testing.T) {
 	m, _ = step(t, m, tea.KeyMsg{Type: tea.KeyEnter})
 	if !m.merge.open || m.merge.name != "feature" || m.merge.ref != "refs/heads/feature" {
 		t.Errorf("box open=%v name=%q ref=%q", m.merge.open, m.merge.name, m.merge.ref)
+	}
+}
+
+// squashModel is pickRepo with feature two commits ahead of where main left
+// it, and the merge box open on feature at the squash.
+func squashModel(t *testing.T) (dir string, m model) {
+	t.Helper()
+	dir, run := pickRepo(t)
+	run("switch", "-q", "feature")
+	writeFile(t, dir+"/second.txt", "two\n")
+	run("add", "second.txt")
+	run("commit", "-qm", "second on feature")
+	run("switch", "-q", "main")
+	m, _ = step(t, onCommit(t, loadedModel(t, dir), dir, "feature"), keyPress("m"))
+	if !m.merge.open {
+		t.Fatalf("notice=%q; want the box", m.notice)
+	}
+	return dir, press(m, tea.KeyMsg{Type: tea.KeyTab})
+}
+
+// A squash says what it does, stages the branch's changes without moving
+// main, and opens the commit box on them with the squashed commits listed,
+// so enter commits them as one commit with one parent.
+func TestMergeSquashOpensTheCommitBox(t *testing.T) {
+	dir, m := squashModel(t)
+	before, _ := git.Run(dir, "rev-parse", "main")
+	screen := ansi.Strip(m.View())
+	for _, want := range []string{"squash: its changes staged, to commit (--squash)", "enter: squash • tab: merge commit • esc: cancel"} {
+		if !strings.Contains(screen, want) {
+			t.Errorf("the box does not say %q:\n%s", want, screen)
+		}
+	}
+	if strings.Contains(screen, "Merge branch") || strings.Contains(screen, "e: message") {
+		t.Errorf("a squash offers a merge commit's message:\n%s", screen)
+	}
+	if after := press(m, keyPress("e")); after.merge.editing {
+		t.Error("e opened a message box for a squash")
+	}
+
+	m, reload := step(t, m, tea.KeyMsg{Type: tea.KeyEnter})
+	if head, _ := git.Run(dir, "rev-parse", "main"); head != before {
+		t.Fatalf("main moved to %s (notice %q)", head, m.notice)
+	}
+	if staged, _ := git.Run(dir, "diff", "--cached", "--name-only"); !strings.Contains(staged, "second.txt") {
+		t.Fatalf("staged %q, want feature's changes (notice %q)", staged, m.notice)
+	}
+	if reload == nil || m.squashed == nil {
+		t.Fatalf("reload=%v squashed=%v; want a reload that opens the commit box", reload != nil, m.squashed)
+	}
+	if !strings.HasPrefix(m.notice, "Squashed feature onto main") {
+		t.Errorf("notice = %q", m.notice)
+	}
+
+	m = res(m.Update(loadRepo(dir)()))
+	if !m.commitView.open || !m.commitView.workingTree || !m.commitPrompt.open {
+		t.Fatalf("view open=%v workingTree=%v box open=%v; want the commit box on the changes",
+			m.commitView.open, m.commitView.workingTree, m.commitPrompt.open)
+	}
+	if got := m.commitPrompt.subject.Value(); got != "Squash branch 'feature'" {
+		t.Errorf("subject %q", got)
+	}
+	if got := m.commitPrompt.body.Value(); got != "* on feature\n* second on feature" {
+		t.Errorf("body %q", got)
+	}
+
+	m, _ = step(t, m, tea.KeyMsg{Type: tea.KeyEnter})
+	if subject, _ := git.Run(dir, "log", "-1", "--format=%s"); subject != "Squash branch 'feature'" {
+		t.Fatalf("HEAD's subject is %q (notice %q)", subject, m.notice)
+	}
+	if parents, _ := git.Run(dir, "rev-list", "--parents", "-n1", "HEAD"); len(strings.Fields(parents)) != 2 {
+		t.Errorf("HEAD %s is not a commit with one parent", parents)
+	}
+}
+
+// Esc at the commit box leaves the squashed changes staged and nothing
+// committed.
+func TestMergeSquashLeftStaged(t *testing.T) {
+	dir, m := squashModel(t)
+	before, _ := git.Run(dir, "rev-parse", "main")
+	m, _ = step(t, m, tea.KeyMsg{Type: tea.KeyEnter})
+	m = res(m.Update(loadRepo(dir)()))
+	m = press(m, tea.KeyMsg{Type: tea.KeyEsc})
+	if m.commitPrompt.open || !m.commitView.open {
+		t.Errorf("box open=%v view open=%v; want the view on the changes", m.commitPrompt.open, m.commitView.open)
+	}
+	if head, _ := git.Run(dir, "rev-parse", "main"); head != before {
+		t.Error("something was committed")
+	}
+	if staged, _ := git.Run(dir, "diff", "--cached", "--name-only"); !strings.Contains(staged, "second.txt") {
+		t.Errorf("staged %q, want feature's changes still", staged)
 	}
 }

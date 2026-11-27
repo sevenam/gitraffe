@@ -22,7 +22,7 @@ A text-based git command line tool built with Golang, Bubble Tea, go-git, and Li
 - 🔀 `c` checks out the selected commit's branch, and refuses while you have uncommitted changes (see [Checking out](#checking-out))
 - 🌱 `b` starts a new branch at the selected commit and switches to it (see [Creating a branch](#creating-a-branch))
 - 🍒 `C` cherry-picks the selected commit onto your branch, after asking — only when it applies without conflicts (see [Cherry-picking](#cherry-picking))
-- 🤝 `m` merges the selected commit's branch into yours, saying first whether it fast-forwards or makes a merge commit — only when it goes through without conflicts (see [Merging](#merging))
+- 🤝 `m` merges the selected commit's branch into yours, saying first whether it fast-forwards, makes a merge commit or squashes — only when it goes through without conflicts (see [Merging](#merging))
 - 🗑️ `d` deletes the selected commit's branch — local, remote or both — and refuses when its commits are on no other branch (see [Deleting branches](#deleting-branches))
 - 🌐 `o` opens the commit's pull request in your browser, on GitHub or Azure DevOps, read from the merge subject and the remote — or the page that starts one, for a branch that has none yet (see [Opening a pull request](#opening-a-pull-request))
 - 📋 `y` copies the commit's hash, subject or whole diff (see [Copying](#copying))
@@ -96,7 +96,7 @@ in `gitraffe ./update`.
 - `c` - Check out this commit's branch (see [Checking out](#checking-out))
 - `b` - New branch at this commit, switched to (see [Creating a branch](#creating-a-branch))
 - `C` - Cherry-pick this commit onto the branch checked out, after asking (see [Cherry-picking](#cherry-picking))
-- `m` - Merge this commit's branch into the branch checked out, after saying how (see [Merging](#merging))
+- `m` - Merge or squash this commit's branch into the branch checked out, after saying how (see [Merging](#merging))
 - `d` - Delete this commit's branch: local, remote or both (see [Deleting branches](#deleting-branches))
 - `D` - Discard every unstaged change and untracked file, after asking; staged changes are kept (see [Discarding changes](#discarding-changes))
 - `S` - Stash uncommitted changes: every file, or the ones left ticked, under a name (see [Stashing](#stashing))
@@ -986,9 +986,10 @@ happen before anything does:
   forward to the commit, that is a fast-forward; otherwise it is a merge commit. Your
   `merge.ff` setting is honoured: `false` always makes a merge commit, and `only` makes
   `Enter` do nothing when a fast-forward isn't possible.
-- **`Tab` makes a merge commit anyway** (`as a merge commit (--no-ff)`), and `Tab`
-  again goes back. It is offered only when there is a choice: a fast-forward to turn
-  into a merge commit, or `merge.ff=only` to overrule, as `git merge --no-ff` does.
+- **`Tab` steps through the other ways**, and `Shift+Tab` back: a merge commit anyway
+  (`as a merge commit (--no-ff)`), offered when there is a fast-forward to turn into one
+  or `merge.ff=only` to overrule, as `git merge --no-ff` does; and a squash (see
+  below). The footer names what `Tab` goes to next.
 - **The merge commit's message** is git's own, `Merge branch 'feature/login'`, shown in
   the box. `e` opens the commit message box with it filled in; `Enter` there merges
   with what you wrote, and `Esc` goes back to the merge box, keeping it.
@@ -1007,6 +1008,39 @@ Afterwards the bottom line says `Merged feature/login into main as 9c1e2f0`, or
 - **Nothing is left half done.** If git stops after the trial said it would go
   through (a hook, an untracked file in the way), the merge is aborted and the
   repository is as it was. Hooks run and are never skipped.
+
+#### Squashing
+
+The last stop of `Tab` is `squash: its changes staged, to commit (--squash)`, and
+`Enter` then runs `git merge --squash`: every change the branch makes is staged, and
+nothing is committed. Your branch stays where it was, whatever `merge.ff` says. The
+commit view opens on your uncommitted changes with the commit message box over it,
+filled in from the commits squashed: one commit keeps its own message, and several
+become `Squash branch 'feature/login'` with their subjects listed, oldest first:
+
+```
+Squash branch 'feature/login'
+
+* Add the login form
+* Check the password
+```
+
+`Enter` commits it, as `c` would, hooks and all. `Esc` leaves the changes staged,
+like any others: `c` finds the message as you left it, and discarding (`d`/`D`)
+never reaches staged changes.
+
+A squash is refused just as a merge is: only when it goes through cleanly, with no
+uncommitted changes, and into a branch.
+
+- **The branch still looks unmerged afterwards.** That is what a squash is: the new
+  commit has one parent, so git doesn't know its changes came from the branch, and
+  the graph shows the branch apart from yours. Pressing `m` on it again offers the
+  merge again.
+- **Deleting it is refused** while its commits are on no other branch or tag, as
+  for any unmerged branch: `Not deleted: its commits are on no other branch`. Its
+  remote branch counts, so a pushed branch can still be deleted locally; otherwise
+  delete it in a terminal once you are sure the squash commit holds everything. See
+  [Deleting branches](#deleting-branches).
 
 It is `git merge --ff` or `git merge --no-ff` with the message, after `git merge-tree`
 has said it goes through cleanly, and with config that could turn it into a squash or
