@@ -181,8 +181,10 @@ func TestMergeRefusedBeforeAsking(t *testing.T) {
 	}
 }
 
-// A conflict found by the plan is said, and the box never opens.
-func TestMergeConflictSaid(t *testing.T) {
+// conflictingModel is pickRepo with a file each branch changed its own way,
+// and the merge box open on feature.
+func conflictingModel(t *testing.T) (dir string, m model) {
+	t.Helper()
 	dir, run := pickRepo(t)
 	run("switch", "-q", "feature")
 	writeFile(t, dir+"/clash", "feature's")
@@ -192,14 +194,85 @@ func TestMergeConflictSaid(t *testing.T) {
 	writeFile(t, dir+"/clash", "main's")
 	run("add", "clash")
 	run("commit", "-qm", "clash on main")
-	before, _ := git.Run(dir, "rev-parse", "main")
-
-	m, _ := step(t, onCommit(t, loadedModel(t, dir), dir, "feature"), keyPress("m"))
-	if want := "Not merged: feature would conflict with main — resolve that in a terminal"; m.merge.open || m.notice != want {
-		t.Errorf("open=%v notice=%q, want %q", m.merge.open, m.notice, want)
+	m, _ = step(t, onCommit(t, loadedModel(t, dir), dir, "feature"), keyPress("m"))
+	if !m.merge.open {
+		t.Fatalf("notice=%q; want the box", m.notice)
 	}
-	if got, _ := git.Run(dir, "rev-parse", "main"); got != before {
-		t.Error("main moved")
+	return dir, m
+}
+
+// A conflict found by the plan is said in the box, with the files, and no
+// squash is offered. Enter starts the merge, which stops in its conflicts
+// and opens the conflict view; A there puts everything back.
+func TestMergeThatConflictsOpensTheConflictView(t *testing.T) {
+	dir, m := conflictingModel(t)
+	before, _ := git.Run(dir, "rev-parse", "main")
+	m.windowWidth, m.windowHeight = 120, 30
+	screen := ansi.Strip(m.View())
+	for _, want := range []string{"feature  into  main", "would conflict in 1 file: clash", "enter: merge and resolve • e: message • esc: cancel"} {
+		if !strings.Contains(screen, want) {
+			t.Errorf("the box does not say %q:\n%s", want, screen)
+		}
+	}
+	if strings.Contains(screen, "tab:") {
+		t.Errorf("the box offers another choice:\n%s", screen)
+	}
+	if tabbed := press(m, tea.KeyMsg{Type: tea.KeyTab}); tabbed.merge.squash() {
+		t.Error("tab picked a squash of a merge that conflicts")
+	}
+
+	m, reload := step(t, m, tea.KeyMsg{Type: tea.KeyEnter})
+	if want := "Merging feature into main stopped in conflicts — resolve them here, A aborts"; m.notice != want {
+		t.Fatalf("notice = %q, want %q", m.notice, want)
+	}
+	if reload == nil || !m.mergeStopped {
+		t.Fatalf("reload=%v mergeStopped=%v; want a reload that opens the conflict view", reload != nil, m.mergeStopped)
+	}
+	if op := git.ReadWorkingState(dir).Operation; op != "merge" {
+		t.Fatalf("operation %q, want a merge under way", op)
+	}
+	if head, _ := git.Run(dir, "rev-parse", "main"); head != before {
+		t.Errorf("main moved to %s", head)
+	}
+
+	next, load := m.Update(loadRepo(dir)())
+	m = next.(model)
+	if load != nil {
+		m = res(m.Update(load()))
+	}
+	if !m.inConflict() || m.selected != 0 {
+		t.Fatalf("view open=%v workingTree=%v op=%q selected=%d; want the conflict view",
+			m.commitView.open, m.commitView.workingTree, m.conflict.Operation, m.selected)
+	}
+	if screen := ansi.Strip(m.View()); !strings.Contains(screen, "Merging feature into main — 1 of 1 file still in conflict") {
+		t.Errorf("the conflict view's header is not there:\n%s", screen)
+	}
+
+	m = press(m, keyPress("A"))
+	if !m.abortMerge.asking {
+		t.Fatal("A did not ask")
+	}
+	m = do(t, m, keyPress("enter"))
+	if op := git.ReadWorkingState(dir).Operation; op != "" {
+		t.Errorf("still in a %s after the abort (notice %q)", op, m.notice)
+	}
+	if out, _ := git.Run(dir, "status", "--porcelain"); out != "" {
+		t.Errorf("status = %q, want clean", out)
+	}
+	if head, _ := git.Run(dir, "rev-parse", "main"); head != before {
+		t.Errorf("main moved to %s", head)
+	}
+}
+
+// Esc at the box leaves the merge unstarted.
+func TestMergeThatConflictsCancelled(t *testing.T) {
+	dir, m := conflictingModel(t)
+	m = press(m, tea.KeyMsg{Type: tea.KeyEsc})
+	if m.merge.open || m.notice != "Nothing merged" {
+		t.Errorf("open=%v notice=%q", m.merge.open, m.notice)
+	}
+	if op := git.ReadWorkingState(dir).Operation; op != "" {
+		t.Errorf("left in a %s", op)
 	}
 }
 

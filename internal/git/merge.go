@@ -12,12 +12,15 @@ import (
 // either by moving the branch forward to them (a fast-forward) or with a
 // merge commit that has both as parents.
 //
-// As with a cherry-pick, a merge that would stop in conflicts leaves files
-// half one thing and half the other, so it is first tried out in the object
-// store alone (merge-tree), and goes ahead only when it would go through
-// cleanly. It is refused while tracked files have uncommitted changes, which
-// git would carry through a merge and which are then easy to lose track of
-// among its changes.
+// A merge that would stop in conflicts leaves files half one thing and half
+// the other, so it is first tried out in the object store alone (merge-tree),
+// which says whether it would and in which files. It goes ahead only when it
+// would go through cleanly, unless AllowConflicts says the user has been told
+// and asked for it anyway; then it is left stopped in its conflicts, for the
+// conflict view to resolve or abort. It is refused while tracked files have
+// uncommitted changes, which git would carry through a merge and which are
+// then easy to lose track of among its changes; that is also what makes an
+// abort put everything back exactly as it was.
 //
 // The merge itself is pinned against config that could turn it into
 // something else: branch.<name>.mergeOptions can say --squash or --no-commit,
@@ -29,8 +32,12 @@ import (
 
 var (
 	// ErrMergeConflicts is returned, with nothing done, when the merge
-	// would stop in conflicts.
+	// would stop in conflicts and AllowConflicts was not given.
 	ErrMergeConflicts = errors.New("the merge would conflict")
+	// ErrMergeStopped is returned when, with AllowConflicts, the merge has
+	// begun and stopped in conflicts, as asked: it is under way, with
+	// MERGE_HEAD written, until it is continued or aborted.
+	ErrMergeStopped = errors.New("the merge stopped in conflicts")
 	// ErrMergeUpToDate is returned, with nothing done, when every commit
 	// of the ref is already on the branch.
 	ErrMergeUpToDate = errors.New("already up to date")
@@ -81,6 +88,9 @@ type PlannedMerge struct {
 	// true when CanFastForward, since a merge commit then holds the ref's
 	// own tree.
 	Conflicts bool
+	// ConflictFiles are the paths a merge commit would leave in conflict,
+	// in merge-tree's order (by path); empty unless Conflicts.
+	ConflictFiles []string
 	// FastForward is the repository's merge.ff.
 	FastForward FastForwardSetting
 	// Message is the merge commit's message as git would write it:
@@ -107,6 +117,11 @@ type MergeOptions struct {
 	// It ignores NoFF and merge.ff, since there is no commit and no move
 	// of the branch for either to decide.
 	Squash bool
+	// AllowConflicts lets a merge commit that would conflict begin, and
+	// stop in its conflicts (ErrMergeStopped). A squash is still refused,
+	// since it would stop with no MERGE_HEAD, which nothing could then
+	// tell from changes of the user's own, or abort.
+	AllowConflicts bool
 }
 
 // MergePlan reads what merging ref into HEAD would do. It refuses as Merge
@@ -155,12 +170,19 @@ func planMerge(top, head, ref string) (PlannedMerge, error) {
 	p.Kind = MergeCommit
 
 	// The trial: the same merge, written to the object store alone. Exit 1
-	// is conflicts; any other failure counts against the merge as well, so
-	// a git too old for --write-tree (2.38) refuses rather than risks it.
-	out, err := runWrite(top, "", "merge-tree", "--write-tree", "--no-messages", head, commit)
+	// is conflicts, and the paths in them follow the tree's hash, one per
+	// NUL; any other failure counts against the merge as well, so a git too
+	// old for --write-tree (2.38) refuses rather than risks it.
+	out, err := runWrite(top, "", "merge-tree", "--write-tree", "--no-messages", "--name-only", "-z", head, commit)
 	var exit interface{ ExitCode() int }
 	if errors.As(err, &exit) && exit.ExitCode() == 1 {
 		p.Conflicts = true
+		fields := strings.Split(out, "\x00")
+		for _, f := range fields[min(1, len(fields)):] {
+			if f != "" {
+				p.ConflictFiles = append(p.ConflictFiles, f)
+			}
+		}
 	} else if err != nil {
 		return PlannedMerge{}, errors.New(firstNonEmptyLine(out, err.Error()))
 	}
@@ -216,7 +238,11 @@ func mergeName(top, ref, commit string) (name, message string) {
 // tracked files have uncommitted changes; on a branch with no commits; when
 // the ref is already on the branch; when merge.ff=only and no fast-forward is
 // possible (unless NoFF asks for a merge commit, or Squash for no commit);
-// and when it would conflict. See the top of this file.
+// and when it would conflict, unless AllowConflicts asks for that. See the
+// top of this file.
+//
+// With AllowConflicts, a merge that stops in conflicts returns
+// ErrMergeStopped with HEAD as it was, and is left under way.
 //
 // With Squash, newHead is HEAD as it was: nothing is committed, and the
 // changes are left staged, with git's message for them in SQUASH_MSG (see
@@ -252,7 +278,7 @@ func Merge(dir, ref string, opts MergeOptions) (newHead, detail string, err erro
 	switch {
 	case plan.Kind == MergeUpToDate:
 		return "", "", ErrMergeUpToDate
-	case plan.Conflicts:
+	case plan.Conflicts && (opts.Squash || !opts.AllowConflicts):
 		return "", "", ErrMergeConflicts
 	case opts.Squash:
 		return squash(top, head, plan.Ref)
@@ -276,14 +302,25 @@ func Merge(dir, ref string, opts MergeOptions) (newHead, detail string, err erro
 		"merge", "--no-edit", "--commit", "--no-squash", "--no-autostash", "--no-log",
 		"--verify", ffFlag, "-m", message, "--end-of-options", plan.Ref)
 	if err != nil {
-		// Whatever stopped it after the trial said it would go through (a
-		// hook, an untracked file in the way), the repository is put back
-		// as it was rather than left mid-way. The working tree was clean,
-		// so abort has nothing of the user's to throw away.
+		inMerge := false
 		if gitDir, gerr := Run(top, "rev-parse", "--absolute-git-dir"); gerr == nil {
-			if _, serr := os.Stat(filepath.Join(filepath.FromSlash(gitDir), "MERGE_HEAD")); serr == nil {
-				_, _ = runWrite(top, "", "merge", "--abort")
+			_, serr := os.Stat(filepath.Join(filepath.FromSlash(gitDir), "MERGE_HEAD"))
+			inMerge = serr == nil
+		}
+		// Stopped in conflicts, as the trial said it would and as was asked
+		// for: left as git left it. Unmerged entries are what tell that
+		// from a merge stopped by anything else.
+		if inMerge && plan.Conflicts && opts.AllowConflicts {
+			if unmerged, _ := Run(top, "ls-files", "--unmerged"); unmerged != "" {
+				return head, out, ErrMergeStopped
 			}
+		}
+		// Whatever else stopped it (a hook, an untracked file in the way),
+		// the repository is put back as it was rather than left mid-way.
+		// The working tree was clean, so abort has nothing of the user's to
+		// throw away.
+		if inMerge {
+			_, _ = runWrite(top, "", "merge", "--abort")
 		}
 		return "", out, err
 	}
