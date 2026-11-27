@@ -294,3 +294,16 @@ func shortHash(hash string) string {
 	}
 	return hash
 }
+
+// CountCommits is how many commits LoadGraph would read with no limit: the
+// same refs and the same filter, counted rather than printed. It lets a
+// history read in batches say how far through the whole of it a commit is.
+// It reads every commit, which takes a while on a long history, so it is for
+// the background.
+func CountCommits(dir string, filter Filter) (int, error) {
+	out, err := Run(dir, append([]string{"rev-list", "--count", "--all"}, filter.args()...)...)
+	if err != nil {
+		return 0, fmt.Errorf("git rev-list --count failed: %v", err)
+	}
+	return strconv.Atoi(out)
+}

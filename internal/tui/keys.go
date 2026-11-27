@@ -192,11 +192,6 @@ func (m model) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		return m.searchNext(1)
 	case "N":
 		return m.searchNext(-1)
-	case "m":
-		if !m.ready {
-			return m, nil
-		}
-		return m.loadMoreCommits()
 	case "r", "f5":
 		if !m.ready {
 			return m, nil

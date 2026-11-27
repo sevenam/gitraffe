@@ -90,9 +90,10 @@ func pinRight(help, pos string, width int) string {
 // "1,234/5,000 · 24%". Only real commits are counted: the uncommitted-changes
 // row sits above them as position 0, so the newest commit is always 1.
 //
-// A history cut short at commitLimit shows "5,000+" and no percentage, because
-// the percentage would be of what happens to be loaded — 100% at a bottom that
-// isn't one.
+// A history cut short at commitLimit is counted against the whole history once
+// that has been counted in the background (see countHistory). Until then it
+// shows "5,000+" and no percentage, because the percentage would be of what
+// happens to be loaded — 100% at a bottom that isn't one.
 func (m *model) graphPosition() string {
 	if !m.ready || m.err != nil || m.selected < 0 || m.selected >= len(m.commits) {
 		return ""
@@ -105,7 +106,11 @@ func (m *model) graphPosition() string {
 		return ""
 	}
 	if m.moreCommits {
-		return thousands(pos) + "/" + thousands(total) + "+"
+		counted := m.countedTotal(total)
+		if counted == 0 {
+			return thousands(pos) + "/" + thousands(total) + "+"
+		}
+		total = counted
 	}
 	return fmt.Sprintf("%s/%s · %d%%", thousands(pos), thousands(total), pos*100/total)
 }

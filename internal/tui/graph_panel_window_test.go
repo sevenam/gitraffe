@@ -120,7 +120,7 @@ func TestHomeAndEndSkipRowsWithoutACommit(t *testing.T) {
 	m.commits = m.commits[:3]
 	m.displayRows = []displayRow{
 		{CommitIdx: -1}, {CommitIdx: 0}, {CommitIdx: -1},
-		{CommitIdx: 1}, {CommitIdx: 2}, {CommitIdx: -1, Note: "… more history — press m"},
+		{CommitIdx: 1}, {CommitIdx: 2}, {CommitIdx: -1, Note: moreHistoryNote},
 	}
 	m.selected = 1
 	if got := press(m, home).selected; got != 0 {

@@ -29,6 +29,15 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	if !ok {
 		return next, cmd
 	}
+	// Here rather than in each key and the mouse: as with the scroll window,
+	// the selection reaches the last row from too many places to catch it in
+	// each.
+	switch msg.(type) {
+	case tea.KeyMsg, tea.MouseMsg:
+		var more tea.Cmd
+		nm, more = nm.readOnAtTheEnd(m, msg)
+		cmd = tea.Batch(cmd, more)
+	}
 	// Not while loading: there are no rows yet, so both windows would be
 	// recorded as back at the top, and a reload would lose the scroll position
 	// it carried over to come back to.
@@ -215,6 +224,9 @@ func (m model) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	case tea.FocusMsg:
 		return m.onFocus()
+
+	case historyCountMsg:
+		return m.finishHistoryCount(msg), nil
 
 	case repoStateMsg:
 		return m.onRepoState(msg)

@@ -105,7 +105,6 @@ in `gitraffe ./update`.
 - `f` - Fetch from the remote, then reload (see [Fetching](#fetching))
 - `/` - Search commits, then `n` / `N` for next and previous (see [Searching](#searching))
 - `h` - Show only the commits that changed a file or directory, picked from a list; `Esc` for all of them again (see [A file's history](#a-files-history))
-- `m` - Read more of a long history (see [Long histories](#long-histories))
 - `B` - Jump to a branch or tag (see [Jumping to a branch or tag](#jumping-to-a-branch-or-tag))
 - `O` - Open another repository (see [Switching repository](#switching-repository))
 - `t` - Pick a colour theme (see [Picking a theme](#picking-a-theme))
@@ -116,9 +115,10 @@ in `gitraffe ./update`.
 
 The right end of the bottom line shows where you are in the history, as in
 `1,234/5,000 · 24%` — counted from the newest commit, with uncommitted changes as 0.
-While the history is cut short (see [Long histories](#long-histories)) it reads
-`1,234/5,000+` instead, without a percentage, since the bottom of what has been read
-isn't the bottom of the history.
+While the history is cut short (see [Long histories](#long-histories)) the whole of
+it is counted in the background, and the position is out of that count, as in
+`1,234/48,210 · 2%`. Until the count arrives it reads `1,234/5,000+`, without a
+percentage, since the bottom of what has been read isn't the bottom of the history.
 
 A box with more to read than fits in it says so in its border: `⇣` in the middle of the
 bottom edge when there is more below, `⇡` along the top when you have scrolled past the
@@ -676,8 +676,8 @@ message, the author and the hash, so a hash pasted from a bug report finds its c
   so no match is out of reach. `↑` and `↓` do the same while the prompt is open.
 - A query that matches nothing says so and leaves the selection alone.
 
-The search only covers the commits that are loaded; on a long history, `m` reads more
-(see [Long histories](#long-histories)).
+The search only covers the commits that are loaded; on a long history, going to the
+bottom of the graph reads more (see [Long histories](#long-histories)).
 
 ### A file's history
 
@@ -699,8 +699,8 @@ anything under that directory), on every branch, joined up as they descend from 
 other.
 
 The top box says what the graph is filtered to, and `Esc` on the graph brings every
-commit back, with the one you were on still selected. Reloading, fetching and `m`
-keep the filter; opening another repository drops it.
+commit back, with the one you were on still selected. Reloading, fetching and
+reading more history keep the filter; opening another repository drops it.
 
 While filtered, the details panel (`Enter`) shows what each commit did to that file
 and nothing else it touched: the file's own counts and diff, or those of every file
@@ -720,15 +720,22 @@ and few enough that a very old one doesn't spend seconds drawing history nobody
 asked to see. When there is more, the graph ends with a line saying so:
 
 ```
-   … more history — press m
+   … more history
 ```
 
-`m` reads the next 5,000. `G` jumps to the bottom, where the line is. However much
-you have loaded is kept when you reload with `r` or fetch with `f`, and starts over
-at 5,000 when you open a different repository.
+Reaching the bottom reads the next 5,000: moving onto the last commit with the arrow
+keys, `PgDn`, `G`, `End` or the mouse wheel, or clicking the line. It reads
+`… reading more history` while they load, and the selection stays where it was, so
+carrying on down carries on into them. However much you have loaded is kept when you
+reload with `r` or fetch with `f`, and starts over at 5,000 when you open a different
+repository.
 
-The whole graph is read again rather than the new commits added to it, because git
-draws the lanes for the commits it is given: a second batch drawn on its own would
+The bottom line counts the whole history in the background, so it can say how far
+through it you are before all of it is loaded. The count is kept through reloads and
+taken again only when the repository has changed.
+
+The whole graph is read again rather than the new commits added to it, because the
+lanes are laid out for the commits read: a second batch drawn on its own would
 not join up with the first. Your place is kept, as with any reload.
 
 ### Fetching

@@ -250,10 +250,8 @@ func TestClickNeitherNeedsNorTakesFocus(t *testing.T) {
 func TestClickWithNoCommitUnderItDoesNothing(t *testing.T) {
 	m := mouseModel(t) // ten commits in a window with room for far more
 	graphX, detailsX := columns(m)
-	withNote := m
-	withNote.moreCommits = true
-	withNote.addMoreCommitsRow()
-
+	// The more-history note is not among them: clicking it reads on. See
+	// TestClickingTheNoteReadsOn.
 	for _, tc := range []struct {
 		name string
 		m    model
@@ -263,7 +261,6 @@ func TestClickWithNoCommitUnderItDoesNothing(t *testing.T) {
 		{"the repository box", m, graphX, 1},
 		{"the status line", m, graphX, m.windowHeight - 1},
 		{"the details panel", m, detailsX, 8},
-		{"the more-history note", withNote, graphX, 4 + len(m.displayRows)},
 	} {
 		res, cmd := tc.m.Update(click(tc.x, tc.y))
 		got := res.(model)
