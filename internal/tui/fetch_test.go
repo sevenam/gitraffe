@@ -152,3 +152,66 @@ func TestFetchErrorTextPrefersGitsOwnWords(t *testing.T) {
 		t.Errorf("notice = %q, want the error when git said nothing", got)
 	}
 }
+
+// r reloads at once and fetches behind it (issue #254): the reload does not
+// wait for the network, and what the fetch brings is reloaded when it lands.
+func TestRefreshAlsoFetches(t *testing.T) {
+	dir, origin, _, commit := repoWithRemote(t)
+	m := loadedModel(t, dir)
+	pushFromElsewhere(t, origin)
+	commit("local") // made on this machine: the reload alone shows it
+
+	res, _ := m.Update(keyPress("r"))
+	refreshing := res.(model)
+	if !refreshing.fetching {
+		t.Fatal("r did not start a fetch")
+	}
+	if !strings.Contains(ansi.Strip(refreshing.renderStatusLine()), "Fetching") {
+		t.Error("the status line does not say a fetch is running")
+	}
+
+	// The local reload lands first and keeps the fetch going.
+	res, _ = refreshing.Update(loadRepo(dir)())
+	reloaded := res.(model)
+	if reloaded.commits[0].Message != "local" {
+		t.Errorf("newest commit = %q, want the local one without waiting for the fetch", reloaded.commits[0].Message)
+	}
+	if !reloaded.fetching {
+		t.Error("the reload forgot the fetch still running")
+	}
+	if reloaded.behind != 0 {
+		t.Fatalf("behind = %d before the fetch finished, want 0", reloaded.behind)
+	}
+
+	res, cmd := reloaded.Update(fetchCmd(dir)())
+	done := res.(model)
+	if done.fetching || cmd == nil || !strings.Contains(done.notice, "Fetched") {
+		t.Fatalf("fetching=%v cmd=%v notice=%q; want the fetch finished and reloaded", done.fetching, cmd != nil, done.notice)
+	}
+	res, _ = done.Update(loadRepo(dir)())
+	if got := res.(model); got.behind != 1 {
+		t.Errorf("behind = %d after the fetch, want 1", got.behind)
+	}
+}
+
+// Without a remote r is the plain reload it always was, and says nothing of
+// fetching.
+func TestRefreshWithoutRemoteJustReloads(t *testing.T) {
+	m := loadedModel(t, gittest.NewRepo(t))
+	res, _ := m.Update(keyPress("r"))
+	got := res.(model)
+	if got.fetching || strings.Contains(got.notice, "no remote") {
+		t.Errorf("fetching=%v notice=%q; want a quiet reload", got.fetching, got.notice)
+	}
+}
+
+// r while a fetch runs reloads but leaves that fetch to finish on its own.
+func TestRefreshDuringFetchStartsNoSecond(t *testing.T) {
+	dir, _, _, _ := repoWithRemote(t)
+	m := loadedModel(t, dir)
+	res, _ := m.Update(keyPress("f"))
+	res, _ = res.(model).Update(keyPress("r"))
+	if got := res.(model); !got.fetching {
+		t.Error("r during a fetch lost track of it")
+	}
+}
