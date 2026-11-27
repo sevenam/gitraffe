@@ -17,7 +17,7 @@ A text-based git command line tool built with Golang, Bubble Tea, go-git, and Li
 - ✍️ Stage files, hunks or single lines from the commit view and commit them with `c`, without leaving gitraffe (see [Staging and committing](#staging-and-committing))
 - 🧹 Discard unstaged files, hunks or lines there with `d`, or every unstaged change with `D`, always asked about first (see [Discarding changes](#discarding-changes))
 - 📦 Stash the files you tick, under a name of your own, with `s` or `S`, and pop a stash back with `s` on the graph — only when it applies without conflicts (see [Stashing](#stashing))
-- ⬇️ `p` pulls: fetch, then fast-forward your branch — and nothing riskier than that (see [Pulling](#pulling))
+- ⬇️ `p` pulls: fetch, then fast-forward your branch, or offer a merge when it has diverged (see [Pulling](#pulling))
 - ⬆️ `P` pushes your branch — never by force — and asks before creating a branch or a tag on the remote (see [Pushing](#pushing))
 - 🔀 `c` checks out the selected commit's branch, and refuses while you have uncommitted changes (see [Checking out](#checking-out))
 - 🌱 `b` starts a new branch at the selected commit and switches to it (see [Creating a branch](#creating-a-branch))
@@ -92,7 +92,7 @@ in `gitraffe ./update`.
 - Click - Select the commit under the pointer (see [Mouse](#mouse))
 - `Enter` - Show one panel or both (see [One panel at a time](#one-panel-at-a-time))
 - `Space` - Open the commit view, `Esc` to come back (see [The commit view](#the-commit-view))
-- `p` - Pull: fetch, then fast-forward this branch (see [Pulling](#pulling))
+- `p` - Pull: fetch, then fast-forward this branch, or offer a merge when it has diverged (see [Pulling](#pulling))
 - `P` - Push this branch, or the selected commit's unpushed tag (see [Pushing](#pushing))
 - `c` - Check out this commit's branch (see [Checking out](#checking-out))
 - `b` - New branch at this commit, switched to (see [Creating a branch](#creating-a-branch))
@@ -922,21 +922,34 @@ only ever a fast-forward.
 
 That limit is the point. A fast-forward makes no commit and cannot conflict, and git
 refuses it, changing nothing, if an uncommitted edit of yours is in the way. Anything
-more than that — merging, rebasing — can stop halfway in a state that has to be
-sorted out by hand, and gitraffe is not the place to do that. So when it can't
-fast-forward it leaves everything as it was and says why on the bottom line:
+more than that — merging, rebasing — is never done by `p` itself. So when it can't
+fast-forward it leaves the branch as it was and says why on the bottom line:
 
 | The bottom line says | What happened |
 | --- | --- |
 | `Pulled 3 commits from origin/main` | the branch moved forward |
 | `Already up to date with origin/main` | there was nothing new; being ahead counts as up to date |
-| `Not pulled: main and origin/main have diverged (↑2 ↓3) — merge or rebase in a terminal` | both sides have commits the other lacks; nothing was changed |
+| `main and origin/main have diverged (↑2 ↓3) — enter merges origin/main in, esc leaves it` | both sides have commits the other lacks; the [merge box](#merging) is open for the upstream |
+| `Not pulled: main and origin/main have diverged (↑2 ↓3) — commit or stash your changes, and p offers a merge` | as above, but a merge is refused over uncommitted changes; nothing was changed |
+| `Not pulled: main and origin/main have diverged (↑2 ↓3) — merge or rebase in a terminal` | as above, where your pull settings don't merge (see below); nothing was changed |
 | `Pull failed: …` | git's own reason — most often an uncommitted edit to a file the incoming commits change |
 | `Nothing to pull — …` | the branch tracks no remote branch, or `HEAD` is not on a branch |
 
-It doesn't read `pull.rebase` or any other pull setting: what `p` does is the same
-in every repository. And it is never done for you — [auto-fetch](#auto-refresh) can
-show that there is something to pull, but moving your branch always takes the key.
+When the branch and its upstream have diverged, `p` opens the same box `m` would on
+the upstream — `origin/main  into  main`, as a merge commit — once the fetch's
+commits are on the graph. Nothing happens until you press `Enter`, and `Esc` leaves
+everything as it was, so a pull is still safe to press; it just saves finding the
+remote branch and pressing `m`. The box works exactly as in [Merging](#merging):
+`e` edits the message, and a merge that would conflict says so, with the files, and
+`Enter` then opens the [conflict view](#conflicts).
+
+The merge is offered only where `git pull` would merge too. With `pull.ff` set to
+`only`, or `pull.rebase` (or the branch's own `branch.<name>.rebase`) set to
+anything but `false`, `p` says the branches have diverged and leaves it there:
+rebasing is for a terminal. Those are the only pull settings it reads; what it
+fetches and how it fast-forwards are the same in every repository. And it is never
+done for you — [auto-fetch](#auto-refresh) can show that there is something to
+pull, but moving your branch always takes the key.
 
 ### Pushing
 

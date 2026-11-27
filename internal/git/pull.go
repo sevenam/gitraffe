@@ -23,11 +23,34 @@ const (
 	PullDetached
 )
 
+// PullReconcile is how "git pull" would catch up a diverged branch, as the
+// repository's config says. Pull itself never does; it is reported so that
+// whoever asked can offer the one way that is safe to offer, a merge.
+type PullReconcile int
+
+const (
+	// PullMerges: git pull would make a merge commit, git's default.
+	PullMerges PullReconcile = iota
+	// PullFastForwardOnly: pull.ff is "only", so git pull would refuse.
+	PullFastForwardOnly
+	// PullRebases: pull.rebase, or the branch's own branch.<name>.rebase,
+	// says to rebase, which gitraffe leaves to a terminal.
+	PullRebases
+)
+
 // PullResult is what a pull did.
 type PullResult struct {
 	Outcome  PullOutcome
 	Branch   string // the branch HEAD is on; "" when detached
 	Upstream string // what it tracks, e.g. "origin/main"; "" when it tracks nothing
+	// UpstreamRef is the upstream's full name, "refs/remotes/origin/main",
+	// so that a merge of it cannot be taken for a tag or a local branch.
+	UpstreamRef string
+	// UpstreamCommit is the full hash the upstream is at once fetched.
+	UpstreamCommit string
+	// Reconcile is how git pull would catch up a diverged branch; it means
+	// something only when the Outcome is PullDiverged.
+	Reconcile PullReconcile
 	// Ahead and Behind are the counts after fetching and before moving anything:
 	// Behind is how many commits a fast-forward brought, and both are what a
 	// diverged branch is short of on each side.
@@ -48,7 +71,8 @@ type PullResult struct {
 // and cannot conflict, and git refuses it, changing nothing, when a local edit
 // is in the way. Anything more — a merge, a rebase — can stop halfway in a
 // state that has to be resolved by hand, which is work for a terminal. So a
-// diverged branch is reported, not reconciled.
+// diverged branch is reported, not reconciled, with how git pull would have
+// reconciled it (Reconcile) for whoever asked to offer a merge in its place.
 //
 // It is "fetch" then "merge --ff-only" rather than "git pull --ff-only" so
 // that pull.rebase and the like in someone's config cannot turn it into
@@ -69,6 +93,7 @@ func Pull(dir string) (PullResult, error) {
 		return r, nil
 	}
 	r.Upstream = upstream
+	r.UpstreamRef, _ = Run(dir, "rev-parse", "--symbolic-full-name", "@{upstream}")
 
 	stderr, err := Fetch(dir)
 	if err != nil {
@@ -76,6 +101,7 @@ func Pull(dir string) (PullResult, error) {
 		return r, err
 	}
 	r.Fetched = true
+	r.UpstreamCommit, _ = Run(dir, "rev-parse", "--verify", "--quiet", "@{upstream}^{commit}")
 
 	r.Ahead, r.Behind = UpstreamSync(dir)
 	switch {
@@ -84,6 +110,7 @@ func Pull(dir string) (PullResult, error) {
 		return r, nil
 	case r.Ahead > 0:
 		r.Outcome = PullDiverged
+		r.Reconcile = readPullReconcile(dir, branch)
 		return r, nil
 	}
 
@@ -97,4 +124,25 @@ func Pull(dir string) (PullResult, error) {
 	}
 	r.Outcome = PullFastForwarded
 	return r, nil
+}
+
+// readPullReconcile reads what git pull would do with a diverged branch.
+// branch.<name>.rebase comes before pull.rebase, as it does for git; any
+// value but false (true, merges, interactive) is a rebase. pull.ff=only
+// refuses before a rebase is considered, so it is asked about first.
+func readPullReconcile(dir, branch string) PullReconcile {
+	if ff, _ := Run(dir, "config", "--get", "pull.ff"); strings.EqualFold(ff, "only") {
+		return PullFastForwardOnly
+	}
+	for _, key := range []string{"branch." + branch + ".rebase", "pull.rebase"} {
+		raw, err := Run(dir, "config", "--get", key)
+		if err != nil || raw == "" {
+			continue
+		}
+		if b, err := Run(dir, "config", "--type=bool", "--get", key); err == nil && b == "false" {
+			return PullMerges
+		}
+		return PullRebases
+	}
+	return PullMerges
 }

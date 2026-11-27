@@ -85,7 +85,10 @@ type model struct {
 	// mergeStopped says a merge has just stopped in conflicts, until the
 	// reload opens the conflict view on them; see applyMergeStopped.
 	mergeStopped bool
-	discard      discardPrompt // the question "d" and "D" ask first; see discard.go
+	// pullMerge is the merge box a diverged pull offers, until the reload
+	// after it opens it; see applyPullMerge.
+	pullMerge *mergePrompt
+	discard   discardPrompt // the question "d" and "D" ask first; see discard.go
 	// The merge or cherry-pick under way, as last read with the uncommitted
 	// changes; its Operation is "" when there is none. See conflicts.go.
 	conflict   git.ConflictState

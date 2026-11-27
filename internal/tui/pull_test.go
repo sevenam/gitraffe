@@ -8,6 +8,7 @@ import (
 	"testing"
 	"time"
 
+	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/x/ansi"
 
 	"github.com/sevenam/gitraffe/internal/git"
@@ -62,29 +63,123 @@ func TestPullWithNothingNewSaysSo(t *testing.T) {
 	}
 }
 
-// The branch is left exactly where it was, and the line says why and what to
-// do about it: a key that silently did nothing would look broken.
-func TestPullOfADivergedBranchExplainsItself(t *testing.T) {
-	dir, origin, _, commit := repoWithRemote(t)
+// divergedModel is a repository whose main has a commit of its own while
+// origin/main has another, loaded; git is the repository's own git.
+func divergedModel(t *testing.T) (dir string, run func(...string), m model) {
+	t.Helper()
+	dir, origin, run, commit := repoWithRemote(t)
+	gittest.Identify(run)
 	commit("mine")
 	pushFromElsewhere(t, origin)
-	m := loadedModel(t, dir)
+	return dir, run, loadedModel(t, dir)
+}
+
+// A diverged branch is not moved by the pull, but the merge box is opened
+// for its upstream once the reload has read what the fetch brought; enter
+// there makes the merge commit, as m on origin/main would.
+func TestPullOfADivergedBranchOffersAMerge(t *testing.T) {
+	dir, _, m := divergedModel(t)
 	was := m.currentCommit
 
 	m = pull(t, m)
-	for _, want := range []string{"Not pulled", "diverged", "↑1 ↓1", "terminal"} {
+	for _, want := range []string{"diverged", "↑1 ↓1", "enter merges origin/main in"} {
 		if !strings.Contains(m.notice, want) {
 			t.Errorf("notice = %q, want it to mention %q", m.notice, want)
 		}
 	}
+	if m.merge.open {
+		t.Error("the box opened before the reload had read the fetched commits")
+	}
 	res, _ := m.Update(loadRepo(dir)())
 	m = res.(model)
 	if m.currentCommit != was {
-		t.Error("a diverged branch was moved")
+		t.Error("a diverged branch was moved by the pull itself")
 	}
-	// The fetch half still happened, so the counts are now true.
 	if m.ahead != 1 || m.behind != 1 {
 		t.Errorf("ahead/behind = %d/%d, want 1/1 shown after the fetch", m.ahead, m.behind)
+	}
+	if !m.merge.open || m.merge.ref != "refs/remotes/origin/main" || m.merge.into != "main" {
+		t.Fatalf("merge box = %+v; want origin/main into main", m.merge)
+	}
+	m.windowWidth, m.windowHeight = 120, 30
+	screen := ansi.Strip(m.View())
+	for _, want := range []string{"origin/main  into  main", "as a merge commit", "Merge remote-tracking branch 'origin/main'"} {
+		if !strings.Contains(screen, want) {
+			t.Errorf("the box does not say %q:\n%s", want, screen)
+		}
+	}
+
+	m, reload := step(t, m, tea.KeyMsg{Type: tea.KeyEnter})
+	if reload == nil || !strings.HasPrefix(m.notice, "Merged origin/main into main as ") {
+		t.Fatalf("notice = %q, want the merge made", m.notice)
+	}
+	parents, _ := git.Run(dir, "rev-list", "--parents", "-n", "1", "main")
+	upstream, _ := git.Run(dir, "rev-parse", "origin/main")
+	if f := strings.Fields(parents); len(f) != 3 || !strings.HasPrefix(f[1], was) || f[2] != upstream {
+		t.Errorf("main is %q, want a merge of %s and origin/main's %s", parents, was, upstream)
+	}
+}
+
+// Esc at the box the pull opened leaves everything as it was.
+func TestPullMergeOfferCanBeDeclined(t *testing.T) {
+	dir, _, m := divergedModel(t)
+	was := m.currentCommit
+	m = pull(t, m)
+	res, _ := m.Update(loadRepo(dir)())
+	m = press(res.(model), tea.KeyMsg{Type: tea.KeyEsc})
+	if m.merge.open || m.notice != "Nothing merged" {
+		t.Errorf("open=%v notice=%q; want the box closed and nothing merged", m.merge.open, m.notice)
+	}
+	if head, _ := git.Run(dir, "rev-parse", "main"); !strings.HasPrefix(head, was) {
+		t.Errorf("main moved to %s", head)
+	}
+}
+
+// Where git pull would not merge, neither is a merge offered: the line says
+// what it always said, and the branch is left where it was.
+func TestPullOfADivergedBranchRespectsPullSettings(t *testing.T) {
+	for name, config := range map[string][]string{
+		"pull.ff=only":       {"pull.ff", "only"},
+		"pull.rebase=true":   {"pull.rebase", "true"},
+		"pull.rebase=merges": {"pull.rebase", "merges"},
+		"branch rebase":      {"branch.main.rebase", "true"},
+	} {
+		t.Run(name, func(t *testing.T) {
+			dir, run, m := divergedModel(t)
+			run(append([]string{"config"}, config...)...)
+			was := m.currentCommit
+			m = pull(t, m)
+			for _, want := range []string{"Not pulled", "diverged", "↑1 ↓1", "terminal"} {
+				if !strings.Contains(m.notice, want) {
+					t.Errorf("notice = %q, want it to mention %q", m.notice, want)
+				}
+			}
+			res, _ := m.Update(loadRepo(dir)())
+			m = res.(model)
+			if m.merge.open {
+				t.Error("a merge was offered against the repository's pull settings")
+			}
+			if m.currentCommit != was {
+				t.Error("a diverged branch was moved")
+			}
+		})
+	}
+}
+
+// A merge is refused over uncommitted changes, so none is offered; the line
+// says what would let it be.
+func TestPullOfADivergedBranchWithChangesSaysWhatWouldMerge(t *testing.T) {
+	dir, _, m := divergedModel(t)
+	if err := os.WriteFile(filepath.Join(dir, "mine"), []byte("edited"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	m = pull(t, m)
+	if !strings.Contains(m.notice, "commit or stash your changes, and p offers a merge") {
+		t.Errorf("notice = %q, want it to say how to get the merge offered", m.notice)
+	}
+	res, _ := m.Update(loadRepo(dir)())
+	if res.(model).merge.open {
+		t.Error("a merge was offered over uncommitted changes")
 	}
 }
 
