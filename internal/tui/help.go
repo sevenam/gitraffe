@@ -131,11 +131,16 @@ var stagingViewHelp = []helpSection{
 }
 
 // conflictViewHelp is stagingViewHelp while a merge or cherry-pick is
-// stopped in conflicts, where the keys that stage are put aside: resolving
-// is done in a terminal for now, and what is left is ending it.
+// stopped in conflicts, where the keys that stage are put aside: a file is
+// resolved whole, by taking a side or as edited, and then the merge ended.
+// The status line names the sides by their branches.
 var conflictViewHelp = []helpSection{
 	{"Merge in progress", []keyBinding{
-		{"✗ / ✓", "files: still in conflict / resolved (git add in a terminal)"},
+		{"✗ / ✓", "files: still in conflict / resolved"},
+		{"o", "take the branch checked out's version of the file (or its deletion)"},
+		{"t", "take the incoming branch's version of the file (or its deletion)"},
+		{"a", "mark the file resolved as it is on disk, once its markers are gone"},
+		{"u", "put a file resolved with o or t back in conflict"},
 		{"c", "commit the merge, once nothing is left in conflict"},
 		{"A", "abort the merge, after asking: all goes back to how it was"},
 		{"space / esc / q", "back to the graph, the merge still in progress"},

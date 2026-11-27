@@ -83,7 +83,7 @@ func TestConflictViewShowsWhereTheMergeStands(t *testing.T) {
 		"=======",
 		"B, their way",
 		">>>>>>> feature/login",
-		"c: commit the merge • A: abort it",
+		"o: keep main • t: take feature/login • a: mark resolved • A: abort",
 	} {
 		if !strings.Contains(screen, want) {
 			t.Errorf("the screen lacks %q:\n%s", want, screen)
@@ -97,10 +97,11 @@ func TestConflictViewShowsWhereTheMergeStands(t *testing.T) {
 		t.Errorf("both.txt is not listed first:\n%s", screen)
 	}
 
-	// The keys that stage say where resolving is done, and stage nothing.
-	for _, key := range []string{"a", "d", "s", "v"} {
+	// The keys that would stage, discard or stash say how resolving is
+	// done, and change nothing.
+	for _, key := range []string{"d", "s", "v"} {
 		next := press(m, keyPress(key))
-		if !strings.Contains(next.notice, "Resolve conflicts in a terminal") || next.staging || next.discard.asking || next.stashBox.open {
+		if !strings.Contains(next.notice, "o / t takes a side") || next.staging || next.discard.asking || next.stashBox.open {
 			t.Errorf("%s: notice %q, staging=%v", key, next.notice, next.staging)
 		}
 	}
@@ -336,4 +337,104 @@ func TestConflictViewOnAMergeWithNothingToShow(t *testing.T) {
 	if screen := ansi.Strip(m.View()); !strings.Contains(screen, "Merging side into main — no conflicts — c commits") {
 		t.Errorf("header:\n%s", screen)
 	}
+}
+
+func TestConflictViewTakesASideAndPutsItBack(t *testing.T) {
+	dir, _ := conflictRepo(t)
+	m := press(withDiff(t, loadedModel(t, dir)), space)
+	m.windowWidth, m.windowHeight = 120, 30
+
+	// both.txt: main's version, from the file list.
+	m = do(t, m, keyPress("o"))
+	if !strings.Contains(m.notice, "both.txt: main's version taken") {
+		t.Errorf("notice %q", m.notice)
+	}
+	if got := readFile(t, dir, "both.txt"); got != "a\nB, our way\nc\n" {
+		t.Errorf("both.txt is %q", got)
+	}
+	if f, _ := m.selectedFile(); f.Path != "both.txt" || !f.Resolved {
+		t.Errorf("selected %+v, want both.txt resolved", f)
+	}
+	// The notice stands in for the hints until the next key.
+	shown := m
+	shown.notice = ""
+	screen := ansi.Strip(shown.View())
+	for _, want := range []string{"Merging feature/login into main — 1 of 2 files still in conflict",
+		resolvedMarker + " both.txt", "u: back in conflict"} {
+		if !strings.Contains(screen, want) {
+			t.Errorf("the screen lacks %q:\n%s", want, screen)
+		}
+	}
+	// A file resolved is not resolved again over the top.
+	if next := press(m, keyPress("t")); next.staging || !strings.Contains(next.notice, "u puts it back") {
+		t.Errorf("t on a resolved file: staging=%v notice %q", next.staging, next.notice)
+	}
+
+	// u: in conflict again, the markers back on disk.
+	m = do(t, m, keyPress("u"))
+	if !strings.Contains(m.notice, "both.txt is in conflict again") {
+		t.Errorf("notice %q", m.notice)
+	}
+	if got := readFile(t, dir, "both.txt"); !strings.Contains(got, "=======") {
+		t.Errorf("both.txt has no markers after u:\n%s", got)
+	}
+	if f, _ := m.selectedFile(); f.Path != "both.txt" || f.Resolved {
+		t.Errorf("selected %+v, want both.txt in conflict", f)
+	}
+
+	// a refuses while the markers are there.
+	m = do(t, m, keyPress("a"))
+	if !strings.Contains(m.notice, "conflict markers are left") {
+		t.Errorf("a with markers: notice %q", m.notice)
+	}
+	// Then, edited, it takes the file as it is.
+	write(t, dir, "both.txt", "a\nB, both ways\nc\n")
+	m = do(t, m, keyPress("a"))
+	if !strings.Contains(m.notice, "both.txt marked resolved") {
+		t.Errorf("notice %q", m.notice)
+	}
+	// And u will not write over what was edited.
+	m = do(t, m, keyPress("u"))
+	if !strings.Contains(m.notice, "resolved by hand") || readFile(t, dir, "both.txt") != "a\nB, both ways\nc\n" {
+		t.Errorf("u on a hand resolution: notice %q", m.notice)
+	}
+
+	// gone.txt, deleted by feature/login: the hint says t deletes it, and it
+	// does, from the diff box too.
+	m = press(m, keyPress("j"))
+	if f, _ := m.selectedFile(); f.Path != "gone.txt" {
+		t.Fatalf("selected %s", f.Path)
+	}
+	if screen := ansi.Strip(m.View()); !strings.Contains(screen, "o: keep main • t: delete, as feature/login") {
+		t.Errorf("the hints for a deletion:\n%s", screen)
+	}
+	m = press(m, keyPress("3"))
+	m = do(t, m, keyPress("t"))
+	if !strings.Contains(m.notice, "gone.txt deleted, as on feature/login") {
+		t.Errorf("notice %q", m.notice)
+	}
+	if _, err := os.Stat(filepath.Join(dir, "gone.txt")); !os.IsNotExist(err) {
+		t.Error("gone.txt is still there")
+	}
+	if screen := ansi.Strip(m.View()); !strings.Contains(screen, "all 2 conflicts resolved — c commits") {
+		t.Errorf("the header does not say it is ready:\n%s", screen)
+	}
+
+	// A file that merged cleanly has nothing to take.
+	m = press(m, keyPress("2"), keyPress("j"))
+	if f, _ := m.selectedFile(); f.Path != "added.txt" {
+		t.Fatalf("selected %s", f.Path)
+	}
+	if next := press(m, keyPress("o")); next.staging || !strings.Contains(next.notice, "merged without a conflict") {
+		t.Errorf("o on a clean file: notice %q", next.notice)
+	}
+}
+
+func readFile(t *testing.T, dir, path string) string {
+	t.Helper()
+	data, err := os.ReadFile(filepath.Join(dir, path))
+	if err != nil {
+		t.Fatal(err)
+	}
+	return string(data)
 }

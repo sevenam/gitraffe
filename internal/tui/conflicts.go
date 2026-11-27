@@ -22,10 +22,12 @@ import (
 // merged cleanly, already staged. A file in conflict is shown as it is on
 // disk, markers and all, each side in a colour of its own.
 //
-// From here the merge can be ended either way: A aborts it, after asking,
-// and c commits it once nothing is left unresolved. Resolving itself is a
-// terminal's work for now (edit the file, then git add it); auto-refresh or
-// r shows the file as ✓ afterwards.
+// From here each file is resolved, and the merge ended. o takes the branch
+// checked out's version of a file whole, t the incoming one's, and a marks
+// it resolved as it is on disk, once edited; u puts a side taken back in
+// conflict. A aborts the merge, after asking, and c commits it once nothing
+// is left unresolved. Editing a file is a terminal's work for now;
+// auto-refresh or r shows it as it is afterwards.
 
 // abortPrompt is the question A asks before the merge is thrown away.
 type abortPrompt struct {
@@ -146,14 +148,13 @@ func conflictMark(f fileDiff) string {
 }
 
 // conflictNotice is the status line for a key that stages, discards or
-// stashes, pressed in the conflict view: during a merge each of those means
-// something else ("this conflict is resolved"), and resolving is not done
-// here yet.
+// stashes, pressed in the conflict view: during a merge staging a file means
+// "this conflict is resolved", which o, t and a say on purpose.
 func (m model) conflictNotice() string {
 	if left, _ := conflictCounts(m.viewedFiles()); left == 0 {
 		return "Everything is resolved — c commits the " + m.conflict.Operation + ", A aborts it"
 	}
-	return "Resolve conflicts in a terminal: edit the file, then git add it — A aborts the " + m.conflict.Operation
+	return "On a file in conflict: o / t takes a side, a marks it resolved as edited — A aborts the " + m.conflict.Operation
 }
 
 // conflictKey handles the keys the conflict view gives a meaning of its own.
@@ -165,11 +166,134 @@ func (m model) conflictKey(msg tea.KeyMsg) (model, tea.Cmd, bool) {
 	case "c":
 		next, cmd := m.openContinue()
 		return next, cmd, true
-	case "a", "d", "D", "s", "S", "v":
+	case "o", "t", "a", "u":
+		next, cmd := m.resolveSelected(msg.String())
+		return next, cmd, true
+	case "d", "D", "s", "S", "v":
 		m.notice = m.conflictNotice()
 		return m, nil, true
 	}
 	return m, nil, false
+}
+
+// sideHas reports whether side's version of a conflicted file is there to
+// take: a side that deleted the file, or never had it, has none, and taking
+// it deletes the file.
+func sideHas(kind git.ConflictKind, side git.Side) bool {
+	switch kind {
+	case git.BothDeleted:
+		return false
+	case git.DeletedByUs, git.AddedByThem:
+		return side == git.Theirs
+	case git.DeletedByThem, git.AddedByUs:
+		return side == git.Ours
+	}
+	return true
+}
+
+// sideHint is what o or t does to a file, with the side named: "ours" and
+// "theirs" swap meaning between a merge and a rebase, and a branch's name
+// does not.
+func sideHint(f fileDiff, s git.ConflictState, side git.Side) string {
+	name, verb := s.Ours, "keep "
+	if side == git.Theirs {
+		name, verb = s.Theirs, "take "
+	}
+	if !sideHas(f.Kind, side) {
+		return "delete, as " + name
+	}
+	return verb + name
+}
+
+// conflictHints is the status line's keys in the conflict view, for the file
+// selected: how to resolve it, how to take that back, or how to end.
+func (m model) conflictHints() string {
+	op := m.conflict.Operation
+	if f, ok := m.selectedFile(); ok && f.Conflicted {
+		if !f.Resolved {
+			return "?: help • o: " + sideHint(f, m.conflict, git.Ours) + " • t: " + sideHint(f, m.conflict, git.Theirs) +
+				" • a: mark resolved • A: abort"
+		}
+		return "?: help • u: back in conflict • c: commit the " + op + " • A: abort it"
+	}
+	return "?: help • space: back • c: commit the " + op + " • A: abort it • w: whitespace"
+}
+
+// resolveSelected is o, t, a and u on the file selected, from either box:
+// each takes a file whole.
+func (m model) resolveSelected(key string) (model, tea.Cmd) {
+	if m.staging || m.committing || m.aborting {
+		return m, nil
+	}
+	f, ok := m.selectedFile()
+	if !ok {
+		return m, nil
+	}
+	if !f.Conflicted {
+		m.notice = f.Path + " merged without a conflict — there is nothing to resolve in it"
+		return m, nil
+	}
+	path, s := f.Path, m.conflict
+	var change func(dir string) (string, error)
+	var done string
+	switch {
+	case key == "u" && !f.Resolved:
+		m.notice = path + " is still in conflict — u puts back a file resolved with o, t or a"
+		return m, nil
+	case key == "u":
+		change = func(dir string) (string, error) { return git.Unresolve(dir, path) }
+		done = path + " is in conflict again"
+	case f.Resolved:
+		m.notice = path + " is resolved — u puts it back in conflict first"
+		return m, nil
+	case key == "a":
+		change = func(dir string) (string, error) { return git.MarkResolved(dir, path) }
+		done = path + " marked resolved"
+	default:
+		side, name := git.Ours, s.Ours
+		if key == "t" {
+			side, name = git.Theirs, s.Theirs
+		}
+		change = func(dir string) (string, error) { return git.TakeSide(dir, path, side) }
+		done = path + ": " + name + "'s version taken — u puts the conflict back"
+		if !sideHas(f.Kind, side) {
+			done = path + " deleted, as on " + name + " — u puts the conflict back"
+		}
+	}
+
+	m.staging = true
+	files := m.viewedFiles()
+	v := &m.commitView
+	// The same file, resolved or not: its mark changes, and its row stays.
+	v.want = []fileKey{{path, true}, {path, false}}
+	v.want = append(v.want, neighbours(files, v.file)...)
+	cmd := stageCmd(m.repoPath, m.diffStatWidth(), change)
+	return m, func() tea.Msg {
+		msg := cmd().(stageFinishedMsg)
+		msg.resolved = done
+		msg.resolveFailed = "Not resolved: "
+		if key == "u" {
+			msg.resolveFailed = "Not put back: "
+		}
+		return msg
+	}
+}
+
+// resolveFailedNotice says why o, t, a or u changed nothing.
+func resolveFailedNotice(msg stageFinishedMsg) string {
+	switch {
+	case errors.Is(msg.err, git.ErrConflictMarkers):
+		return msg.resolveFailed + "conflict markers are left in it — edit them out, or take a side with o / t"
+	case errors.Is(msg.err, git.ErrResolvedByHand):
+		return msg.resolveFailed + "it was resolved by hand or changed since, and u would write over that — git checkout -m in a terminal does it"
+	case errors.Is(msg.err, git.ErrNotResolved), errors.Is(msg.err, git.ErrNotUnmerged):
+		return msg.resolveFailed + "it changed since it was read — here it is as it is now"
+	}
+	reason := firstLine(msg.detail)
+	if reason == "" {
+		reason = msg.err.Error()
+	}
+	return msg.resolveFailed + reason
 }
 
 // askAbort opens the question A asks.
@@ -264,7 +388,7 @@ func (m model) openContinue() (model, tea.Cmd) {
 		return m, nil
 	}
 	if left, _ := conflictCounts(m.viewedFiles()); left > 0 {
-		m.notice = plural(left, "file") + " still in conflict — resolve them in a terminal first (edit, then git add)"
+		m.notice = plural(left, "file") + " still in conflict — o / t takes a side, a marks a file resolved as edited"
 		return m, nil
 	}
 	if m.workingState.Detached {

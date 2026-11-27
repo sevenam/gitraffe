@@ -451,6 +451,171 @@ func MarkResolved(dir, path string) (string, error) {
 	return runWrite(top, "", "--literal-pathspecs", "add", "--", path)
 }
 
+// Side is one side of a merge or cherry-pick: Ours is the branch checked
+// out, Theirs what is being merged or picked into it.
+type Side int
+
+const (
+	Ours Side = iota
+	Theirs
+)
+
+// ErrNotResolved is returned by Unresolve, with nothing done, for a file that
+// is not a conflict of the merge under way resolved since.
+var ErrNotResolved = errors.New("the file is not a resolved conflict")
+
+// ErrResolvedByHand is returned by Unresolve, with nothing done, for a file
+// that is neither side as it was (it was edited, then marked resolved) or
+// has changed on disk since: bringing the conflict back would write over
+// that work, which nothing could then bring back.
+var ErrResolvedByHand = errors.New("the file was resolved by hand or changed since")
+
+// indexStages is the object each stage of path has in the index: 0 for a
+// path that is merged, 1 to 3 for one that is not; "" for a stage it lacks.
+func indexStages(top, path string) ([4]string, error) {
+	var blobs [4]string
+	out, err := rawOutput(top, "--literal-pathspecs", "ls-files", "--stage", "-z", "--", path)
+	if err != nil {
+		return blobs, err
+	}
+	for _, entry := range strings.Split(out, "\x00") {
+		// <mode> <object> <stage>\t<path>
+		meta, p, ok := strings.Cut(entry, "\t")
+		fields := strings.Fields(meta)
+		if !ok || p != path || len(fields) != 3 || len(fields[2]) != 1 || fields[2][0] < '0' || fields[2][0] > '3' {
+			continue
+		}
+		blobs[fields[2][0]-'0'] = fields[1]
+	}
+	return blobs, nil
+}
+
+// TakeSide resolves one unmerged file of the merge or cherry-pick under way
+// by taking side's version of it whole, and marks it resolved: git checkout
+// --ours or --theirs, then git add. Where that side has no such file (it
+// deleted it, or never had it), the file is deleted, with git rm. What the
+// other side did to the file is set aside, as is anything on disk in its
+// place; Unresolve brings the conflict back, from the index's record of it,
+// until the merge is committed. The path is from the top of the working
+// tree, as Conflicts gives it. The result's first value is what git said
+// when it failed.
+//
+// It refuses, changing nothing, when no merge or cherry-pick is under way
+// and for a file that is not unmerged.
+func TakeSide(dir, path string, side Side) (string, error) {
+	if _, err := mergeOperation(dir); err != nil {
+		return "", err
+	}
+	top, err := Toplevel(dir)
+	if err != nil {
+		return "", err
+	}
+	blobs, err := indexStages(top, path)
+	if err != nil {
+		return "", err
+	}
+	if blobs[1] == "" && blobs[2] == "" && blobs[3] == "" {
+		return "", ErrNotUnmerged
+	}
+	stage, flag := 2, "--ours"
+	if side == Theirs {
+		stage, flag = 3, "--theirs"
+	}
+	if blobs[stage] == "" {
+		return runWrite(top, "", "--literal-pathspecs", "rm", "--quiet", "--", path)
+	}
+	if out, err := runWrite(top, "", "--literal-pathspecs", "checkout", flag, "--", path); err != nil {
+		return out, err
+	}
+	return runWrite(top, "", "--literal-pathspecs", "add", "--", path)
+}
+
+// Unresolve brings back the conflict of a file of the merge or cherry-pick
+// under way that TakeSide (or the same done in a terminal) resolved: the
+// file is unmerged again, and on disk as git left it when the merge stopped,
+// with conflict markers where both sides changed it. It reads the index's
+// record of the conflict (git update-index --unresolve), then rewrites the
+// file from it (git checkout -m, or the one side there is).
+//
+// It refuses, changing nothing, when no merge or cherry-pick is under way;
+// for a file that is not a conflict of this merge resolved since; and for
+// one resolved to anything but one side's version whole, or changed on disk
+// since, since the conflict would be written over that.
+func Unresolve(dir, path string) (string, error) {
+	state, err := mergeOperation(dir)
+	if err != nil {
+		return "", err
+	}
+	top, err := Toplevel(dir)
+	if err != nil {
+		return "", err
+	}
+	unmerged, err := unmergedFiles(top)
+	if err != nil {
+		return "", err
+	}
+	skip := map[string]bool{}
+	for _, f := range unmerged {
+		skip[f.Path] = true
+	}
+	if skip[path] {
+		return "", ErrNotResolved
+	}
+	theirs := "MERGE_HEAD"
+	if state.Operation == "cherry-pick" {
+		theirs = "CHERRY_PICK_HEAD"
+	}
+	resolved, err := resolvedFiles(top, theirs, skip)
+	if err != nil {
+		return "", err
+	}
+	found := false
+	for _, f := range resolved {
+		found = found || f.Path == path
+	}
+	if !found {
+		return "", ErrNotResolved
+	}
+	record, _, err := resolveUndo(top, skip)
+	if err != nil {
+		return "", err
+	}
+	was := record[path]
+	now, err := indexStages(top, path)
+	if err != nil {
+		return "", err
+	}
+	// One side whole, or no file where a side has none.
+	if now[0] != was.blob[2] && now[0] != was.blob[3] {
+		return "", ErrResolvedByHand
+	}
+	if now[0] == "" {
+		// Deleted: anything on disk at the path is new since.
+		if _, err := os.Lstat(filepath.Join(top, filepath.FromSlash(path))); !os.IsNotExist(err) {
+			return "", ErrResolvedByHand
+		}
+	} else if _, err := Run(top, "--literal-pathspecs", "diff", "--quiet", "--no-ext-diff", "--", path); err != nil {
+		// Changed on disk since it was staged (or unreadable): either way,
+		// not something to write over.
+		return "", ErrResolvedByHand
+	}
+
+	if out, err := runWrite(top, "", "--literal-pathspecs", "update-index", "--unresolve", "--", path); err != nil {
+		return out, err
+	}
+	switch {
+	case was.blob[2] != "" && was.blob[3] != "":
+		// Merged again, with the markers in the repository's own style.
+		return runWrite(top, "", "--literal-pathspecs", "checkout", "-m", "--", path)
+	case was.blob[2] != "":
+		return runWrite(top, "", "--literal-pathspecs", "checkout", "--ours", "--", path)
+	case was.blob[3] != "":
+		return runWrite(top, "", "--literal-pathspecs", "checkout", "--theirs", "--", path)
+	}
+	// Deleted on both sides: there is nothing to put on disk.
+	return "", nil
+}
+
 // conflictFiles is WorkingTree's file list while a merge or cherry-pick is
 // under way: every file that conflicted, then what merged cleanly or was
 // changed since, as the two sides of the index list it.
@@ -565,30 +730,9 @@ func conflictedFile(top string, c ConflictFile) FileDiff {
 // commit being merged or picked), which a record left from another merge
 // will not be. Files still unmerged are left out.
 func resolvedFiles(top, theirs string, unmerged map[string]bool) ([]ConflictFile, error) {
-	out, err := rawOutput(top, "ls-files", "--resolve-undo", "-z")
+	byPath, order, err := resolveUndo(top, unmerged)
 	if err != nil {
 		return nil, err
-	}
-	type stages struct{ blob [4]string }
-	byPath := map[string]*stages{}
-	var order []string
-	for _, entry := range strings.Split(out, "\x00") {
-		// <mode> <object> <stage>\t<path>
-		meta, path, ok := strings.Cut(entry, "\t")
-		if !ok || unmerged[path] {
-			continue
-		}
-		fields := strings.Fields(meta)
-		if len(fields) != 3 || len(fields[2]) != 1 || fields[2][0] < '1' || fields[2][0] > '3' {
-			continue
-		}
-		s := byPath[path]
-		if s == nil {
-			s = &stages{}
-			byPath[path] = s
-			order = append(order, path)
-		}
-		s.blob[fields[2][0]-'0'] = fields[1]
 	}
 	if len(order) == 0 {
 		return nil, nil
@@ -611,6 +755,40 @@ func resolvedFiles(top, theirs string, unmerged map[string]bool) ([]ConflictFile
 		files = append(files, ConflictFile{Path: path, Kind: kindOfStages(s.blob[1] != "", s.blob[2] != "", s.blob[3] != "")})
 	}
 	return files, nil
+}
+
+// stages is the object each stage of an unmerged file had, by stage number:
+// 1 the base, 2 ours, 3 theirs; "" for a stage the file did not have.
+type stages struct{ blob [4]string }
+
+// resolveUndo reads the index's record of the conflicts resolved since it
+// was written, in the order git lists it, leaving out the paths of skip.
+func resolveUndo(top string, skip map[string]bool) (map[string]*stages, []string, error) {
+	out, err := rawOutput(top, "ls-files", "--resolve-undo", "-z")
+	if err != nil {
+		return nil, nil, err
+	}
+	byPath := map[string]*stages{}
+	var order []string
+	for _, entry := range strings.Split(out, "\x00") {
+		// <mode> <object> <stage>\t<path>
+		meta, path, ok := strings.Cut(entry, "\t")
+		if !ok || skip[path] {
+			continue
+		}
+		fields := strings.Fields(meta)
+		if len(fields) != 3 || len(fields[2]) != 1 || fields[2][0] < '1' || fields[2][0] > '3' {
+			continue
+		}
+		s := byPath[path]
+		if s == nil {
+			s = &stages{}
+			byPath[path] = s
+			order = append(order, path)
+		}
+		s.blob[fields[2][0]-'0'] = fields[1]
+	}
+	return byPath, order, nil
 }
 
 // treeBlobs is the object each of paths is in rev's tree, with no entry for
