@@ -58,6 +58,12 @@ func (m model) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	if m.cherryPick.open {
 		return m.updateCherryPick(msg)
 	}
+	if m.merge.editing {
+		return m.updateMergeMessage(msg)
+	}
+	if m.merge.open {
+		return m.updateMerge(msg)
+	}
 	if m.commitPrompt.open {
 		return m.updateCommitPrompt(msg)
 	}
@@ -214,6 +220,10 @@ func (m model) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		// Capital, and asked about: it makes a commit on the branch checked
 		// out, which "c" next to it only ever switches between.
 		return m.openCherryPick()
+	case "m":
+		// Lower case although it moves the branch: it only opens the box,
+		// which says what will happen, and nothing is merged until enter.
+		return m.openMerge()
 	case "d":
 		// Lower case although it deletes: it only opens the list, and
 		// nothing goes until a row there is picked with enter.

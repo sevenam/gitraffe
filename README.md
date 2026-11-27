@@ -22,6 +22,7 @@ A text-based git command line tool built with Golang, Bubble Tea, go-git, and Li
 - 🔀 `c` checks out the selected commit's branch, and refuses while you have uncommitted changes (see [Checking out](#checking-out))
 - 🌱 `b` starts a new branch at the selected commit and switches to it (see [Creating a branch](#creating-a-branch))
 - 🍒 `C` cherry-picks the selected commit onto your branch, after asking — only when it applies without conflicts (see [Cherry-picking](#cherry-picking))
+- 🤝 `m` merges the selected commit's branch into yours, saying first whether it fast-forwards or makes a merge commit — only when it goes through without conflicts (see [Merging](#merging))
 - 🗑️ `d` deletes the selected commit's branch — local, remote or both — and refuses when its commits are on no other branch (see [Deleting branches](#deleting-branches))
 - 🌐 `o` opens the commit's pull request in your browser, on GitHub or Azure DevOps, read from the merge subject and the remote — or the page that starts one, for a branch that has none yet (see [Opening a pull request](#opening-a-pull-request))
 - 📋 `y` copies the commit's hash, subject or whole diff (see [Copying](#copying))
@@ -95,6 +96,7 @@ in `gitraffe ./update`.
 - `c` - Check out this commit's branch (see [Checking out](#checking-out))
 - `b` - New branch at this commit, switched to (see [Creating a branch](#creating-a-branch))
 - `C` - Cherry-pick this commit onto the branch checked out, after asking (see [Cherry-picking](#cherry-picking))
+- `m` - Merge this commit's branch into the branch checked out, after saying how (see [Merging](#merging))
 - `d` - Delete this commit's branch: local, remote or both (see [Deleting branches](#deleting-branches))
 - `D` - Discard every unstaged change and untracked file, after asking; staged changes are kept (see [Discarding changes](#discarding-changes))
 - `S` - Stash uncommitted changes: every file, or the ones left ticked, under a name (see [Stashing](#stashing))
@@ -959,6 +961,56 @@ new commit is selected.
 
 It is `git cherry-pick <commit>`, after `git merge-tree` has said it applies cleanly
 (which needs git 2.40 or later; an older git refuses rather than risks it).
+
+### Merging
+
+Press `m` on a commit to merge its branch into the branch you have checked out. With
+several branches on the commit, the same list as `c` asks which (your own branch is
+left off it); a commit with no branch is merged as a commit. A box says what will
+happen before anything does:
+
+```
+╭──────────────────────────────────────────────────╮
+│                                                  │
+│  Merge                                           │
+│                                                  │
+│  feature/login  into  main                       │
+│  fast-forward main to 4a938a6                    │
+│                                                  │
+│  enter: merge • tab: merge commit • esc: cancel  │
+│                                                  │
+╰──────────────────────────────────────────────────╯
+```
+
+- **`Enter` does what `git merge` would.** When your branch can simply be moved
+  forward to the commit, that is a fast-forward; otherwise it is a merge commit. Your
+  `merge.ff` setting is honoured: `false` always makes a merge commit, and `only` makes
+  `Enter` do nothing when a fast-forward isn't possible.
+- **`Tab` makes a merge commit anyway** (`as a merge commit (--no-ff)`), and `Tab`
+  again goes back. It is offered only when there is a choice: a fast-forward to turn
+  into a merge commit, or `merge.ff=only` to overrule, as `git merge --no-ff` does.
+- **The merge commit's message** is git's own, `Merge branch 'feature/login'`, shown in
+  the box. `e` opens the commit message box with it filled in; `Enter` there merges
+  with what you wrote, and `Esc` goes back to the merge box, keeping it.
+- `Esc`, or any other key, closes the box with nothing merged.
+
+Afterwards the bottom line says `Merged feature/login into main as 9c1e2f0`, or
+`Fast-forwarded main to 4a938a6`, and the new HEAD is selected.
+
+- **Only when it goes through cleanly.** The merge is tried out first inside git's
+  object store, and one that would conflict is refused before the box opens —
+  `Not merged: feature/login would conflict with main — resolve that in a terminal`.
+  So is a branch that is already merged, and one that shares no history with yours.
+- **Not with uncommitted changes**, which git would carry through the merge, and
+  **only into a branch**: on a detached HEAD, or during a merge or a rebase, it is
+  refused.
+- **Nothing is left half done.** If git stops after the trial said it would go
+  through (a hook, an untracked file in the way), the merge is aborted and the
+  repository is as it was. Hooks run and are never skipped.
+
+It is `git merge --ff` or `git merge --no-ff` with the message, after `git merge-tree`
+has said it goes through cleanly, and with config that could turn it into a squash or
+an autostash overruled on the command line.
 
 ### Deleting branches
 

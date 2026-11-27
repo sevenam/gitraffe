@@ -157,6 +157,22 @@ func (m model) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 		return m.finishCherryPick(msg)
 
+	case mergePlannedMsg:
+		// Planned against the repository it was asked of; another one's
+		// branches say nothing about this one's.
+		if msg.repoPath != m.repoPath {
+			return m, nil
+		}
+		return m.finishMergePlan(msg)
+
+	case mergedMsg:
+		// As a cherry-pick: it is the branch of the repository it ran in
+		// that moved.
+		if msg.repoPath != m.repoPath {
+			return m, nil
+		}
+		return m.finishMerge(msg)
+
 	case switchFinishedMsg:
 		// A switch is answered by the repository it ran in; the one on
 		// screen now has its own HEAD, which this says nothing about.

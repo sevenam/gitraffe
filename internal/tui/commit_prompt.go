@@ -124,32 +124,39 @@ func (m model) openCommitPrompt() (model, tea.Cmd) {
 // to make a commit of, when "c" did that itself.
 func (m model) showCommitPrompt(autoStaged int) model {
 	p := &m.commitPrompt
-	if !p.started {
-		p.subject = textinput.New()
-		p.subject.Prompt = ""
-		p.subject.Placeholder = "what this commit does"
-		p.subject.PlaceholderStyle = helpStyle
-		p.subject.Cursor.SetMode(cursor.CursorStatic)
-
-		p.body = textarea.New()
-		p.body.Prompt = ""
-		p.body.Placeholder = "why, if it needs saying (optional)"
-		p.body.ShowLineNumbers = false
-		p.body.CharLimit = 0
-		p.body.Cursor.SetMode(cursor.CursorStatic)
-		// The textarea's own look tints the line the cursor is on, which
-		// reads here as a second selection.
-		plain := lipgloss.NewStyle()
-		for _, s := range []*textarea.Style{&p.body.FocusedStyle, &p.body.BlurredStyle} {
-			s.Base, s.CursorLine, s.Text, s.EndOfBuffer = plain, plain, plain, plain
-			s.Placeholder = helpStyle
-		}
-		p.started = true
-	}
+	p.start()
 	p.open, p.failure, p.autoStaged = true, "", autoStaged
 	p.focusField(false)
 	p.resize(m.windowWidth)
 	return m
+}
+
+// start makes the two fields, the first time the box is opened; after that
+// they keep what was typed.
+func (p *commitPrompt) start() {
+	if p.started {
+		return
+	}
+	p.subject = textinput.New()
+	p.subject.Prompt = ""
+	p.subject.Placeholder = "what this commit does"
+	p.subject.PlaceholderStyle = helpStyle
+	p.subject.Cursor.SetMode(cursor.CursorStatic)
+
+	p.body = textarea.New()
+	p.body.Prompt = ""
+	p.body.Placeholder = "why, if it needs saying (optional)"
+	p.body.ShowLineNumbers = false
+	p.body.CharLimit = 0
+	p.body.Cursor.SetMode(cursor.CursorStatic)
+	// The textarea's own look tints the line the cursor is on, which
+	// reads here as a second selection.
+	plain := lipgloss.NewStyle()
+	for _, s := range []*textarea.Style{&p.body.FocusedStyle, &p.body.BlurredStyle} {
+		s.Base, s.CursorLine, s.Text, s.EndOfBuffer = plain, plain, plain, plain
+		s.Placeholder = helpStyle
+	}
+	p.started = true
 }
 
 // fieldWidth is how wide the two fields are in a window this wide: as wide as
@@ -304,14 +311,21 @@ func (m *model) applyCommitted() {
 // render draws the box: where the commit is going, the two fields, the reason
 // the last try failed, and the keys of the field the cursor is in.
 func (p commitPrompt) render(windowWidth, staged int, branch string) string {
+	return p.renderAs(windowWidth, "Commit", fmt.Sprintf("  %s to %s", plural(staged, "staged file"), branch), "commit", "cancel")
+}
+
+// renderAs draws the box under another title, for another use of the message
+// it holds: what follows the title, what enter does with the message, and
+// what esc does.
+func (p commitPrompt) renderAs(windowWidth int, title, note, action, escape string) string {
 	// The box's padding goes round the fields; see resize for their width.
 	p.resize(windowWidth)
 	width := fieldWidth(windowWidth)
 
 	label := lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color(theme.Current.Title))
 	var sb strings.Builder
-	sb.WriteString(titleStyle.Padding(0).Render("Commit"))
-	sb.WriteString(helpStyle.Render(fmt.Sprintf("  %s to %s", plural(staged, "staged file"), branch)))
+	sb.WriteString(titleStyle.Padding(0).Render(title))
+	sb.WriteString(helpStyle.Render(note))
 	sb.WriteString("\n\n")
 
 	sb.WriteString(label.Render("Subject") + "  " + roomLeft(commitSubjectWidth-ansi.StringWidth(p.subject.Value())))
@@ -336,9 +350,9 @@ func (p commitPrompt) render(windowWidth, staged int, branch string) string {
 		sb.WriteString("\n")
 	}
 
-	footer := "enter: commit • tab: body • esc: cancel"
+	footer := "enter: " + action + " • tab: body • esc: " + escape
 	if p.inBody {
-		footer = "enter: new line • tab: subject, to commit • esc: cancel"
+		footer = "enter: new line • tab: subject, to " + action + " • esc: " + escape
 	}
 	sb.WriteString(helpStyle.Render(footer))
 
