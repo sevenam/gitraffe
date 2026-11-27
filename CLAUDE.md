@@ -82,6 +82,7 @@ release build and the release version check all depend on it being there.
 | `stage.go` | `StageFile`, `UnstageFile`, `StageAll`, `StageLines` (a patch of picked lines for `git apply --cached`; see `buildPatch`), `CommitStaged`, `WorkingState` (a merge or rebase in progress, a detached HEAD) |
 | `discard.go` | `DiscardFile`, `DiscardLines`, `DiscardAll`: unstaged changes thrown away, never staged ones |
 | `cherry_pick.go` | `CherryPick`: one commit copied onto the branch checked out, refused unless `merge-tree` says it applies cleanly |
+| `merge.go` | `MergePlan` (up to date, fast-forward or merge commit, honouring `merge.ff`; conflicts from `merge-tree`; git's own message), `Merge`: refused unless it goes through cleanly, aborted if git stops anyway |
 | `delete.go` | `DeleteBranch`, `DeleteTargets`: deleting a local or remote branch, refused when its commits are on no other branch |
 | `stash.go` | `StashPaths`, `StashAll`, `ListStashes`, `PopStash` (refused unless `merge-tree` says it applies cleanly) |
 | `remote_tags.go` | which tags the remotes hold |
