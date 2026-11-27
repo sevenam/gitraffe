@@ -32,7 +32,15 @@ type FileDiff struct {
 	// what the next commit will hold. A file with staged and unstaged changes
 	// is two entries, one of each. Always false for a commit's files.
 	Staged bool
-	Body   string // the file's hunks, without the "diff --git" header
+	// Conflicted marks a file that conflicted in the merge or cherry-pick
+	// under way, and Kind says how. Until it is resolved its Body is the
+	// file as it is on disk, conflict markers and all, and not a diff: the
+	// markers are what there is to read. Once Resolved it is the staged
+	// entry it has become, its Body the diff against HEAD like any other.
+	Conflicted bool
+	Resolved   bool
+	Kind       ConflictKind
+	Body       string // the file's hunks, without the "diff --git" header
 }
 
 // MaxFileDiffLines caps one file's diff. The whole-commit cap this replaces
@@ -151,6 +159,10 @@ type Diff struct {
 	// State is what the repository is in the middle of, for the uncommitted
 	// changes: it decides whether they can be staged and committed from here.
 	State WorkingState
+	// Conflict is the merge or cherry-pick under way, with its files'
+	// names for the two sides; its Operation is "" when there is none.
+	// Files then lists what conflicted first; see conflictFiles.
+	Conflict ConflictState
 }
 
 // maxDiffLines caps the patch shown in the details panel.
@@ -260,10 +272,15 @@ func WorkingTree(dir string, statWidth int) Diff {
 	wg.Wait()
 
 	var files []FileDiff
-	if state.Operation != "" {
-		files = parseFileDiffs(body)
-	} else {
+	var conflict ConflictState
+	switch state.Operation {
+	case "merge", "cherry-pick":
+		files, conflict = conflictFiles(top)
+	case "":
 		files = append(staged, unstaged...)
+	default:
+		// A rebase or a revert: one diff to read, finished in a terminal.
+		files = parseFileDiffs(body)
 	}
 	if lines := strings.Split(body, "\n"); len(lines) > maxDiffLines {
 		body = strings.Join(append(lines[:maxDiffLines], "... (truncated)"), "\n")
@@ -284,14 +301,19 @@ func WorkingTree(dir string, statWidth int) Diff {
 
 	// Stable, and in the byte order git itself lists paths in, so that
 	// entries which compare equal keep the order they were read in.
+	// What conflicted comes first, resolved or not, in path order of its
+	// own: resolving a file changes its mark and not its row.
 	sort.SliceStable(files, func(i, j int) bool {
+		if files[i].Conflicted != files[j].Conflicted {
+			return files[i].Conflicted
+		}
 		if files[i].Path != files[j].Path {
 			return files[i].Path < files[j].Path
 		}
 		return files[i].Staged && !files[j].Staged
 	})
 
-	return Diff{Stat: stat, Body: body, Files: files, State: state}
+	return Diff{Stat: stat, Body: body, Files: files, State: state, Conflict: conflict}
 }
 
 // untrackedFile lists a file git has never seen, with its contents as the

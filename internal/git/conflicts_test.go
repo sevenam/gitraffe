@@ -398,3 +398,147 @@ func TestContinueMergeRefusedOnNoBranch(t *testing.T) {
 		t.Error("a commit was made on no branch")
 	}
 }
+
+// conflictEntry finds path among the conflicted files of a WorkingTree.
+func conflictEntry(t *testing.T, files []FileDiff, path string) FileDiff {
+	t.Helper()
+	for _, f := range files {
+		if f.Path == path && f.Conflicted {
+			return f
+		}
+	}
+	t.Fatalf("%s is not listed as conflicted in %+v", path, files)
+	return FileDiff{}
+}
+
+func TestWorkingTreeListsConflictsFirst(t *testing.T) {
+	dir, git := conflictKindsRepo(t)
+	d := WorkingTree(dir, 80)
+	if d.Conflict.Operation != "merge" || d.Conflict.Theirs != "feature/login" || d.Conflict.Ours != "main" {
+		t.Fatalf("conflict = %+v", d.Conflict)
+	}
+	var got []string
+	for _, f := range d.Files {
+		mark := " "
+		switch {
+		case f.Conflicted && f.Resolved:
+			mark = "✓"
+		case f.Conflicted:
+			mark = "✗"
+		}
+		got = append(got, mark+f.Path)
+	}
+	want := []string{"✗added.txt", "✗both.txt", "✗ours-del.txt", "✗their-del.txt", " numbered.txt"}
+	if strings.Join(got, ",") != strings.Join(want, ",") {
+		t.Fatalf("files = %v, want %v", got, want)
+	}
+	both := conflictEntry(t, d.Files, "both.txt")
+	if both.Kind != BothModified || both.Staged ||
+		both.Body != "a\n<<<<<<< HEAD\nB, our way\n=======\nB, their way\n>>>>>>> feature/login\nc" {
+		t.Errorf("both.txt = %+v, want its contents on disk", both)
+	}
+	if nums := both.LineNumbers(); len(nums) != 7 || nums[0].New != 1 || nums[6].New != 7 {
+		t.Errorf("both.txt numbered %v, want 1 to 7", nums)
+	}
+	// Deleted by us: git leaves their version on disk.
+	if f := conflictEntry(t, d.Files, "ours-del.txt"); f.Kind != DeletedByUs || f.Body != "changed by them" {
+		t.Errorf("ours-del.txt = %+v", f)
+	}
+	if f := d.Files[4]; !f.Staged || f.Conflicted || !strings.Contains(f.Body, "+line twenty-five") {
+		t.Errorf("numbered.txt = %+v, want staged, as merged cleanly", f)
+	}
+	// What git writes for an unmerged path is in no file's diff.
+	for _, f := range d.Files {
+		if strings.Contains(f.Body, "Unmerged path") || strings.Contains(f.Body, "diff --cc") {
+			t.Errorf("%s holds another file's conflict: %q", f.Path, f.Body)
+		}
+	}
+
+	// Resolved in a terminal: an edit, our side as it was, and a deletion.
+	write(t, dir, "both.txt", "a\nB, both ways\nc\n")
+	git("add", "both.txt")
+	git("checkout", "--ours", "added.txt")
+	git("add", "added.txt")
+	git("rm", "-q", "their-del.txt")
+	d = WorkingTree(dir, 80)
+	got = nil
+	for _, f := range d.Files {
+		got = append(got, f.Path)
+	}
+	if strings.Join(got, ",") != strings.Join([]string{"added.txt", "both.txt", "ours-del.txt", "their-del.txt", "numbered.txt"}, ",") {
+		t.Fatalf("after resolving, files = %v, want the same rows", got)
+	}
+	if f := conflictEntry(t, d.Files, "both.txt"); !f.Resolved || !f.Staged || f.Kind != BothModified || !strings.Contains(f.Body, "+B, both ways") {
+		t.Errorf("both.txt = %+v, want resolved, as its staged diff", f)
+	}
+	if f := conflictEntry(t, d.Files, "added.txt"); !f.Resolved || f.Kind != BothAdded || f.Body != "" {
+		t.Errorf("added.txt = %+v, want resolved, with nothing HEAD lacks", f)
+	}
+	if f := conflictEntry(t, d.Files, "their-del.txt"); !f.Resolved || f.Kind != DeletedByThem || f.Removed != 1 {
+		t.Errorf("their-del.txt = %+v, want resolved as a deletion", f)
+	}
+	if f := conflictEntry(t, d.Files, "ours-del.txt"); f.Resolved {
+		t.Errorf("ours-del.txt = %+v, want still unmerged", f)
+	}
+}
+
+func TestWorkingTreeForgetsAnEarlierMergesConflicts(t *testing.T) {
+	dir, git := conflictKindsRepo(t)
+	write(t, dir, "both.txt", "a\nB, both ways\nc\n")
+	write(t, dir, "added.txt", "ours and theirs\n")
+	git("rm", "-q", "ours-del.txt")
+	git("add", "-A")
+	git("commit", "-q", "--no-edit")
+
+	// The index still remembers those conflicts; this merge has others.
+	git("switch", "-qc", "next", "HEAD~1")
+	write(t, dir, "numbered.txt", "next's\n")
+	git("add", "-A")
+	git("commit", "-qm", "next")
+	git("switch", "-q", "main")
+	write(t, dir, "numbered.txt", "main's\n")
+	git("commit", "-qam", "main's")
+	Run(dir, "merge", "next")
+
+	d := WorkingTree(dir, 80)
+	for _, f := range d.Files {
+		if f.Conflicted && f.Path != "numbered.txt" {
+			t.Errorf("%s is listed as conflicted: %+v", f.Path, f)
+		}
+	}
+	if f := conflictEntry(t, d.Files, "numbered.txt"); f.Resolved {
+		t.Errorf("numbered.txt = %+v", f)
+	}
+}
+
+func TestWorkingTreeCherryPickConflicts(t *testing.T) {
+	dir := conflictedRepo(t)
+	Run(dir, "merge", "--abort")
+	Run(dir, "cherry-pick", "side")
+	d := WorkingTree(dir, 80)
+	if d.Conflict.Operation != "cherry-pick" || d.Conflict.Theirs != "side" {
+		t.Errorf("conflict = %+v", d.Conflict)
+	}
+	if f := conflictEntry(t, d.Files, "numbered.txt"); f.Resolved || !strings.Contains(f.Body, "<<<<<<<") {
+		t.Errorf("numbered.txt = %+v", f)
+	}
+}
+
+func TestKindOfStages(t *testing.T) {
+	for _, c := range []struct {
+		base, ours, theirs bool
+		want               ConflictKind
+	}{
+		{true, true, true, BothModified},
+		{false, true, true, BothAdded},
+		{true, false, true, DeletedByUs},
+		{true, true, false, DeletedByThem},
+		{false, true, false, AddedByUs},
+		{false, false, true, AddedByThem},
+		{true, false, false, BothDeleted},
+	} {
+		if got := kindOfStages(c.base, c.ours, c.theirs); got != c.want {
+			t.Errorf("stages %v %v %v: %v, want %v", c.base, c.ours, c.theirs, got, c.want)
+		}
+	}
+}

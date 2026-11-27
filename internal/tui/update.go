@@ -96,7 +96,7 @@ func (m model) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		if msg.workingTree {
 			// The uncommitted changes are read again and again, and an
 			// open view has a selection to keep through each reading.
-			m.setWorkingDiff(git.Diff{Stat: msg.diffStat, Body: msg.diffBody, Files: msg.diffFiles, State: msg.state})
+			m.setWorkingDiff(git.Diff{Stat: msg.diffStat, Body: msg.diffBody, Files: msg.diffFiles, State: msg.state, Conflict: msg.conflict})
 			m.fillStashBox()
 			return m, nil
 		}
@@ -148,6 +148,18 @@ func (m model) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return m, nil
 		}
 		return m.finishBranch(msg)
+
+	case abortedMsg:
+		if msg.repoPath != m.repoPath {
+			return m, nil
+		}
+		return m.finishAbort(msg)
+
+	case mergeMessageMsg:
+		if msg.repoPath != m.repoPath {
+			return m, nil
+		}
+		return m.finishMergeMessage(msg), nil
 
 	case cherryPickedMsg:
 		// As a commit: it is the branch of the repository it ran in that

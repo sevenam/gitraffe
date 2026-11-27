@@ -366,9 +366,14 @@ func (m model) commitViewHeader(c commit) string {
 	width := m.windowWidth - 4
 	lead := lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color(theme.Current.Title)).Render("Commit: ")
 	subject := ""
-	if c.WorkingTree {
+	switch {
+	case c.WorkingTree && m.conflict.Operation != "":
+		// Where the merge stands is the line that matters here, and it
+		// is cut before it gives way to the app's name.
+		lead = m.conflictHeader()
+	case c.WorkingTree:
 		lead += workingTreeStyle.Render("uncommitted changes")
-	} else {
+	default:
 		lead += commitHashStyle.Render(c.Hash) + "  "
 		subject, _, _ = strings.Cut(c.Message, "\n")
 	}
@@ -377,6 +382,9 @@ func (m model) commitViewHeader(c commit) string {
 	title := m.appTitle()
 	// A gap of two between whatever is on the left and the title.
 	room := width - leadWidth - lipgloss.Width(title) - 2
+	if leadWidth > width {
+		return ansi.Truncate(lead, width, "…")
+	}
 	if room < 0 || (subject != "" && room < 1) {
 		return lead + ansi.Truncate(subject, max(width-leadWidth, 1), "…")
 	}
@@ -406,7 +414,13 @@ func (m model) commitViewIdentity(c commit) string {
 	sb.WriteString(lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color(theme.Current.Branch)).Render("Branch:  "))
 	sb.WriteString(m.commitTarget())
 	sb.WriteString("\n")
-	sb.WriteString(helpStyle.Render(c.Message + " — not committed yet"))
+	// The row's own words say a merge is in progress, which is not yet
+	// committed by definition.
+	if m.conflict.Operation != "" {
+		sb.WriteString(helpStyle.Render(c.Message))
+	} else {
+		sb.WriteString(helpStyle.Render(c.Message + " — not committed yet"))
+	}
 	sb.WriteString("\n")
 	return sb.String()
 }
@@ -491,7 +505,12 @@ func (m model) renderFileList(c commit, width, rows int) (string, scrollMarks) {
 
 	var lines []string
 	for i := top; i < min(top+rows, len(c.DiffFiles)); i++ {
-		lines = append(lines, fileRow(c.DiffFiles[i], width, i == m.commitView.file, c.WorkingTree))
+		f := c.DiffFiles[i]
+		if c.WorkingTree && f.Conflicted {
+			lines = append(lines, conflictFileRow(f, width, i == m.commitView.file, conflictKindLabel(f, m.conflict)))
+			continue
+		}
+		lines = append(lines, fileRow(f, width, i == m.commitView.file, c.WorkingTree))
 	}
 	return strings.Join(lines, "\n"), marksFor(len(c.DiffFiles), top, rows)
 }
@@ -584,10 +603,24 @@ func (m model) renderFileDiff(c commit, width, rows int) (string, scrollMarks) {
 		case f.Staged:
 			side = "staged"
 		}
+		if f.Conflicted {
+			side = "in conflict — " + conflictKindLabel(f, m.conflict)
+			if f.Resolved {
+				side = "resolved — " + conflictKindLabel(f, m.conflict)
+			}
+		}
 		sb.WriteString(helpStyle.Render("  " + side))
 	}
 	sb.WriteString("\n\n")
 	switch {
+	case c.WorkingTree && f.Conflicted && !f.Resolved && f.Binary:
+		sb.WriteString(helpStyle.Render(f.Body))
+	case c.WorkingTree && f.Conflicted && !f.Resolved && len(d.lines) > 0:
+		m.renderConflictFile(&sb, d, width)
+	case c.WorkingTree && f.Conflicted && f.Resolved && len(d.lines) == 0:
+		sb.WriteString(helpStyle.Render("Resolved as " + m.conflict.Ours + " already has it: the commit changes nothing here"))
+	case c.WorkingTree && f.Conflicted && f.Body == "":
+		sb.WriteString(helpStyle.Render("Empty file"))
 	case f.Untracked && f.Body == "":
 		sb.WriteString(helpStyle.Render("Empty file"))
 	case len(d.lines) == 0:
@@ -637,6 +670,11 @@ func (m model) commitViewStatusLine() string {
 	if m.committing {
 		return truncateLines(lipgloss.NewStyle().Bold(true).
 			Foreground(lipgloss.Color(theme.Current.Tag)).Render("Committing..."), m.windowWidth)
+	}
+	if m.inConflict() {
+		op := m.conflict.Operation
+		return pinRight("?: help • space: back • c: commit the "+op+" • A: abort it • w: whitespace",
+			m.filePosition(), m.windowWidth)
 	}
 	if m.commitView.workingTree {
 		// a is named for what it would take from where the cursor is, since

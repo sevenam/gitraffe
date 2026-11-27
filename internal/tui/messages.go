@@ -49,4 +49,5 @@ type diffLoadedMsg struct {
 	// came with it; see git.WorkingState.
 	workingTree bool
 	state       git.WorkingState
+	conflict    git.ConflictState
 }

@@ -909,7 +909,10 @@ func TestCommitRefusedOnNoBranch(t *testing.T) {
 
 // During a merge, staging a file means "this conflict is resolved" and a
 // commit concludes the merge. Neither is what these keys are for.
-func TestStagingRefusedDuringAMerge(t *testing.T) {
+// A rebase stopped in conflicts is a terminal's to finish: staging there
+// means "resolved" and a commit goes on with the rebase. (A merge stopped
+// that way has the conflict view; see conflicts_test.go.)
+func TestStagingRefusedDuringARebase(t *testing.T) {
 	dir, gitCmd := stagingRepo(t)
 	gitCmd("checkout", "-qb", "side")
 	write(t, dir, "numbered.txt", strings.Replace(numberedLines(30), "line 2\n", "line two, their way\n", 1))
@@ -917,7 +920,7 @@ func TestStagingRefusedDuringAMerge(t *testing.T) {
 	gitCmd("checkout", "-q", "main")
 	write(t, dir, "numbered.txt", strings.Replace(numberedLines(30), "line 2\n", "line two, our way\n", 1))
 	gitCmd("commit", "-qam", "ours")
-	git.Run(dir, "merge", "side") // fails, on purpose
+	git.Run(dir, "rebase", "side") // fails, on purpose
 	before, _ := git.Run(dir, "status", "--porcelain")
 	if !strings.HasPrefix(before, "UU") {
 		t.Fatalf("status = %q, want a conflict", before)
@@ -930,7 +933,7 @@ func TestStagingRefusedDuringAMerge(t *testing.T) {
 	for _, key := range []string{"a", "A", "c"} {
 		next, cmd := m.Update(keyPress(key))
 		got := next.(model)
-		if cmd != nil || got.staging || got.commitPrompt.open || !strings.Contains(got.notice, "merge is in progress") {
+		if cmd != nil || got.staging || got.commitPrompt.open || !strings.Contains(got.notice, "rebase is in progress") {
 			t.Errorf("%q: cmd=%v staging=%v prompt=%v notice=%q, want it refused with the reason",
 				key, cmd != nil, got.staging, got.commitPrompt.open, got.notice)
 		}

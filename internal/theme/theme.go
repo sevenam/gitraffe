@@ -50,6 +50,14 @@ type Colors struct {
 	DiffDel        string `yaml:"diff_del"`
 	DiffHunk       string `yaml:"diff_hunk"`
 	DiffHeader     string `yaml:"diff_header"`
+	// The two sides of a conflict and the base between them (with git's
+	// diff3 or zdiff3 style), as the conflict view draws a file git wrote
+	// conflict markers into. Empty: the branch colour for the branch checked
+	// out, the hash colour for what is coming in, the hints' colour for the
+	// base; see conflictColours.
+	ConflictOurs   string `yaml:"conflict_ours"`
+	ConflictTheirs string `yaml:"conflict_theirs"`
+	ConflictBase   string `yaml:"conflict_base"`
 }
 
 type themeFile struct {

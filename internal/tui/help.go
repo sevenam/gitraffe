@@ -130,6 +130,28 @@ var stagingViewHelp = []helpSection{
 	}},
 }
 
+// conflictViewHelp is stagingViewHelp while a merge or cherry-pick is
+// stopped in conflicts, where the keys that stage are put aside: resolving
+// is done in a terminal for now, and what is left is ending it.
+var conflictViewHelp = []helpSection{
+	{"Merge in progress", []keyBinding{
+		{"✗ / ✓", "files: still in conflict / resolved (git add in a terminal)"},
+		{"c", "commit the merge, once nothing is left in conflict"},
+		{"A", "abort the merge, after asking: all goes back to how it was"},
+		{"space / esc / q", "back to the graph, the merge still in progress"},
+		{"1 / 2 / 3  tab", "focus commit / files / diff, or cycle"},
+		{"↑ / ↓  k / j", "move in the focused box"},
+		{"pgup/pgdn  g / G", "move by ten; first / last"},
+		{"wheel / click", "move in, or select, what is under the pointer"},
+		{"y", "copy the diff (d)"},
+		{"w", "show or hide whitespace in the diff"},
+		{"#", "line numbers in one column, or two: old and new"},
+		{"h", "files: show the selected file's history in the graph"},
+		{"?", "toggle this help"},
+		{"ctrl+c", "quit"},
+	}},
+}
+
 // The help is a box over the screen, and a window shorter than the list
 // would cut it off at the bottom with no way to reach the rest. So the list
 // scrolls inside the box, between a title and a footer that stay put, and the
@@ -147,6 +169,8 @@ const helpChromeCols = 6
 // screen lists the keys it answers to.
 func (m model) currentHelp() []helpSection {
 	switch {
+	case m.inConflict():
+		return conflictViewHelp
 	case m.commitView.open && m.commitView.workingTree:
 		return stagingViewHelp
 	case m.commitView.open:

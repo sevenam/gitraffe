@@ -56,6 +56,7 @@ func (m model) reloadRepo() (model, tea.Cmd) {
 	// repository's state until it is read again.
 	next.commitPrompt = m.commitPrompt
 	next.workingState = m.workingState
+	next.conflict = m.conflict
 	next.staging, next.committing = m.staging, m.committing
 	return next, cmd
 }

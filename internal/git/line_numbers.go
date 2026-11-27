@@ -75,8 +75,23 @@ func hunkRange(start, count string) (first, lines int) {
 
 // LineNumbers is LineNumbers for this file's body. An untracked file has no
 // hunk header to count from: its body is the file itself, every line written
-// as an addition, so the lines are numbered as they are in the file.
+// as an addition, so the lines are numbered as they are in the file. Nor
+// has a file still in conflict, whose body is the file as it is on disk.
 func (f FileDiff) LineNumbers() []LineNumber {
+	if f.Conflicted && !f.Resolved {
+		lines := strings.Split(f.Body, "\n")
+		nums := make([]LineNumber, len(lines))
+		if f.Binary {
+			return nums
+		}
+		for i, line := range lines {
+			if i == MaxFileDiffLines && line == "... (truncated)" {
+				break
+			}
+			nums[i].New = i + 1
+		}
+		return nums
+	}
 	if !f.Untracked {
 		return LineNumbers(f.Body)
 	}
