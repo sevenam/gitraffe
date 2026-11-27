@@ -4,6 +4,7 @@ package tui
 
 import (
 	"log"
+	"sync"
 	"time"
 
 	tea "github.com/charmbracelet/bubbletea"
@@ -29,8 +30,12 @@ import (
 type consoleInput struct {
 	conin    windows.Handle
 	original uint32
+	mode     uint32 // the mode set for reading, put back by resume
 	stop     chan struct{}
 	done     chan struct{}
+	// reading is held by the reader while it peeks and reads, and by pause
+	// for as long as an editor has the console: see editor.go.
+	reading sync.Mutex
 }
 
 // openConsoleInput takes over the console's input, or returns nil when
@@ -53,7 +58,28 @@ func openConsoleInput() *consoleInput {
 		log.Printf("Console input: could not set its mode: %v", err)
 		return nil
 	}
-	return &consoleInput{conin: conin, original: original, stop: make(chan struct{}), done: make(chan struct{})}
+	return &consoleInput{conin: conin, original: original, mode: mode, stop: make(chan struct{}), done: make(chan struct{})}
+}
+
+// pause stops the reading and gives the console back as it was found, for a
+// program run in the foreground: the editor "e" opens. Without it the reader
+// would go on taking the keys typed there. Bubble Tea's own reader is stood
+// down by tea.Exec, but it is not the one reading here.
+func (c *consoleInput) pause() {
+	if c == nil {
+		return
+	}
+	c.reading.Lock()
+	_ = windows.SetConsoleMode(c.conin, c.original)
+}
+
+// resume undoes pause.
+func (c *consoleInput) resume() {
+	if c == nil {
+		return
+	}
+	_ = windows.SetConsoleMode(c.conin, c.mode)
+	c.reading.Unlock()
 }
 
 // close stops the reading and gives the console back as it was found.
@@ -125,16 +151,20 @@ func (c *consoleInput) next() ([]coninput.InputRecord, bool) {
 			return nil, false
 		default:
 		}
+		c.reading.Lock()
 		events, err := coninput.PeekNConsoleInputs(c.conin, 16)
 		if err != nil {
+			c.reading.Unlock()
 			log.Printf("Console input: %v", err)
 			return nil, false
 		}
 		if len(events) == 0 {
+			c.reading.Unlock()
 			time.Sleep(16 * time.Millisecond)
 			continue
 		}
 		events, err = coninput.ReadNConsoleInputs(c.conin, uint32(len(events)))
+		c.reading.Unlock()
 		if err != nil {
 			log.Printf("Console input: %v", err)
 			return nil, false

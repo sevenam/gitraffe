@@ -11,3 +11,5 @@ type consoleInput struct{}
 func openConsoleInput() *consoleInput   { return nil }
 func (*consoleInput) run(func(tea.Msg)) {}
 func (*consoleInput) close()            {}
+func (*consoleInput) pause()            {}
+func (*consoleInput) resume()           {}

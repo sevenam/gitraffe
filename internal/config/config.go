@@ -69,6 +69,11 @@ type Settings struct {
 	// AutoFetch is how often, in seconds, to fetch unasked. Absent and 0 both
 	// mean never: reaching the network is something to opt into.
 	AutoFetch int `yaml:"auto_fetch,omitempty"`
+	// Editor is the command "e" opens a file with, for gitraffe only, in
+	// place of the one git uses for commit messages (git var GIT_EDITOR).
+	// It is only ever written by hand, and read on each "e", so a change to
+	// it needs no restart.
+	Editor string `yaml:"editor,omitempty"`
 }
 
 // Path is where settings.yml lives in configDir.

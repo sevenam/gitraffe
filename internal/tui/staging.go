@@ -90,6 +90,12 @@ func (m model) stagingKey(msg tea.KeyMsg) (model, tea.Cmd, bool) {
 	if !m.commitView.workingTree {
 		return m, nil, false
 	}
+	if msg.String() == "e" {
+		// Before the conflict view's keys: editing a file is how a
+		// conflict is resolved by hand, and as useful anywhere else.
+		next, cmd := m.openInEditor()
+		return next, cmd, true
+	}
 	if m.inConflict() {
 		return m.conflictKey(msg)
 	}

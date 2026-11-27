@@ -282,7 +282,7 @@ commit. Nothing else in gitraffe writes a commit, and this only does on `c` then
 │ > ○ parser.go       +2 -2 ││                                        │
 │   ○ notes.txt   untracked ││                                        │
 ╰───────────────────────────╯╰────────────────────────────────────────╯
-?: help • space: back • a: stage • d: discard • c: commit • w: whitespace
+?: help • space: back • a: stage • d: discard • c: commit • e: edit • w: whitespace
 ```
 
 The box at the top left says where the commit would land: the repository, and the
@@ -328,6 +328,7 @@ in view around it.
 | any | `c` | commit what is staged |
 | files, diff | `d`, `D` | discard instead of stage (see [Discarding changes](#discarding-changes)) |
 | files, diff | `s`, `S` | stash the selected file, or everything; untick or tick more in the box (see [Stashing](#stashing)) |
+| files, diff | `e` | open the selected file in your editor; the view reads it again when the editor closes (see [Editing a file](#editing-a-file)) |
 
 Here the diff box has a cursor, which `↑/↓`, `j/k`, the wheel and a click all move; the
 box follows it. Where the cursor is says how much `a` takes: on a hunk's `@@` line,
@@ -445,7 +446,7 @@ stands:
 │   ● session.go              +12 -3││ 17 }                                   │
 │   ● token.go                 +4 -0││                                        │
 ╰───────────────────────────────────╯╰────────────────────────────────────────╯
-?: help • o: keep main • t: take feature/login • a: mark resolved • A: abort
+?: help • o: keep main • t: take feature/login • e: edit • a: mark resolved • A: abort
 ```
 
 The files that conflicted come first, in path order: `✗` is still in conflict and `✓`
@@ -467,6 +468,7 @@ diff):
 | --- | --- |
 | `o` | take the branch checked out's version of the file, as it is there: `git checkout --ours`, then marked resolved. Where that branch deleted the file, `o` deletes it |
 | `t` | take the incoming branch's version, likewise (`--theirs`); where it deleted the file, `t` deletes it |
+| `e` | open the file in your editor, markers and all, to resolve it by hand (see [Editing a file](#editing-a-file)) |
 | `a` | mark the file resolved as it is on disk, once you have edited it: `git add`. Refused while it still holds conflict markers |
 | `u` | put a file resolved with `o` or `t` back in conflict, markers and all (`git checkout -m`), to choose again |
 | `c` | commit the merge, once no file is left in conflict: a box opens holding git's own message (`Merge branch 'feature/login'`), to change or keep; `Enter` commits |
@@ -484,8 +486,10 @@ conflict back from it. `u` refuses a file resolved by hand (`a` after editing), 
 changed on disk since a side was taken, since putting the conflict back would write
 over that work; `git checkout -m <file>` in a terminal does it anyway.
 
-Editing a file is done in your editor for now. The view picks the change up on its own
-(see [Auto-refresh](#auto-refresh)), or on `r`; then `a` marks it resolved. A file
+To resolve a file by hand, press `e`: it opens in your editor with the markers in it.
+Edit them out, save and close, and the view reads the file again — still `✗`, since
+saving is not deciding; `a` then marks it resolved. A file edited anywhere else is
+picked up the same way, on its own (see [Auto-refresh](#auto-refresh)) or on `r`. A file
 resolved in a terminal (`git add`, or `git rm` to keep a deletion) shows as `✓` the
 same way. The keys that would stage, discard or stash (`d`, `s`, `v`) say how resolving
 is done and do nothing: during a merge, staging a file is what marks it resolved.
@@ -494,6 +498,44 @@ The commit is `git commit` with the message from the box, and runs the repositor
 hooks as any commit does. It is refused while a file is still unmerged or still holds
 conflict markers, and on a detached HEAD. A cherry-pick reads the same way —
 `Cherry-picking 4a938a6 onto main` — and its commit keeps the picked commit's author.
+
+### Editing a file
+
+`e` on a file of the uncommitted changes, in the file list or its diff, opens it in
+your editor; the conflict view has it too. Gitraffe has no editor of its own and
+keeps no list of them: it uses the one git opens for a commit message, which is
+`GIT_EDITOR`, then `core.editor`, then `VISUAL`, then `EDITOR` (what `git var
+GIT_EDITOR` prints). If git is set up, so is this. To use another editor in
+gitraffe only, name it in `settings.yml` in your config directory:
+
+```yaml
+editor: code --wait
+```
+
+The command is split into words as a shell would split it, so a path with spaces
+goes in quotes (`'C:/Program Files/Notepad++/notepad++.exe' -multiInst -nosession`);
+nothing else a shell does is done, so `$VARIABLES` and pipes are not. The file's full
+path is added at the end, and the editor runs in the repository's top folder. The
+setting is read on each `e`, so a change to it needs no restart.
+
+Gitraffe waits for the editor to close, then reads the changes again with the same
+file selected. A terminal editor — vim, nvim, nano, helix, micro — takes over the
+terminal until you quit it. A desktop editor has to be told to wait, or it hands the
+file to a window that is already open and returns at once, before you have changed
+anything:
+
+| Editor | Command |
+| --- | --- |
+| VS Code | `code --wait` |
+| Zed | `zed --wait` |
+| Sublime Text | `subl -w` |
+| Notepad++ | `notepad++ -multiInst -nosession` |
+| Notepad | `notepad` (waits by itself) |
+
+While a desktop editor is open the terminal shows what was there before gitraffe
+started; gitraffe comes back when the editor's window for the file closes. If no
+editor is set, or the one named is not found, the bottom line says so and names the
+setting. A deleted file has nothing on disk to open, and `e` says so.
 
 ### Discarding changes
 
@@ -1268,7 +1310,7 @@ next run starts where the last one left off:
 | `two_line_numbers` | whether the commit view numbers a diff in two columns, old and new (`#`) |
 
 `auto_refresh` and `auto_fetch` live in the same file but are yours to write: see
-[Auto-refresh](#auto-refresh).
+[Auto-refresh](#auto-refresh). So is `editor`: see [Editing a file](#editing-a-file).
 
 `lane_colours`, `focused_box`, `maximised`, `whitespace` and `two_line_numbers` are written when gitraffe exits, not as you press the keys, since `L`
 and `tab` are pressed often and the file is only read at startup. Delete the file,

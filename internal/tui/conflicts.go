@@ -154,7 +154,7 @@ func (m model) conflictNotice() string {
 	if left, _ := conflictCounts(m.viewedFiles()); left == 0 {
 		return "Everything is resolved — c commits the " + m.conflict.Operation + ", A aborts it"
 	}
-	return "On a file in conflict: o / t takes a side, a marks it resolved as edited — A aborts the " + m.conflict.Operation
+	return "On a file in conflict: o / t takes a side, e edits it, a marks it resolved as edited — A aborts the " + m.conflict.Operation
 }
 
 // conflictKey handles the keys the conflict view gives a meaning of its own.
@@ -212,7 +212,7 @@ func (m model) conflictHints() string {
 	if f, ok := m.selectedFile(); ok && f.Conflicted {
 		if !f.Resolved {
 			return "?: help • o: " + sideHint(f, m.conflict, git.Ours) + " • t: " + sideHint(f, m.conflict, git.Theirs) +
-				" • a: mark resolved • A: abort"
+				" • e: edit • a: mark resolved • A: abort"
 		}
 		return "?: help • u: back in conflict • c: commit the " + op + " • A: abort it"
 	}

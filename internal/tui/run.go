@@ -52,6 +52,9 @@ func Run(repoPath, configDir string) (updatedTo string, err error) {
 	if input != nil {
 		go input.run(p.Send)
 		defer input.close()
+		// The editor "e" opens stands it down while it runs; see editor.go.
+		activeConsole = input
+		defer func() { activeConsole = nil }()
 	}
 	if focusProbe != nil {
 		stop := make(chan struct{})
