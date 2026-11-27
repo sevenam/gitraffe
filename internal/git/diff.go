@@ -40,6 +40,9 @@ type FileDiff struct {
 	Conflicted bool
 	Resolved   bool
 	Kind       ConflictKind
+	// MarkerSize is the length of the conflict markers in an unresolved
+	// file's Body (see ConflictBlocks), and 0 for any other entry.
+	MarkerSize int
 	Body       string // the file's hunks, without the "diff --git" header
 }
 

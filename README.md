@@ -461,8 +461,8 @@ included: your branch's side, the side coming in, and between them the base (wit
 names in the header are in the same colours. A resolved file shows what the commit
 will change in it, as a staged file does.
 
-Each file in conflict is resolved whole, with a key on its row (or anywhere in its
-diff):
+Each file in conflict is resolved whole with a key on its row (or in its diff, for a
+file with no conflict blocks to pick from; see below for those):
 
 | Key | Does |
 | --- | --- |
@@ -470,7 +470,7 @@ diff):
 | `t` | take the incoming branch's version, likewise (`--theirs`); where it deleted the file, `t` deletes it |
 | `e` | open the file in your editor, markers and all, to resolve it by hand (see [Editing a file](#editing-a-file)) |
 | `a` | mark the file resolved as it is on disk, once you have edited it: `git add`. Refused while it still holds conflict markers |
-| `u` | put a file resolved with `o` or `t` back in conflict, markers and all (`git checkout -m`), to choose again |
+| `u` | undo the last block choice in the file (see below); or put a file resolved with `o` or `t` back in conflict, markers and all (`git checkout -m`), to choose again |
 | `c` | commit the merge, once no file is left in conflict: a box opens holding git's own message (`Merge branch 'feature/login'`), to change or keep; `Enter` commits |
 | `A` | abort the merge, after asking: everything goes back to how it was before it started, files you resolved included. Only `Enter` or `y` aborts |
 | `Space`, `Esc` | back to the graph, the merge still in progress |
@@ -485,6 +485,40 @@ merge is committed: git keeps a record of each conflict it resolves, and `u` rea
 conflict back from it. `u` refuses a file resolved by hand (`a` after editing), or
 changed on disk since a side was taken, since putting the conflict back would write
 over that work; `git checkout -m <file>` in a terminal does it anyway.
+
+Most conflicts are a few blocks in a file whose rest merged fine, and these can be
+resolved one at a time in the diff box. `n` puts the cursor on the next conflict block
+(from `<<<<<<<` to `>>>>>>>`), and `N` on the one before; past the last block of a file
+they go on to the next file in conflict. On a block, the keys take that block only,
+rewriting it in the file with the markers gone:
+
+| Key | Keeps |
+| --- | --- |
+| `o` | the branch checked out's lines |
+| `t` | the incoming branch's lines |
+| `b` | both, the branch checked out's first |
+| `B` | both, the incoming branch's first |
+
+The base (`diff3`, `zdiff3`) goes with the markers, and the rest of the file is left
+byte for byte as it was, its line endings too. The cursor moves on to the next block;
+when the last one is resolved the file is marked resolved (staged) and the cursor goes on
+to the next file in conflict. A block is only rewritten if it is still on disk as you
+see it. On a line outside any block, `o` and `t` in the diff box do nothing; in the file
+list they still take the whole file.
+
+`u` undoes the last block choice, then the one before: gitraffe keeps the file's text
+from before each choice for as long as the merge is under way, and puts it back if the
+file is still what the choice made it, unresolving the file if the last block had marked
+it resolved. If it has changed since (edited with `e`, say), or gitraffe was started
+again, there is nothing kept to put back, and `u` offers instead to write every conflict
+in the file back in as git first wrote them (`git checkout -m`). That throws away what
+was resolved in the file, by hand too, so it asks first, and only `Enter` or `y` does it.
+
+Markers are read the way `git diff --check` reads them: exactly seven characters long
+(or the file's `conflict-marker-size` attribute), so a longer row of `=` is text. A line
+that looks like a marker but makes no block, such as a lone `=======`, is text here too;
+git still counts it, though, so a file left with one cannot be marked resolved until it
+is edited out.
 
 To resolve a file by hand, press `e`: it opens in your editor with the markers in it.
 Edit them out, save and close, and the view reads the file again — still `✗`, since

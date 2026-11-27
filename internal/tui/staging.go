@@ -61,6 +61,11 @@ type stageFinishedMsg struct {
 	// once done, and resolveFailed what it says first if it fails; see
 	// conflicts.go.
 	resolved, resolveFailed string
+	// block is set for a conflict block resolved, or its undo; see
+	// conflict_blocks.go. forget is a file whose block choices a change of
+	// the whole file leaves nothing to undo of, once it is done.
+	block  *blockDone
+	forget string
 }
 
 // canStage says whether the view is one staging works in, and puts the
@@ -324,6 +329,15 @@ func (m model) finishStage(msg stageFinishedMsg) (model, tea.Cmd) {
 	if msg.stashed != "" {
 		return m.finishStash(msg)
 	}
+	if msg.forget != "" && msg.err == nil {
+		m.blockUndo.forget(msg.forget)
+	}
+	if msg.block != nil {
+		if msg.err == nil {
+			m.notice = msg.resolved
+		}
+		return m.finishBlock(msg), nil
+	}
 	if msg.resolved != "" && msg.err == nil {
 		m.notice = msg.resolved
 		return m, nil
@@ -379,6 +393,10 @@ func (m *model) setWorkingDiff(d git.Diff) {
 	c.DiffStat, c.DiffBody, c.DiffFiles = d.Stat, d.Body, d.Files
 	m.workingState = d.State
 	m.conflict = d.Conflict
+	if d.Conflict.Operation == "" {
+		// The merge is over, and its block choices with it.
+		m.blockUndo = blockUndo{}
+	}
 
 	v := &m.commitView
 	if !v.open || !v.workingTree {

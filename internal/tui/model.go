@@ -86,7 +86,8 @@ type model struct {
 	// The merge or cherry-pick under way, as last read with the uncommitted
 	// changes; its Operation is "" when there is none. See conflicts.go.
 	conflict   git.ConflictState
-	abortMerge abortPrompt // the question "A" asks there
+	abortMerge abortPrompt // the question "A" asks there, and "u" with nothing to undo
+	blockUndo  blockUndo   // the conflict blocks resolved, for "u"; see conflict_blocks.go
 	aborting   bool        // an abort is running
 	// Pushing; see push.go.
 	push    pushPrompt // what "P" has to ask before it pushes
