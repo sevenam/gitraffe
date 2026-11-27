@@ -124,3 +124,25 @@ func TestLoadCommitsFilters(t *testing.T) {
 		t.Errorf("got %q, want only the guide", got)
 	}
 }
+
+// The count is what LoadGraph would read with no limit, filter and all, so a
+// position counted against it reaches 100% at the real bottom.
+func TestCountCommitsMatchesTheWholeGraph(t *testing.T) {
+	dir := filterRepo(t)
+	for _, f := range []Filter{{}, {Path: "notes.txt"}} {
+		g, err := LoadGraph(dir, 1000, f)
+		if err != nil {
+			t.Fatal(err)
+		}
+		n, err := CountCommits(dir, f)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if n != len(g.Commits) {
+			t.Errorf("filter %q: counted %d, the graph has %d", f.Path, n, len(g.Commits))
+		}
+	}
+	if _, err := CountCommits(t.TempDir(), Filter{}); err == nil {
+		t.Error("counting a folder that isn't a repository should fail")
+	}
+}

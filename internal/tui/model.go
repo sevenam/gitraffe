@@ -59,13 +59,15 @@ type model struct {
 	picker              themePicker
 	refs                refPicker // the branch and tag list opened with "B"
 	switcher            repoSwitcher
-	repoRoot            string // absolute root of the open repository; "" until it has loaded
-	reselect            string // full hash to reselect once a reload finishes; see reloadRepo
-	maximised           bool   // the focused panel has the window to itself; toggled with enter
-	fetching            bool   // a fetch is running; see startFetch
-	pulling             bool   // a pull is running; see startPull
-	commitLimit         int    // how many commits to read; grows with "m", see loadMoreCommits
-	moreCommits         bool   // the log was cut off at commitLimit
+	repoRoot            string       // absolute root of the open repository; "" until it has loaded
+	reselect            string       // full hash to reselect once a reload finishes; see reloadRepo
+	maximised           bool         // the focused panel has the window to itself; toggled with enter
+	fetching            bool         // a fetch is running; see startFetch
+	pulling             bool         // a pull is running; see startPull
+	commitLimit         int          // how many commits to read; grows as the end is reached, see loadMoreCommits
+	moreCommits         bool         // the log was cut off at commitLimit
+	historyCount        historyCount // the whole history's length; see countHistory
+	historyCountAsked   string       // the key of a count still running, so it isn't asked for twice
 	search              commitSearch
 	filter              git.Filter // narrows the graph; the zero filter is all of it. See filter.go
 	files               filePicker // the file list opened with "h"

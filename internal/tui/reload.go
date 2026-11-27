@@ -32,8 +32,11 @@ func (m model) reloadRepo() (model, tea.Cmd) {
 	prev.stale = nil
 	next.stale = &prev
 	// However much history was asked for stays asked for; a reload that threw
-	// away the batches loaded with "m" would be a reload that loses your place.
+	// away the batches read so far would be a reload that loses your place.
 	next.commitLimit = m.commitCount()
+	// As does the count of the whole of it, which is the slow part to redo;
+	// countHistory asks again only if the repository turns out to have changed.
+	next.historyCount, next.historyCountAsked = m.historyCount, m.historyCountAsked
 	next.filter = m.filter
 	if m.selected >= 0 && m.selected < len(m.commits) {
 		next.reselect = m.commits[m.selected].FullHash

@@ -48,6 +48,21 @@ func TestGraphPosition(t *testing.T) {
 	}
 }
 
+// Once the whole history is counted, a cut-short one has a percentage too.
+func TestGraphPositionOfACountedHistory(t *testing.T) {
+	m := positionModel(5000)
+	m.selected, m.moreCommits, m.fingerprint = 1233, true, "now"
+	m.historyCount = historyCount{key: m.historyKey(), total: 48210}
+	if got := m.graphPosition(); got != "1,234/48,210 · 2%" {
+		t.Errorf("position = %q, want 1,234/48,210 · 2%%", got)
+	}
+	// A count of the repository as it was is no count of it now.
+	m.fingerprint = "later"
+	if got := m.graphPosition(); got != "1,234/5,000+" {
+		t.Errorf("position with an old count = %q, want 1,234/5,000+", got)
+	}
+}
+
 func TestGraphPositionHiddenWithoutHistory(t *testing.T) {
 	m := testModel()
 	if got := m.graphPosition(); got != "" {

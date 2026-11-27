@@ -83,10 +83,13 @@ func (m model) handleMouse(msg tea.MouseMsg) (model, tea.Cmd) {
 // commit: the blank rows under a short history, the line between two commits
 // and the note saying the history was cut short are all places where no commit
 // was pointed at, and moving the selection there would move it somewhere the
-// click did not name.
+// click did not name. The note is the one that does something: it reads on.
 func (m model) selectClicked(x, y int) (model, tea.Cmd) {
 	if m.panelAt(x, y) != 1 {
 		return m, nil
+	}
+	if m.moreHistoryAt(y) {
+		return m.loadMoreCommits()
 	}
 	idx := m.commitAt(y)
 	if idx < 0 || idx == m.selected {
@@ -115,6 +118,18 @@ func (m model) commitAt(y int) int {
 		return idx
 	}
 	return -1
+}
+
+// moreHistoryAt reports whether screen row y is the note at the bottom of a
+// cut-short history. It asks graphWindow, as commitAt does, so the row
+// clicked is the row drawn.
+func (m model) moreHistoryAt(y int) bool {
+	start, end := m.graphWindow()
+	row := start + y - firstGraphRow
+	if row < start || row >= end || row >= len(m.displayRows) {
+		return false
+	}
+	return m.displayRows[row].Note == moreHistoryNote
 }
 
 // panelAt reports which panel covers a point, or 0 for the repository box, the
