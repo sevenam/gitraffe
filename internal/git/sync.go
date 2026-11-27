@@ -54,21 +54,44 @@ func UpstreamSync(dir string) (ahead, behind int) {
 // far longer than anyone watching a graph will.
 const fetchTimeout = 60 * time.Second
 
-// Fetch fetches every remote. --prune drops remote-tracking branches whose
-// remote branch is gone, which is the point of asking: stale ones are what
-// make the graph disagree with the server. Local branches and tags are left
-// alone. The first result is what git wrote to stderr.
+// Fetch fetches every branch of every remote. --prune drops remote-tracking
+// branches whose remote branch is gone, which is the point of asking: stale
+// ones are what make the graph disagree with the server. Local branches and
+// tags are left alone. The first result is what git wrote to stderr.
+//
+// Each remote is given an explicit refspec (issue #258). Without one git uses
+// the remote's configured refspec, and a --single-branch clone or a shallow
+// submodule is configured to fetch one branch only, so branches made on the
+// server never appeared however often you fetched. "fetch --all" cannot take
+// a refspec, so the remotes are fetched one at a time; one that fails does
+// not stop the others, and the first failure is the one reported. With the
+// refspec on the command line --prune prunes by it too, so a branch deleted on
+// the server goes away even where the config names only one.
+//
+// Tags still come along for the branches fetched, as before. A remote with
+// remote.<name>.skipFetchAll set is skipped, as --all skipped it.
 func Fetch(dir string) (string, error) {
+	// One timeout for all the remotes together, as it was for --all.
 	ctx, cancel := context.WithTimeout(context.Background(), fetchTimeout)
 	defer cancel()
 
-	cmd := exec.CommandContext(ctx, "git", "fetch", "--all", "--prune", "--quiet")
-	cmd.Dir = dir
-	cmd.Env = noPromptEnv(dir)
 	var errOut bytes.Buffer
-	cmd.Stderr = &errOut
+	var firstErr error
+	for _, remote := range Remotes(dir) {
+		if skip, _ := Run(dir, "config", "--type=bool", "remote."+remote+".skipFetchAll"); strings.TrimSpace(skip) == "true" {
+			continue
+		}
+		refspec := "+refs/heads/*:refs/remotes/" + remote + "/*"
+		cmd := exec.CommandContext(ctx, "git", "fetch", "--prune", "--quiet", remote, refspec)
+		cmd.Dir = dir
+		cmd.Env = noPromptEnv(dir)
+		cmd.Stderr = &errOut
+		if err := cmd.Run(); err != nil && firstErr == nil {
+			firstErr = err
+		}
+	}
 
-	err := cmd.Run()
+	err := firstErr
 	if ctx.Err() == context.DeadlineExceeded {
 		err = fmt.Errorf("no answer after %s", fetchTimeout)
 	}

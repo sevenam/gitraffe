@@ -799,9 +799,14 @@ not join up with the first. Your place is kept, as with any reload.
 
 ### Fetching
 
-Press `f` to run `git fetch --all --prune` and reload once it finishes, which is what
-makes the ahead/behind counts and the tag marks true as of now rather than as of your
-last fetch.
+Press `f` to fetch every branch of every remote, with `--prune`, and reload once it
+finishes, which is what makes the ahead/behind counts and the tag marks true as of now
+rather than as of your last fetch.
+
+Each remote is fetched as `git fetch --prune <remote> "+refs/heads/*:refs/remotes/<remote>/*"`,
+so a remote configured to fetch only one branch — a `--single-branch` clone, a shallow
+submodule — still shows every branch the server has, and drops the ones it has deleted.
+A remote with `remote.<name>.skipFetchAll` set is skipped, as `git fetch --all` would.
 
 Fetching writes to your repository, so unless you turn
 on [auto-fetch](#auto-refresh) it only ever happens when you press a key — `f`, or `r`,
