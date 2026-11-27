@@ -23,7 +23,7 @@ A text-based git command line tool built with Golang, Bubble Tea, go-git, and Li
 - 🌱 `b` starts a new branch at the selected commit and switches to it (see [Creating a branch](#creating-a-branch))
 - 🍒 `C` cherry-picks the selected commit onto your branch, after asking — only when it applies without conflicts (see [Cherry-picking](#cherry-picking))
 - 🤝 `m` merges the selected commit's branch into yours, saying first whether it fast-forwards, makes a merge commit or squashes — only when it goes through without conflicts (see [Merging](#merging))
-- 🧩 A merge or cherry-pick stopped in conflicts shows what is left to resolve, each side of a conflict in its own colour, and is committed with `c` or aborted with `A` (see [Conflicts](#conflicts))
+- 🧩 A merge or cherry-pick stopped in conflicts shows what is left to resolve, each side of a conflict in its own colour; `o` or `t` takes one side of a file, and the merge is committed with `c` or aborted with `A` (see [Conflicts](#conflicts))
 - 🗑️ `d` deletes the selected commit's branch — local, remote or both — and refuses when its commits are on no other branch (see [Deleting branches](#deleting-branches))
 - 🌐 `o` opens the commit's pull request in your browser, on GitHub or Azure DevOps, read from the merge subject and the remote — or the page that starts one, for a branch that has none yet (see [Opening a pull request](#opening-a-pull-request))
 - 📋 `y` copies the commit's hash, subject or whole diff (see [Copying](#copying))
@@ -445,7 +445,7 @@ stands:
 │   ● session.go              +12 -3││ 17 }                                   │
 │   ● token.go                 +4 -0││                                        │
 ╰───────────────────────────────────╯╰────────────────────────────────────────╯
-?: help • space: back • c: commit the merge • A: abort it • w: whitespace
+?: help • o: keep main • t: take feature/login • a: mark resolved • A: abort
 ```
 
 The files that conflicted come first, in path order: `✗` is still in conflict and `✓`
@@ -460,17 +460,35 @@ included: your branch's side, the side coming in, and between them the base (wit
 names in the header are in the same colours. A resolved file shows what the commit
 will change in it, as a staged file does.
 
+Each file in conflict is resolved whole, with a key on its row (or anywhere in its
+diff):
+
 | Key | Does |
 | --- | --- |
+| `o` | take the branch checked out's version of the file, as it is there: `git checkout --ours`, then marked resolved. Where that branch deleted the file, `o` deletes it |
+| `t` | take the incoming branch's version, likewise (`--theirs`); where it deleted the file, `t` deletes it |
+| `a` | mark the file resolved as it is on disk, once you have edited it: `git add`. Refused while it still holds conflict markers |
+| `u` | put a file resolved with `o` or `t` back in conflict, markers and all (`git checkout -m`), to choose again |
 | `c` | commit the merge, once no file is left in conflict: a box opens holding git's own message (`Merge branch 'feature/login'`), to change or keep; `Enter` commits |
 | `A` | abort the merge, after asking: everything goes back to how it was before it started, files you resolved included. Only `Enter` or `y` aborts |
 | `Space`, `Esc` | back to the graph, the merge still in progress |
 
-Resolving is done in a terminal for now: edit the file, then `git add` it (or
-`git rm` it, to keep a deletion). The view picks that up on its own (see
-[Auto-refresh](#auto-refresh)), or on `r`, and the file's `✗` turns to `✓`. Until then
-the keys that stage, discard or stash (`a`, `d`, `s`, `v`) say so and do nothing:
-during a merge, staging a file is what marks it resolved.
+"Ours" and "theirs" swap meaning between a merge and a rebase, so the status line
+names the sides by their branches instead: `o: keep main • t: take feature/login`, or
+`t: delete, as feature/login` for a file that branch deleted.
+
+Taking a side throws away what the other side did to that file, and anything you had
+typed into it on disk. It is only ever done by a key press, and `u` undoes it until the
+merge is committed: git keeps a record of each conflict it resolves, and `u` reads the
+conflict back from it. `u` refuses a file resolved by hand (`a` after editing), or
+changed on disk since a side was taken, since putting the conflict back would write
+over that work; `git checkout -m <file>` in a terminal does it anyway.
+
+Editing a file is done in your editor for now. The view picks the change up on its own
+(see [Auto-refresh](#auto-refresh)), or on `r`; then `a` marks it resolved. A file
+resolved in a terminal (`git add`, or `git rm` to keep a deletion) shows as `✓` the
+same way. The keys that would stage, discard or stash (`d`, `s`, `v`) say how resolving
+is done and do nothing: during a merge, staging a file is what marks it resolved.
 
 The commit is `git commit` with the message from the box, and runs the repository's
 hooks as any commit does. It is refused while a file is still unmerged or still holds

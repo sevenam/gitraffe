@@ -672,9 +672,7 @@ func (m model) commitViewStatusLine() string {
 			Foreground(lipgloss.Color(theme.Current.Tag)).Render("Committing..."), m.windowWidth)
 	}
 	if m.inConflict() {
-		op := m.conflict.Operation
-		return pinRight("?: help • space: back • c: commit the "+op+" • A: abort it • w: whitespace",
-			m.filePosition(), m.windowWidth)
+		return pinRight(m.conflictHints(), m.filePosition(), m.windowWidth)
 	}
 	if m.commitView.workingTree {
 		// a is named for what it would take from where the cursor is, since

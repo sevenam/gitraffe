@@ -57,6 +57,10 @@ type stageFinishedMsg struct {
 	// stashed is the same for a stash or a pop, and stashFailed what the
 	// status line says first if it fails; see stash.go.
 	stashed, stashFailed string
+	// resolved is the status line for o, t, a or u in the conflict view
+	// once done, and resolveFailed what it says first if it fails; see
+	// conflicts.go.
+	resolved, resolveFailed string
 }
 
 // canStage says whether the view is one staging works in, and puts the
@@ -298,6 +302,8 @@ func (m model) finishStage(msg stageFinishedMsg) (model, tea.Cmd) {
 			m.notice = discardFailedNotice(msg)
 		case msg.stashed != "":
 			m.notice = stashFailedNotice(msg)
+		case msg.resolved != "":
+			m.notice = resolveFailedNotice(msg)
 		}
 		// Nothing moved, so there is nothing for the cursor to follow.
 		m.commitView.follow = nil
@@ -311,6 +317,10 @@ func (m model) finishStage(msg stageFinishedMsg) (model, tea.Cmd) {
 	}
 	if msg.stashed != "" {
 		return m.finishStash(msg)
+	}
+	if msg.resolved != "" && msg.err == nil {
+		m.notice = msg.resolved
+		return m, nil
 	}
 
 	// "c" with nothing staged staged everything so as to commit it, and
