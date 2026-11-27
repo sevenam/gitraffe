@@ -14,8 +14,9 @@ import (
 )
 
 // The conflict view: the commit view of the uncommitted changes while a
-// merge or cherry-pick is stopped in conflicts, started in a terminal (or,
-// once #245 allows it, here). Where it would otherwise refuse to stage, it
+// merge or cherry-pick is stopped in conflicts, started in a terminal or by
+// the merge box (see merge.go). Nothing here is particular to a merge, so a
+// cherry-pick or a stash pop could hand over to it the same way. Where it would otherwise refuse to stage, it
 // says where the merge stands: the files that conflicted first, each marked
 // ✗ until resolved and ✓ after, with what kind of conflict it is; then what
 // merged cleanly, already staged. A file in conflict is shown as it is on

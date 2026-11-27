@@ -133,6 +133,7 @@ func (m model) finishLoad(openErr error, fingerprint string) (model, tea.Cmd) {
 	m.rememberCurrentRepo()
 	m.applyCommitted()
 	m.applySquashed()
+	m.applyMergeStopped()
 	m.followSelectionInCommitView()
 	count := m.countHistory()
 	if cmd := m.keepLoadedDiffs(prev); cmd != nil {

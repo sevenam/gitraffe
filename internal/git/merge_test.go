@@ -467,3 +467,77 @@ func TestMergeAbortsWhenAHookRefuses(t *testing.T) {
 		t.Error("the working tree was left changed")
 	}
 }
+
+// With AllowConflicts, a merge the plan says would conflict begins and is
+// left stopped in its conflicts, the files the plan named the ones git
+// leaves unmerged; and an abort puts back exactly what was there.
+func TestMergeStopsInConflictsWhenAllowed(t *testing.T) {
+	dir, git, _ := pickRepo(t)
+	write(t, dir, "numbered.txt", strings.Replace(read(t, dir, "numbered.txt"), "line 25\n", "line XXV\n", 1))
+	git("commit", "-qam", "clash")
+	head, _ := Run(dir, "rev-parse", "HEAD")
+	file := read(t, dir, "numbered.txt")
+
+	plan, err := MergePlan(dir, "feature")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !plan.Conflicts || strings.Join(plan.ConflictFiles, ",") != "numbered.txt" {
+		t.Fatalf("plan conflicts=%v files=%q, want numbered.txt", plan.Conflicts, plan.ConflictFiles)
+	}
+
+	newHead, detail, err := Merge(dir, "feature", MergeOptions{AllowConflicts: true})
+	if !errors.Is(err, ErrMergeStopped) {
+		t.Fatalf("Merge = %v (%s), want %v", err, detail, ErrMergeStopped)
+	}
+	if newHead != head {
+		t.Errorf("newHead = %s, want HEAD as it was, %s", newHead, head)
+	}
+	state, err := Conflicts(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if state.Operation != "merge" || len(state.Files) != 1 || state.Files[0].Path != "numbered.txt" || state.Theirs != "feature" {
+		t.Fatalf("state = %+v, want a merge of feature stopped in numbered.txt", state)
+	}
+
+	if out, err := AbortMerge(dir); err != nil {
+		t.Fatalf("AbortMerge: %v (%s)", err, out)
+	}
+	if after, _ := Run(dir, "rev-parse", "HEAD"); after != head {
+		t.Error("HEAD moved")
+	}
+	if got := read(t, dir, "numbered.txt"); got != file {
+		t.Error("numbered.txt is not as it was")
+	}
+	if dirty, _ := LocalChanges(dir); dirty {
+		t.Error("the abort left changes")
+	}
+}
+
+// AllowConflicts does not let a squash that would conflict begin, since it
+// would stop with no merge to abort; and a merge commit that would not
+// conflict is made as usual.
+func TestMergeAllowConflictsLimits(t *testing.T) {
+	dir, git, _ := pickRepo(t)
+	if _, _, err := Merge(dir, "feature", MergeOptions{AllowConflicts: true}); err != nil {
+		t.Fatalf("a clean merge with AllowConflicts: %v", err)
+	}
+	if n := len(parents(t, dir)); n != 2 {
+		t.Errorf("HEAD has %d parents, want a merge commit", n)
+	}
+
+	dir, git, _ = pickRepo(t)
+	write(t, dir, "numbered.txt", strings.Replace(read(t, dir, "numbered.txt"), "line 25\n", "line XXV\n", 1))
+	git("commit", "-qam", "clash")
+	_, _, err := Merge(dir, "feature", MergeOptions{AllowConflicts: true, Squash: true})
+	if !errors.Is(err, ErrMergeConflicts) {
+		t.Fatalf("squash = %v, want %v", err, ErrMergeConflicts)
+	}
+	if op := ReadWorkingState(dir).Operation; op != "" {
+		t.Errorf("left in a %s", op)
+	}
+	if dirty, _ := LocalChanges(dir); dirty {
+		t.Error("the squash left changes")
+	}
+}

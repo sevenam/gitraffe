@@ -29,9 +29,16 @@ import (
 // the same list asks which. A commit with none is merged as a commit.
 //
 // What can be told before the box opens is told instead of opening it: a
-// detached HEAD, uncommitted changes, a commit already on the branch, and a
-// merge that would conflict, which the plan finds by trying it out in the
-// object store. git.Merge asks all of it again when enter is pressed.
+// detached HEAD, uncommitted changes and a commit already on the branch.
+// git.Merge asks all of it again when enter is pressed.
+//
+// A merge that would conflict, which the plan finds by trying it out in the
+// object store, is said in the box, with the files it would conflict in, and
+// enter then starts it and lets it stop in its conflicts, opening the
+// conflict view on them (see conflicts.go), where A aborts it. That is only
+// ever asked for here, and only from a clean working tree, so an abort puts
+// everything back as it was. A squash is not offered then: it would stop
+// with no merge under way, its conflicts nothing that could be aborted.
 
 // mergePrompt is the box "m" opens.
 type mergePrompt struct {
@@ -88,12 +95,19 @@ type mergedMsg struct {
 
 // choices are the ways tab steps through, in order. A merge commit is
 // offered on its own only where the plan's answer is something else: a
-// fast-forward, or nothing at all under merge.ff=only.
+// fast-forward, or nothing at all under merge.ff=only. A squash is not
+// offered for a merge that would conflict; see the top of this file.
 func (p mergePrompt) choices() []mergeChoice {
+	var choices []mergeChoice
 	if p.plan.Kind == git.MergeFastForward || p.onlyBlocks() {
-		return []mergeChoice{mergeDefault, mergeNoFF, mergeSquash}
+		choices = []mergeChoice{mergeDefault, mergeNoFF, mergeSquash}
+	} else {
+		choices = []mergeChoice{mergeDefault, mergeSquash}
 	}
-	return []mergeChoice{mergeDefault, mergeSquash}
+	if p.plan.Conflicts {
+		choices = choices[:len(choices)-1]
+	}
+	return choices
 }
 
 // step moves the choice along the list by delta, round from the end.
@@ -270,9 +284,6 @@ func (m model) finishMergePlan(msg mergePlannedMsg) (model, tea.Cmd) {
 	case msg.plan.Kind == git.MergeUpToDate:
 		m.notice = "Not merged: " + msg.name + " is already on " + into
 		return m, nil
-	case msg.plan.Conflicts:
-		m.notice = "Not merged: " + msg.name + " would conflict with " + into + " — resolve that in a terminal"
-		return m, nil
 	}
 	m.merge = mergePrompt{open: true, ref: msg.ref, name: msg.name, short: msg.short, into: into, plan: msg.plan}
 	return m, nil
@@ -320,7 +331,11 @@ func (m model) startMerge() (model, tea.Cmd) {
 	}
 	m.merging = true
 	repoPath := m.repoPath
-	opts := git.MergeOptions{NoFF: p.choice == mergeNoFF, Squash: p.squash(), Message: p.message}
+	// Conflicts are allowed only where the box said there would be some:
+	// a merge it said would go through cleanly and that would no longer is
+	// refused, to be asked about again.
+	opts := git.MergeOptions{NoFF: p.choice == mergeNoFF, Squash: p.squash(), Message: p.message,
+		AllowConflicts: p.plan.Conflicts}
 	return m, func() tea.Msg {
 		newHash, detail, err := git.Merge(repoPath, p.ref, opts)
 		msg := mergedMsg{repoPath: repoPath, name: p.name, into: p.into,
@@ -391,6 +406,14 @@ func (m model) updateMergeMessage(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 // moved to.
 func (m model) finishMerge(msg mergedMsg) (model, tea.Cmd) {
 	m.merging = false
+	if errors.Is(msg.err, git.ErrMergeStopped) {
+		// Under way, as asked for: the reload opens the conflict view.
+		next, cmd := m.reloadRepo()
+		next.reselect = ""
+		next.mergeStopped = true
+		next.notice = "Merging " + msg.name + " into " + msg.into + " stopped in conflicts — resolve them here, A aborts"
+		return next, cmd
+	}
 	if msg.err != nil {
 		m.notice = mergeFailedNotice(msg)
 		return m, nil
@@ -436,10 +459,27 @@ func (m *model) applySquashed() {
 	m.commitPrompt.body.SetValue(strings.TrimSpace(body))
 }
 
+// applyMergeStopped opens the conflict view on a merge that has just
+// stopped in conflicts, once the reload has read them: the commit view of the
+// uncommitted changes, which is the conflict view while a merge is under
+// way. With a file's history on screen there is no such row, and the merge
+// waits, as row 0 says once the filter is left.
+func (m *model) applyMergeStopped() {
+	stopped := m.mergeStopped
+	m.mergeStopped = false
+	if !stopped || len(m.commits) == 0 || !m.commits[0].WorkingTree {
+		return
+	}
+	m.selected = 0
+	m.commitView = commitView{open: true, commit: 0, workingTree: true, focus: commitBoxFiles}
+	m.showFile()
+}
+
 func mergeFailedNotice(msg mergedMsg) string {
 	switch {
 	case errors.Is(msg.err, git.ErrMergeConflicts):
-		return "Not merged: " + msg.name + " would conflict with " + msg.into + " — resolve that in a terminal"
+		// The box said it would go through cleanly; it no longer would.
+		return "Not merged: " + msg.name + " would now conflict with " + msg.into + " — press m again to see where"
 	case errors.Is(msg.err, git.ErrMergeUpToDate):
 		return "Not merged: " + msg.name + " is already on " + msg.into
 	case errors.Is(msg.err, git.ErrMergeNotFastForward):
@@ -471,10 +511,21 @@ func (p mergePrompt) what() string {
 		return "fast-forward " + p.into + " to " + p.short
 	case p.squash():
 		return "squash: its changes staged, to commit (--squash)"
+	case p.plan.Conflicts:
+		return conflictsLine(p.plan.ConflictFiles)
 	case p.choice == mergeNoFF:
 		return "as a merge commit (--no-ff)"
 	}
 	return "as a merge commit"
+}
+
+// conflictsLine says where a merge would conflict: "would conflict in 3
+// files: src/auth.go, src/session.go, go.sum". The box cuts it to its width.
+func conflictsLine(files []string) string {
+	if len(files) == 0 {
+		return "would conflict"
+	}
+	return "would conflict in " + plural(len(files), "file") + ": " + strings.Join(files, ", ")
 }
 
 // keys are the keys the box offers as it stands, in the order the footer
@@ -484,12 +535,17 @@ func (p mergePrompt) keys() [][2]string {
 	switch {
 	case p.squash():
 		keys = append(keys, [2]string{"enter", "squash"})
-	case !p.blocked():
+	case p.blocked():
+	case p.plan.Conflicts:
+		keys = append(keys, [2]string{"enter", "merge and resolve"})
+	default:
 		keys = append(keys, [2]string{"enter", "merge"})
 	}
-	next := p
-	next.step(1)
-	keys = append(keys, [2]string{"tab", next.choiceName()})
+	if len(p.choices()) > 1 {
+		next := p
+		next.step(1)
+		keys = append(keys, [2]string{"tab", next.choiceName()})
+	}
 	if p.makesCommit() {
 		keys = append(keys, [2]string{"e", "message"})
 	}

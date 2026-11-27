@@ -425,7 +425,8 @@ A diff longer than 800 lines is cut on screen, and only the lines shown can be p
 
 #### Conflicts
 
-A merge or a cherry-pick started in a terminal can stop part-way, with files git could
+A merge started from the merge box (see [Merging](#merging)), or a merge or a
+cherry-pick started in a terminal, can stop part-way, with files git could
 not merge on its own. The graph's top row then says so, whatever else has changed —
 `merge in progress — 2 conflicts` — and opening it (`Space`) shows where the merge
 stands:
@@ -1154,16 +1155,39 @@ happen before anything does:
 Afterwards the bottom line says `Merged feature/login into main as 9c1e2f0`, or
 `Fast-forwarded main to 4a938a6`, and the new HEAD is selected.
 
-- **Only when it goes through cleanly.** The merge is tried out first inside git's
-  object store, and one that would conflict is refused before the box opens —
-  `Not merged: feature/login would conflict with main — resolve that in a terminal`.
-  So is a branch that is already merged, and one that shares no history with yours.
+- **A merge that would conflict is said first.** The merge is tried out inside git's
+  object store before the box opens, and when it would stop in conflicts the box
+  says where, and what `Enter` does then:
+
+  ```
+  ╭────────────────────────────────────────────────────────────────────╮
+  │                                                                    │
+  │  Merge                                                             │
+  │                                                                    │
+  │  feature/login  into  main                                         │
+  │  would conflict in 3 files: src/auth.go, src/session.go, go.sum    │
+  │  Merge branch 'feature/login'                                      │
+  │                                                                    │
+  │  enter: merge and resolve • e: message • esc: cancel               │
+  │                                                                    │
+  ╰────────────────────────────────────────────────────────────────────╯
+  ```
+
+  `Enter` starts the merge and lets it stop in its conflicts, and the commit view
+  opens on them as the conflict view (see [Conflicts](#conflicts)), to resolve each
+  file there and commit with `c`. `A` there aborts at any point, and since a merge
+  never starts with uncommitted changes, that puts everything back exactly as it was.
+  Quitting gitraffe meanwhile is fine: the merge stays under way, and the graph's top
+  row says so next time. A squash is not offered for such a merge.
+- **Refused before the box opens:** a branch that is already merged, and one that
+  shares no history with yours.
 - **Not with uncommitted changes**, which git would carry through the merge, and
   **only into a branch**: on a detached HEAD, or during a merge or a rebase, it is
   refused.
-- **Nothing is left half done.** If git stops after the trial said it would go
-  through (a hook, an untracked file in the way), the merge is aborted and the
-  repository is as it was. Hooks run and are never skipped.
+- **Nothing is left half done.** If git stops for anything but the conflicts the box
+  said (a hook, an untracked file in the way), the merge is aborted and the
+  repository is as it was; and a merge the box said would go through cleanly that now
+  would not is refused, to be asked about again. Hooks run and are never skipped.
 
 #### Squashing
 
@@ -1185,7 +1209,8 @@ Squash branch 'feature/login'
 like any others: `c` finds the message as you left it, and discarding (`d`/`D`)
 never reaches staged changes.
 
-A squash is refused just as a merge is: only when it goes through cleanly, with no
+A squash is refused where a merge is, and also when it would conflict, since it would
+stop with no merge under way to abort: only when it goes through cleanly, with no
 uncommitted changes, and into a branch.
 
 - **The branch still looks unmerged afterwards.** That is what a squash is: the new
@@ -1199,7 +1224,7 @@ uncommitted changes, and into a branch.
   [Deleting branches](#deleting-branches).
 
 It is `git merge --ff` or `git merge --no-ff` with the message, after `git merge-tree`
-has said it goes through cleanly, and with config that could turn it into a squash or
+has said whether it goes through cleanly, and with config that could turn it into a squash or
 an autostash overruled on the command line.
 
 ### Deleting branches

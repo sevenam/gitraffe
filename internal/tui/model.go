@@ -82,7 +82,10 @@ type model struct {
 	// squashed is the message for the changes a squash has just staged,
 	// until the reload opens the commit box on them; see applySquashed.
 	squashed *string
-	discard  discardPrompt // the question "d" and "D" ask first; see discard.go
+	// mergeStopped says a merge has just stopped in conflicts, until the
+	// reload opens the conflict view on them; see applyMergeStopped.
+	mergeStopped bool
+	discard      discardPrompt // the question "d" and "D" ask first; see discard.go
 	// The merge or cherry-pick under way, as last read with the uncommitted
 	// changes; its Operation is "" when there is none. See conflicts.go.
 	conflict   git.ConflictState
