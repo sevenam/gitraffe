@@ -43,6 +43,9 @@ func (m model) reloadRepo() (model, tea.Cmd) {
 	// countHistory asks again only if the repository turns out to have changed.
 	next.historyCount, next.historyCountAsked = m.historyCount, m.historyCountAsked
 	next.filter = m.filter
+	// The conflict blocks resolved stay undoable; they say which
+	// repository they were resolved in, for a switch.
+	next.blockUndo = m.blockUndo
 	if m.selected >= 0 && m.selected < len(m.commits) {
 		next.reselect = m.commits[m.selected].FullHash
 	}

@@ -159,10 +159,8 @@ func TestConflictRegions(t *testing.T) {
 		"theirs",
 		">>>>>>> feature",
 		"after",
-		"<<<<<<<<< HEAD", // a longer marker: only its own length closes it
+		"<<<<<<<<< HEAD", // longer than the file's markers: text
 		"=======",
-		"=========",
-		"still theirs",
 		">>>>>>>>> x",
 	}
 	want := []conflictLine{
@@ -171,10 +169,9 @@ func TestConflictRegions(t *testing.T) {
 		{regionBase, true}, {regionBase, false},
 		{regionTheirs, true}, {regionTheirs, false}, {regionTheirs, true},
 		{regionOutside, false},
-		{regionOurs, true}, {regionOurs, false},
-		{regionTheirs, true}, {regionTheirs, false}, {regionTheirs, true},
+		{regionOutside, false}, {regionOutside, false}, {regionOutside, false},
 	}
-	got := conflictRegions(lines)
+	got := blockRegions(git.ConflictBlocks(lines, git.DefaultMarkerSize), len(lines))
 	for i := range want {
 		if got[i] != want[i] {
 			t.Errorf("line %d %q: %+v, want %+v", i, lines[i], got[i], want[i])

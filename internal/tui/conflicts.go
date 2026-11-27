@@ -3,7 +3,6 @@ package tui
 import (
 	"errors"
 	"fmt"
-	"regexp"
 	"strings"
 
 	tea "github.com/charmbracelet/bubbletea"
@@ -24,16 +23,20 @@ import (
 //
 // From here each file is resolved, and the merge ended. o takes the branch
 // checked out's version of a file whole, t the incoming one's, and a marks
-// it resolved as it is on disk, once edited; u puts a side taken back in
-// conflict. A aborts the merge, after asking, and c commits it once nothing
-// is left unresolved. Editing a file is a terminal's work for now;
-// auto-refresh or r shows it as it is afterwards.
+// it resolved as it is on disk, once edited (e); u puts a side taken back in
+// conflict. In the diff box the same o and t, with b and B for both, take
+// one conflict block at a time instead (see conflict_blocks.go). A aborts
+// the merge, after asking, and c commits it once nothing is left
+// unresolved.
 
 // abortPrompt is the question A asks before the merge is thrown away.
 type abortPrompt struct {
 	asking bool
 	// What is being aborted, as the conflict view's header names it.
 	op, theirs, ours string
+	// reconflict makes it u's question instead, for a file with no block
+	// choice remembered: every conflict of this path written back in.
+	reconflict string
 }
 
 type abortedMsg struct {
@@ -166,7 +169,20 @@ func (m model) conflictKey(msg tea.KeyMsg) (model, tea.Cmd, bool) {
 	case "c":
 		next, cmd := m.openContinue()
 		return next, cmd, true
-	case "o", "t", "a", "u":
+	case "o", "t", "b", "B":
+		if next, cmd, ok := m.blockKey(msg.String()); ok {
+			return next, cmd, true
+		}
+		next, cmd := m.resolveSelected(msg.String())
+		return next, cmd, true
+	case "n":
+		return m.jumpBlock(1), nil, true
+	case "N":
+		return m.jumpBlock(-1), nil, true
+	case "u":
+		next, cmd := m.undoSelected()
+		return next, cmd, true
+	case "a":
 		next, cmd := m.resolveSelected(msg.String())
 		return next, cmd, true
 	case "d", "D", "s", "S", "v":
@@ -210,13 +226,43 @@ func sideHint(f fileDiff, s git.ConflictState, side git.Side) string {
 func (m model) conflictHints() string {
 	op := m.conflict.Operation
 	if f, ok := m.selectedFile(); ok && f.Conflicted {
+		d := m.stagingDiff()
+		if k, blocks := m.cursorBlock(d); k >= 0 {
+			return m.blockHints()
+		} else if len(blocks) > 0 && m.commitView.focus == commitBoxDiff {
+			return "?: help • n / N: next / previous conflict block • e: edit • A: abort"
+		}
 		if !f.Resolved {
-			return "?: help • o: " + sideHint(f, m.conflict, git.Ours) + " • t: " + sideHint(f, m.conflict, git.Theirs) +
+			hints := "?: help • o: " + sideHint(f, m.conflict, git.Ours) + " • t: " + sideHint(f, m.conflict, git.Theirs) +
 				" • e: edit • a: mark resolved • A: abort"
+			if len(conflictBlocks(d)) > 0 {
+				hints += " • n: blocks"
+			}
+			return hints
 		}
 		return "?: help • u: back in conflict • c: commit the " + op + " • A: abort it"
 	}
 	return "?: help • space: back • c: commit the " + op + " • A: abort it • w: whitespace"
+}
+
+// undoSelected is u on the file selected: the last block choice made in it
+// undone, if one is remembered; or else the whole file put back in conflict,
+// a side taken with o or t without asking, anything else after asking.
+func (m model) undoSelected() (model, tea.Cmd) {
+	if m.staging || m.committing || m.aborting {
+		return m, nil
+	}
+	f, ok := m.selectedFile()
+	if !ok || !f.Conflicted {
+		return m.resolveSelected("u")
+	}
+	if steps := m.blockUndo.stepsFor(m.repoPath, f.Path); len(steps) > 0 {
+		return m.undoBlock(f.Path, steps[len(steps)-1])
+	}
+	if !f.Resolved && sideHas(f.Kind, git.Ours) && sideHas(f.Kind, git.Theirs) {
+		return m.askReconflict(f.Path), nil
+	}
+	return m.resolveSelected("u")
 }
 
 // resolveSelected is o, t, a and u on the file selected, from either box:
@@ -238,7 +284,7 @@ func (m model) resolveSelected(key string) (model, tea.Cmd) {
 	var done string
 	switch {
 	case key == "u" && !f.Resolved:
-		m.notice = path + " is still in conflict — u puts back a file resolved with o, t or a"
+		m.notice = path + " is still in conflict — u puts back a file resolved with o, t or a, or a block choice"
 		return m, nil
 	case key == "u":
 		change = func(dir string) (string, error) { return git.Unresolve(dir, path) }
@@ -271,6 +317,7 @@ func (m model) resolveSelected(key string) (model, tea.Cmd) {
 	return m, func() tea.Msg {
 		msg := cmd().(stageFinishedMsg)
 		msg.resolved = done
+		msg.forget = path
 		msg.resolveFailed = "Not resolved: "
 		if key == "u" {
 			msg.resolveFailed = "Not put back: "
@@ -286,6 +333,8 @@ func resolveFailedNotice(msg stageFinishedMsg) string {
 		return msg.resolveFailed + "conflict markers are left in it — edit them out, or take a side with o / t"
 	case errors.Is(msg.err, git.ErrResolvedByHand):
 		return msg.resolveFailed + "it was resolved by hand or changed since, and u would write over that — git checkout -m in a terminal does it"
+	case errors.Is(msg.err, git.ErrBlockChanged):
+		return msg.resolveFailed + "the file changed since it was read — here it is as it is now"
 	case errors.Is(msg.err, git.ErrNotResolved), errors.Is(msg.err, git.ErrNotUnmerged):
 		return msg.resolveFailed + "it changed since it was read — here it is as it is now"
 	}
@@ -317,7 +366,13 @@ func (m model) answerAbort(msg tea.KeyMsg) (model, tea.Cmd) {
 	case "enter", "y", "Y":
 	default:
 		m.notice = "Nothing aborted — the " + p.op + " is still in progress"
+		if p.reconflict != "" {
+			m.notice = "Nothing put back — " + p.reconflict + " is as it was"
+		}
 		return m, nil
+	}
+	if p.reconflict != "" {
+		return m.reconflictCmd(p.reconflict)
 	}
 	m.aborting = true
 	repoPath := m.repoPath
@@ -352,6 +407,9 @@ func (m model) finishAbort(msg abortedMsg) (model, tea.Cmd) {
 // render draws the question, made like the discard question.
 func (p abortPrompt) render(windowWidth int) string {
 	keys := [][2]string{{"enter", "abort"}, {"esc", "keep going"}}
+	if p.reconflict != "" {
+		keys = [][2]string{{"enter", "bring them back"}, {"esc", "keep the file"}}
+	}
 	key := lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color(theme.Current.SelectedFg))
 	var plain, footer []string
 	for _, k := range keys {
@@ -362,6 +420,9 @@ func (p abortPrompt) render(windowWidth int) string {
 	title := "Abort the " + p.op + "?"
 	what := verb + " " + p.theirs + " " + join + " " + p.ours + " stops."
 	note := "Everything goes back to how it was before, resolved files too."
+	if p.reconflict != "" {
+		title, what, note = reconflictLines(p.reconflict)
+	}
 	width := max(ansi.StringWidth(what), ansi.StringWidth(note), ansi.StringWidth(strings.Join(plain, " • ")))
 	// The border and the padding take six columns.
 	width = max(10, min(width, windowWidth-6))
@@ -464,42 +525,20 @@ type conflictLine struct {
 	marker bool
 }
 
-// conflictOpen is the line a conflict starts with: seven or more "<", then a
-// space or nothing. The rest of the conflict's markers are the same length,
-// which is how a line of "=" in the file itself is told from one git wrote.
-var conflictOpen = regexp.MustCompile(`^(<{7,})( |$)`)
-
-// conflictRegions reads where each line of a file is. A conflict that is
-// never closed runs to the end, as git would read it.
-func conflictRegions(lines []string) []conflictLine {
-	out := make([]conflictLine, len(lines))
-	region, size := regionOutside, 0
-	opens := func(line string, c byte) bool {
-		return len(line) >= size && strings.Count(line[:size], string(c)) == size &&
-			(len(line) == size || line[size] == ' ')
-	}
-	for i, line := range lines {
-		switch {
-		case region == regionOutside:
-			if m := conflictOpen.FindStringSubmatch(line); m != nil {
-				region, size = regionOurs, len(m[1])
-				out[i] = conflictLine{region: regionOurs, marker: true}
-				continue
+// blockRegions is where each of n lines is, from the blocks in them.
+func blockRegions(blocks []git.ConflictBlock, n int) []conflictLine {
+	out := make([]conflictLine, n)
+	for _, b := range blocks {
+		region := regionOurs
+		for i := b.Start; i <= b.End && i < n; i++ {
+			switch i {
+			case b.Base:
+				region = regionBase
+			case b.Middle:
+				region = regionTheirs
 			}
-		case region == regionOurs && opens(line, '|'):
-			region = regionBase
-			out[i] = conflictLine{region: regionBase, marker: true}
-			continue
-		case (region == regionOurs || region == regionBase) && line == strings.Repeat("=", size):
-			region = regionTheirs
-			out[i] = conflictLine{region: regionTheirs, marker: true}
-			continue
-		case region == regionTheirs && opens(line, '>'):
-			out[i] = conflictLine{region: regionTheirs, marker: true}
-			region = regionOutside
-			continue
+			out[i] = conflictLine{region: region, marker: i == b.Start || i == b.Base || i == b.Middle || i == b.End}
 		}
-		out[i] = conflictLine{region: region}
 	}
 	return out
 }
@@ -524,11 +563,8 @@ func conflictColour(r conflictRegion) string {
 // in their region's colour, the markers in bold, and the line under the
 // cursor as a band.
 func (m model) renderConflictFile(sb *strings.Builder, d stagingDiff, width int) {
-	texts := make([]string, len(d.lines))
-	for i, l := range d.lines {
-		texts[i] = l.text
-	}
-	regions := conflictRegions(texts)
+	texts := d.texts()
+	regions := blockRegions(conflictBlocks(d), len(texts))
 	gutter := newDiffGutter(d.numbers(), false)
 	for i, text := range texts {
 		r := regions[i]

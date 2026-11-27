@@ -636,9 +636,16 @@ func conflictFiles(top string) ([]FileDiff, ConflictState) {
 	}
 	unmerged := map[string]bool{}
 	var files []FileDiff
+	var paths []string
+	for _, c := range state.Files {
+		paths = append(paths, c.Path)
+	}
+	sizes := MarkerSizes(top, paths...)
 	for _, c := range state.Files {
 		unmerged[c.Path] = true
-		files = append(files, conflictedFile(top, c))
+		f := conflictedFile(top, c)
+		f.MarkerSize = sizes[c.Path]
+		files = append(files, f)
 	}
 	theirs := "MERGE_HEAD"
 	if state.Operation == "cherry-pick" {
